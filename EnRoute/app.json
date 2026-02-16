@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "GeoPFT",
-    "slug": "GeoPFT",
+    "name": "EnRoute",
+    "slug": "EnRoute",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "geopft",
+    "scheme": "enroute",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
