@@ -8,77 +8,46 @@ import { ThemedView } from '@/components/themed-view';
 import { Link } from 'expo-router';
 import "../../global.css"
 
+
+import { OrbitControls } from "@react-three/drei/native";
+import { Canvas } from "@react-three/fiber/native";
+import { Suspense } from "react";
+import { View } from "react-native";
+
+import { useGLTF } from "@react-three/drei/native";
+import { Asset } from "expo-asset";
+
+function Model() {
+  const asset = Asset.fromModule(require("../../assets/models/1stFloorModel.glb"));
+  const { scene } = useGLTF(asset.uri);
+  return <primitive object={scene} scale={0.1} />;
+}
+
 export default function HomeScreen() {
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <Text className="text-xl font-bold text-blue-500">
-        Welcome to Nativewind!
-      </Text>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+   <View style={{ flex: 1 }}>
+      <Canvas
+        style={{ flex: 1 }}
+        camera={{ position: [0, 1.5, 4], fov: 50 }}
+      >
+        <ambientLight intensity={1.2} />
+        <directionalLight position={[3, 5, 2]} intensity={1} />
+        <directionalLight position={[-3, 5, -2]} intensity={1} />
+        <directionalLight position={[-5, 7, 0]} intensity={0.8} />
+        <directionalLight position={[5, 3, 0]} intensity={0.8} />
+        <directionalLight position={[0, -5, 2]} intensity={0.8} />
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+        <Suspense fallback={null}>
+          <Model />
+        </Suspense>
+        <OrbitControls
+          makeDefault
+          enableDamping
+          dampingFactor={0.1}
+          rotateSpeed={0.8}
+        />
+      </Canvas>
+    </View>
   );
 }
 

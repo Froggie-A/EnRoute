@@ -17,6 +17,7 @@
     "@react-navigation/native": "^7.1.8",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
+    "babel-present-expo": "~54.0.10",
     "babel-preset-expo": "^55.0.8",
     "expo": "~54.0.33",
     "expo-constants": "~18.0.13",
