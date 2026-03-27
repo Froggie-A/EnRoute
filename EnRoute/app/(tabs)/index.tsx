@@ -1,7 +1,7 @@
 import { useGLTF } from "@react-three/drei/native";
 import { Canvas, useThree, useFrame } from "@react-three/fiber/native";
 import { Asset } from "expo-asset";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { ActivityIndicator, PanResponder, View } from "react-native";
 import { FloorSwitcher } from "@/components/floorSwitcher";
 import * as THREE from "three";
@@ -20,111 +20,119 @@ type GestureState = {
   deltaPan: { x: number; y: number };
 };
 
-function GLTFModel({ uri }: { uri: string }) {
-  const { scene } = useGLTF(uri);
-  return (
-    <primitive
-      object={scene}
-      scale={0.1}
-      position={[0, 0, 0]}
-      rotation={[0, 0, 0]}
-    />
-  );
-}
+const FLOOR_CONFIG: Record<FloorNumber, { switchRadius: number; snapRadius: number; zoomInRadius: number }> = {
+  1: { switchRadius: 20,  snapRadius: 10, zoomInRadius: 5 },
+  2: { switchRadius: 120, snapRadius: 10, zoomInRadius: 5 },
+  3: { switchRadius: 45,  snapRadius: 10, zoomInRadius: 5 },
+};
 
-function Model({ floor }: { floor: FloorNumber }) {
-  const assetModule = useMemo(() => FLOOR_MODELS[floor], [floor]);
-  const [uri, setUri] = useState<string | null>(null);
+function FloorModel({ source }: { source: number }) {
+  const asset = Asset.fromModule(source);
+  const { scene } = useGLTF(asset.uri);
+
+  const clonedScene = useMemo(() => {
+    const clone = scene.clone(true);
+    const box = new THREE.Box3().setFromObject(clone);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    clone.position.sub(center);
+    return clone;
+  }, [scene]);
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function prepare() {
-      try {
-        const asset = Asset.fromModule(assetModule);
-        await asset.downloadAsync();
-        if (!cancelled) setUri(asset.localUri ?? asset.uri ?? null);
-      } catch {
-        if (!cancelled) setUri(null);
+    clonedScene.traverse((child: any) => {
+      if (child.isMesh && child.material) {
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        materials.forEach((mat: any) => {
+          mat.transparent = false;
+          mat.opacity = 1;
+          mat.depthWrite = true;
+          mat.needsUpdate = true;
+        });
       }
-    }
+    });
+  }, [clonedScene]);
 
-    setUri(null);
-    prepare();
+  return <primitive object={clonedScene} />;
+}
 
-    return () => {
-      cancelled = true;
-    };
-  }, [assetModule, floor]);
-
-  if (!uri) return null;
-  return <GLTFModel key={uri} uri={uri} />;
+function Building({ activeFloor }: { activeFloor: FloorNumber }) {
+  return (
+    <group scale={[0.1, 0.1, 0.1]}>
+      <FloorModel source={FLOOR_MODELS[activeFloor]} />
+    </group>
+  );
 }
 
 function CameraController({
   gestureRef,
+  onRadiusChange,
+  lerpRadiusRef,
+  maxRadius,
 }: {
   gestureRef: React.MutableRefObject<GestureState>;
+  onRadiusChange: (radius: number) => void;
+  lerpRadiusRef: React.MutableRefObject<number | null>;
+  maxRadius: number;
 }) {
   const { camera } = useThree();
 
-  const spherical = useRef(
-    new THREE.Spherical().setFromVector3(new THREE.Vector3(0, 10, 4.5))
-  );
-  const target = useRef(new THREE.Vector3(0, 0, 0));
+  const spherical = useRef(new THREE.Spherical(FLOOR_CONFIG[1].snapRadius, Math.PI / 4, 0));
+  const target = useRef(new THREE.Vector3());
+  const maxRadiusRef = useRef(maxRadius);
 
-  useFrame(() => {
-    const g = gestureRef.current;
+  useEffect(() => {
+    maxRadiusRef.current = maxRadius;
+  }, [maxRadius]);
 
-    const panSpeed = 0.01;
-
-const offset = new THREE.Vector3().setFromSpherical(spherical.current);
-const right = new THREE.Vector3()
-  .crossVectors(offset, new THREE.Vector3(0, 1, 0))
-  .normalize();
-
-const forward = new THREE.Vector3()
-  .crossVectors(right, new THREE.Vector3(0, 1, 0))
-  .normalize();
-
-target.current.addScaledVector(right, -g.deltaPan.x * panSpeed);
-target.current.addScaledVector(forward, g.deltaPan.y * panSpeed);
-
-    spherical.current.theta -= g.deltaRotate.x * 0.0035;
-    spherical.current.phi -= g.deltaRotate.y * 0.0035;
-
-    spherical.current.phi = Math.max(
-      0.15,
-      Math.min(Math.PI - 0.15, spherical.current.phi)
-    );
-
-    
-    if (g.deltaZoom !== 0) {
-      spherical.current.radius *= 1 - g.deltaZoom * 0.006;
-      spherical.current.radius = Math.max(2.5, Math.min(25, spherical.current.radius));
+  useFrame((_, delta) => {
+    if (lerpRadiusRef.current !== null) {
+      spherical.current.radius = THREE.MathUtils.lerp(
+        spherical.current.radius,
+        lerpRadiusRef.current,
+        1 - Math.pow(0.01, delta)
+      );
+      gestureRef.current.deltaZoom = 0;
+      if (Math.abs(spherical.current.radius - lerpRadiusRef.current) < 0.05) {
+        lerpRadiusRef.current = null;
+      }
     }
 
-    const position = new THREE.Vector3()
-      .setFromSpherical(spherical.current)
-      .add(target.current);
+    const g = gestureRef.current;
 
-    camera.position.copy(position);
+    const offset = new THREE.Vector3().setFromSpherical(spherical.current);
+    const right = new THREE.Vector3().crossVectors(offset, new THREE.Vector3(0, 1, 0)).normalize();
+    const forward = new THREE.Vector3().crossVectors(right, new THREE.Vector3(0, 1, 0)).normalize();
+
+    target.current.addScaledVector(right, -g.deltaPan.x * 0.01);
+    target.current.addScaledVector(forward, g.deltaPan.y * 0.01);
+
+    spherical.current.theta -= g.deltaRotate.x * 0.0035;
+    spherical.current.phi = Math.max(0.2, Math.min(Math.PI - 0.2, spherical.current.phi - g.deltaRotate.y * 0.0035));
+
+    if (g.deltaZoom !== 0 && lerpRadiusRef.current === null) {
+      spherical.current.radius = Math.max(
+        0.1,
+        Math.min(maxRadiusRef.current * 1.2, spherical.current.radius * (1 - g.deltaZoom * 0.0045))
+      );
+    }
+
+    onRadiusChange(spherical.current.radius);
+
+    camera.position.copy(new THREE.Vector3().setFromSpherical(spherical.current).add(target.current));
     camera.lookAt(target.current);
 
-    
     g.deltaRotate.x *= 0.85;
     g.deltaRotate.y *= 0.85;
     g.deltaZoom *= 0.8;
     g.deltaPan.x *= 0.85;
     g.deltaPan.y *= 0.85;
-    
 
     if (Math.abs(g.deltaRotate.x) < 0.001) g.deltaRotate.x = 0;
     if (Math.abs(g.deltaRotate.y) < 0.001) g.deltaRotate.y = 0;
     if (Math.abs(g.deltaZoom) < 0.001) g.deltaZoom = 0;
-
     if (Math.abs(g.deltaPan.x) < 0.001) g.deltaPan.x = 0;
-if (Math.abs(g.deltaPan.y) < 0.001) g.deltaPan.y = 0;
+    if (Math.abs(g.deltaPan.y) < 0.001) g.deltaPan.y = 0;
   });
 
   return null;
@@ -132,110 +140,112 @@ if (Math.abs(g.deltaPan.y) < 0.001) g.deltaPan.y = 0;
 
 export default function HomeScreen() {
   const [activeFloor, setActiveFloor] = useState<FloorNumber>(1);
+  const [cameraRadius, setCameraRadius] = useState(FLOOR_CONFIG[1].snapRadius);
   const [isReady, setIsReady] = useState(false);
 
+  const lerpRadiusRef = useRef<number | null>(null);
+  const activeFloorRef = useRef<FloorNumber>(1);
   const gestureRef = useRef<GestureState>({
-  deltaRotate: { x: 0, y: 0 },
-  deltaZoom: 0,
-  deltaPan: { x: 0, y: 0 },
-});
-
+    deltaRotate: { x: 0, y: 0 },
+    deltaZoom: 0,
+    deltaPan: { x: 0, y: 0 },
+  });
   const prevTouches = useRef<{ x: number; y: number }[]>([]);
 
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
+  useEffect(() => {
+    activeFloorRef.current = activeFloor;
+  }, [activeFloor]);
 
-        onPanResponderGrant: (e) => {
-          prevTouches.current = e.nativeEvent.touches.map((t) => ({
-            x: t.pageX,
-            y: t.pageY,
-          }));
-        },
+  const handleRadiusChange = useCallback((radius: number) => {
+    setCameraRadius(radius);
 
-        onPanResponderMove: (e) => {
-          const touches = e.nativeEvent.touches;
+    if (lerpRadiusRef.current !== null) return;
 
-          if (touches.length === 1) {
-            const prev = prevTouches.current[0];
-            if (prev) {
-              gestureRef.current.deltaRotate.x += touches[0].pageX - prev.x;
-              gestureRef.current.deltaRotate.y += touches[0].pageY - prev.y;
-            }
+    const current = activeFloorRef.current;
+    const { switchRadius, snapRadius, zoomInRadius } = FLOOR_CONFIG[current];
+    const nextFloor = (current < 3 ? current + 1 : current) as FloorNumber;
+    const prevFloor = (current > 1 ? current - 1 : current) as FloorNumber;
 
-            prevTouches.current = [
-              { x: touches[0].pageX, y: touches[0].pageY },
-            ];
-          } else if (touches.length === 2) {
-  const t0 = touches[0];
-  const t1 = touches[1];
-
-  const currDist = Math.hypot(t1.pageX - t0.pageX, t1.pageY - t0.pageY);
-  const currMidX = (t0.pageX + t1.pageX) / 2;
-  const currMidY = (t0.pageY + t1.pageY) / 2;
-
-  if (prevTouches.current.length === 2) {
-    const p0 = prevTouches.current[0];
-    const p1 = prevTouches.current[1];
-
-    const prevDist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-    const prevMidX = (p0.x + p1.x) / 2;
-    const prevMidY = (p0.y + p1.y) / 2;
-
-    const distDelta = currDist - prevDist;
-    const midDeltaX = currMidX - prevMidX;
-    const midDeltaY = currMidY - prevMidY;
-
-    
-    gestureRef.current.deltaZoom += distDelta * 0.15;
-
-    
-    if (Math.abs(midDeltaX) > 0.5 || Math.abs(midDeltaY) > 0.5) {
-      
-      const pinchAmount = Math.abs(distDelta);
-      const panFactor = pinchAmount > 8 ? 0.08 : 0.25;
-
-      gestureRef.current.deltaPan.x += midDeltaX * panFactor;
-      gestureRef.current.deltaPan.y += midDeltaY * panFactor;
+    if (radius >= switchRadius && nextFloor !== current) {
+      activeFloorRef.current = nextFloor;
+      setActiveFloor(nextFloor);
+      lerpRadiusRef.current = FLOOR_CONFIG[nextFloor].snapRadius;
+      return;
     }
-  }
 
-  prevTouches.current = [
-    { x: t0.pageX, y: t0.pageY },
-    { x: t1.pageX, y: t1.pageY },
-  ];
-}
-        },
+    if (radius < snapRadius * 0.2 && prevFloor !== current) {
+      activeFloorRef.current = prevFloor;
+      setActiveFloor(prevFloor);
+      lerpRadiusRef.current = zoomInRadius;
+    }
+  }, []);
 
-        onPanResponderRelease: () => {
-          prevTouches.current = [];
-        },
+  const panResponder = useMemo(() =>
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
 
-        onPanResponderTerminate: () => {
-          prevTouches.current = [];
-        },
-      }),
-    []
-  );
+      onPanResponderGrant: (e) => {
+        prevTouches.current = e.nativeEvent.touches.map((t) => ({ x: t.pageX, y: t.pageY }));
+      },
+
+      onPanResponderMove: (e) => {
+        const touches = e.nativeEvent.touches;
+
+        if (touches.length === 1) {
+          const prev = prevTouches.current[0];
+          if (prev) {
+            gestureRef.current.deltaRotate.x += touches[0].pageX - prev.x;
+            gestureRef.current.deltaRotate.y += touches[0].pageY - prev.y;
+          }
+          prevTouches.current = [{ x: touches[0].pageX, y: touches[0].pageY }];
+        } else if (touches.length === 2) {
+          const [t0, t1] = [touches[0], touches[1]];
+          const currDist = Math.hypot(t1.pageX - t0.pageX, t1.pageY - t0.pageY);
+          const currMid = { x: (t0.pageX + t1.pageX) / 2, y: (t0.pageY + t1.pageY) / 2 };
+
+          if (prevTouches.current.length === 2) {
+            const [p0, p1] = prevTouches.current;
+            const prevDist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+            const prevMid = { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 };
+            const distDelta = currDist - prevDist;
+            const midDelta = { x: currMid.x - prevMid.x, y: currMid.y - prevMid.y };
+
+            gestureRef.current.deltaZoom += distDelta * 0.15;
+
+            if (Math.abs(midDelta.x) > 0.5 || Math.abs(midDelta.y) > 0.5) {
+              const panFactor = Math.abs(distDelta) > 8 ? 0.08 : 0.25;
+              gestureRef.current.deltaPan.x += midDelta.x * panFactor;
+              gestureRef.current.deltaPan.y += midDelta.y * panFactor;
+            }
+          }
+
+          prevTouches.current = [
+            { x: t0.pageX, y: t0.pageY },
+            { x: t1.pageX, y: t1.pageY },
+          ];
+        }
+      },
+
+      onPanResponderRelease: () => { prevTouches.current = []; },
+      onPanResponderTerminate: () => { prevTouches.current = []; },
+    }), []);
 
   useEffect(() => {
     async function preloadAll() {
       try {
         await Promise.all(
-          Object.values(FLOOR_MODELS).map(async (moduleRef) => {
-            const asset = Asset.fromModule(moduleRef);
+          Object.values(FLOOR_MODELS).map(async (mod) => {
+            const asset = Asset.fromModule(mod);
             await asset.downloadAsync();
           })
         );
-      } catch (error) {
-        console.log("Error preloading floor models:", error);
+      } catch (e) {
+        console.log("Error preloading floor models:", e);
       } finally {
         setIsReady(true);
       }
     }
-
     preloadAll();
   }, []);
 
@@ -250,25 +260,25 @@ export default function HomeScreen() {
   return (
     <View style={{ flex: 1 }} {...panResponder.panHandlers}>
       <Canvas
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-        }}
-        camera={{ position: [0, 10, 4.5], fov: 45 }}
+        style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+        camera={{ position: [0, 0, 0], fov: 45 }}
       >
         <ambientLight intensity={1.1} />
         <directionalLight position={[3, 5, 2]} intensity={1} />
         <directionalLight position={[-3, 5, -2]} intensity={0.9} />
         <directionalLight position={[0, 4, 4]} intensity={0.7} />
+        <directionalLight position={[0, -5, 0]} intensity={0.7} />
 
         <Suspense fallback={null}>
-          <Model key={activeFloor} floor={activeFloor} />
+          <Building activeFloor={activeFloor} />
         </Suspense>
 
-        <CameraController gestureRef={gestureRef} />
+        <CameraController
+          gestureRef={gestureRef}
+          onRadiusChange={handleRadiusChange}
+          lerpRadiusRef={lerpRadiusRef}
+          maxRadius={FLOOR_CONFIG[activeFloor].switchRadius}
+        />
       </Canvas>
 
       <FloorSwitcher
