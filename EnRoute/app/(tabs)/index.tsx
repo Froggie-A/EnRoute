@@ -1,32 +1,12 @@
-import { useGLTF } from "@react-three/drei/native";
-import { Canvas, useThree, useFrame } from "@react-three/fiber/native";
-import { Asset } from "expo-asset";
-import { Suspense, useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { ActivityIndicator, PanResponder, View } from "react-native";
-import { FloorSwitcher } from "@/components/floorSwitcher";
-import * as THREE from "three";
-
-const FLOOR_MODELS = {
-  1: require("../../assets/models/1stFloorModel.glb"),
-  2: require("../../assets/models/2ndFloorModel.glb"),
-  3: require("../../assets/models/3rdFloorModel.glb"),
-} as const;
-
-type FloorNumber = keyof typeof FLOOR_MODELS;
-
-type GestureState = {
-  deltaRotate: { x: number; y: number };
-  deltaZoom: number;
-  deltaPan: { x: number; y: number };
-};
-
-const FLOOR_CONFIG: Record<FloorNumber, { switchRadius: number; snapRadius: number; zoomInRadius: number }> = {
-  1: { switchRadius: 20,  snapRadius: 10, zoomInRadius: 5 },
-  2: { switchRadius: 120, snapRadius: 10, zoomInRadius: 5 },
-  3: { switchRadius: 45,  snapRadius: 10, zoomInRadius: 5 },
-};
 import "../../global.css";
-import React, { Suspense, useEffect, useState } from "react";
+import React, {
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
 import {
   StyleSheet,
   View,
@@ -35,15 +15,42 @@ import {
   Pressable,
   PanResponder,
   Animated,
+  ActivityIndicator,
 } from "react-native";
-import { Canvas } from "@react-three/fiber/native";
-import { OrbitControls, useGLTF } from "@react-three/drei/native";
+import { Canvas, useThree, useFrame } from "@react-three/fiber/native";
+import { useGLTF } from "@react-three/drei/native";
 import { Asset } from "expo-asset";
 import * as Location from "expo-location";
+import * as THREE from "three";
 
+import { FloorSwitcher } from "@/components/floorSwitcher";
 import SearchBarRow from "@/components/SearchBarRow";
 import NearbyChips from "@/components/NearbyChips";
 import EventCard from "@/components/EventCard";
+
+const FLOOR_MODELS = {
+  1: require("../../assets/models/1stFloorModel.glb"),
+  2: require("../../assets/models/2ndFloorModel.glb"),
+  3: require("../../assets/models/3rdFloorModel.glb"),
+} as const;
+
+type FloorNumber = keyof typeof FLOOR_MODELS;
+type Pin = { x: number; y: number };
+
+type GestureState = {
+  deltaRotate: { x: number; y: number };
+  deltaZoom: number;
+  deltaPan: { x: number; y: number };
+};
+
+const FLOOR_CONFIG: Record<
+  FloorNumber,
+  { switchRadius: number; snapRadius: number; zoomInRadius: number }
+> = {
+  1: { switchRadius: 20, snapRadius: 10, zoomInRadius: 5 },
+  2: { switchRadius: 120, snapRadius: 10, zoomInRadius: 5 },
+  3: { switchRadius: 45, snapRadius: 10, zoomInRadius: 5 },
+};
 
 function FloorModel({ source }: { source: number }) {
   const asset = Asset.fromModule(source);
@@ -61,7 +68,10 @@ function FloorModel({ source }: { source: number }) {
   useEffect(() => {
     clonedScene.traverse((child: any) => {
       if (child.isMesh && child.material) {
-        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        const materials = Array.isArray(child.material)
+          ? child.material
+          : [child.material];
+
         materials.forEach((mat: any) => {
           mat.transparent = false;
           mat.opacity = 1;
@@ -96,7 +106,9 @@ function CameraController({
 }) {
   const { camera } = useThree();
 
-  const spherical = useRef(new THREE.Spherical(FLOOR_CONFIG[1].snapRadius, Math.PI / 4, 0));
+  const spherical = useRef(
+    new THREE.Spherical(FLOOR_CONFIG[1].snapRadius, Math.PI / 4, 0)
+  );
   const target = useRef(new THREE.Vector3());
   const maxRadiusRef = useRef(maxRadius);
 
@@ -111,7 +123,9 @@ function CameraController({
         lerpRadiusRef.current,
         1 - Math.pow(0.01, delta)
       );
+
       gestureRef.current.deltaZoom = 0;
+
       if (Math.abs(spherical.current.radius - lerpRadiusRef.current) < 0.05) {
         lerpRadiusRef.current = null;
       }
@@ -120,25 +134,37 @@ function CameraController({
     const g = gestureRef.current;
 
     const offset = new THREE.Vector3().setFromSpherical(spherical.current);
-    const right = new THREE.Vector3().crossVectors(offset, new THREE.Vector3(0, 1, 0)).normalize();
-    const forward = new THREE.Vector3().crossVectors(right, new THREE.Vector3(0, 1, 0)).normalize();
+    const right = new THREE.Vector3()
+      .crossVectors(offset, new THREE.Vector3(0, 1, 0))
+      .normalize();
+    const forward = new THREE.Vector3()
+      .crossVectors(right, new THREE.Vector3(0, 1, 0))
+      .normalize();
 
     target.current.addScaledVector(right, -g.deltaPan.x * 0.01);
     target.current.addScaledVector(forward, g.deltaPan.y * 0.01);
 
     spherical.current.theta -= g.deltaRotate.x * 0.0035;
-    spherical.current.phi = Math.max(0.2, Math.min(Math.PI - 0.2, spherical.current.phi - g.deltaRotate.y * 0.0035));
+    spherical.current.phi = Math.max(
+      0.2,
+      Math.min(Math.PI - 0.2, spherical.current.phi - g.deltaRotate.y * 0.0035)
+    );
 
     if (g.deltaZoom !== 0 && lerpRadiusRef.current === null) {
       spherical.current.radius = Math.max(
         0.1,
-        Math.min(maxRadiusRef.current * 1.2, spherical.current.radius * (1 - g.deltaZoom * 0.0045))
+        Math.min(
+          maxRadiusRef.current * 1.2,
+          spherical.current.radius * (1 - g.deltaZoom * 0.0045)
+        )
       );
     }
 
     onRadiusChange(spherical.current.radius);
 
-    camera.position.copy(new THREE.Vector3().setFromSpherical(spherical.current).add(target.current));
+    camera.position.copy(
+      new THREE.Vector3().setFromSpherical(spherical.current).add(target.current)
+    );
     camera.lookAt(target.current);
 
     g.deltaRotate.x *= 0.85;
@@ -162,6 +188,22 @@ export default function HomeScreen() {
   const [cameraRadius, setCameraRadius] = useState(FLOOR_CONFIG[1].snapRadius);
   const [isReady, setIsReady] = useState(false);
 
+  const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [mapSize, setMapSize] = useState({ width: 1, height: 1 });
+  const [search, setSearch] = useState("");
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const [pins, setPins] = useState<Pin[]>([]);
+  const [pinMode, setPinMode] = useState(false);
+  const [draggingPin, setDraggingPin] = useState<Pin | null>(null);
+
+  const bounds = {
+    minLat: 30.123,
+    maxLat: 30.124,
+    minLon: -91.123,
+    maxLon: -91.122,
+  };
+
   const lerpRadiusRef = useRef<number | null>(null);
   const activeFloorRef = useRef<FloorNumber>(1);
   const gestureRef = useRef<GestureState>({
@@ -174,6 +216,12 @@ export default function HomeScreen() {
   useEffect(() => {
     activeFloorRef.current = activeFloor;
   }, [activeFloor]);
+
+  const normalizeLocation = (lat: number, lon: number) => {
+    const x = (lon - bounds.minLon) / (bounds.maxLon - bounds.minLon);
+    const y = (lat - bounds.minLat) / (bounds.maxLat - bounds.minLat);
+    return { x, y };
+  };
 
   const handleRadiusChange = useCallback((radius: number) => {
     setCameraRadius(radius);
@@ -199,142 +247,121 @@ export default function HomeScreen() {
     }
   }, []);
 
-  const panResponder = useMemo(() =>
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
+  const cameraPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => !pinMode,
+        onMoveShouldSetPanResponder: () => !pinMode,
 
-      onPanResponderGrant: (e) => {
-        prevTouches.current = e.nativeEvent.touches.map((t) => ({ x: t.pageX, y: t.pageY }));
-      },
+        onPanResponderGrant: (e) => {
+          prevTouches.current = e.nativeEvent.touches.map((t) => ({
+            x: t.pageX,
+            y: t.pageY,
+          }));
+        },
 
-      onPanResponderMove: (e) => {
-        const touches = e.nativeEvent.touches;
+        onPanResponderMove: (e) => {
+          if (pinMode) return;
 
-        if (touches.length === 1) {
-          const prev = prevTouches.current[0];
-          if (prev) {
-            gestureRef.current.deltaRotate.x += touches[0].pageX - prev.x;
-            gestureRef.current.deltaRotate.y += touches[0].pageY - prev.y;
-          }
-          prevTouches.current = [{ x: touches[0].pageX, y: touches[0].pageY }];
-        } else if (touches.length === 2) {
-          const [t0, t1] = [touches[0], touches[1]];
-          const currDist = Math.hypot(t1.pageX - t0.pageX, t1.pageY - t0.pageY);
-          const currMid = { x: (t0.pageX + t1.pageX) / 2, y: (t0.pageY + t1.pageY) / 2 };
+          const touches = e.nativeEvent.touches;
 
-          if (prevTouches.current.length === 2) {
-            const [p0, p1] = prevTouches.current;
-            const prevDist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-            const prevMid = { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 };
-            const distDelta = currDist - prevDist;
-            const midDelta = { x: currMid.x - prevMid.x, y: currMid.y - prevMid.y };
-
-            gestureRef.current.deltaZoom += distDelta * 0.15;
-
-            if (Math.abs(midDelta.x) > 0.5 || Math.abs(midDelta.y) > 0.5) {
-              const panFactor = Math.abs(distDelta) > 8 ? 0.08 : 0.25;
-              gestureRef.current.deltaPan.x += midDelta.x * panFactor;
-              gestureRef.current.deltaPan.y += midDelta.y * panFactor;
+          if (touches.length === 1) {
+            const prev = prevTouches.current[0];
+            if (prev) {
+              gestureRef.current.deltaRotate.x += touches[0].pageX - prev.x;
+              gestureRef.current.deltaRotate.y += touches[0].pageY - prev.y;
             }
+
+            prevTouches.current = [
+              { x: touches[0].pageX, y: touches[0].pageY },
+            ];
+          } else if (touches.length === 2) {
+            const [t0, t1] = [touches[0], touches[1]];
+            const currDist = Math.hypot(t1.pageX - t0.pageX, t1.pageY - t0.pageY);
+            const currMid = {
+              x: (t0.pageX + t1.pageX) / 2,
+              y: (t0.pageY + t1.pageY) / 2,
+            };
+
+            if (prevTouches.current.length === 2) {
+              const [p0, p1] = prevTouches.current;
+              const prevDist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+              const prevMid = {
+                x: (p0.x + p1.x) / 2,
+                y: (p0.y + p1.y) / 2,
+              };
+              const distDelta = currDist - prevDist;
+              const midDelta = {
+                x: currMid.x - prevMid.x,
+                y: currMid.y - prevMid.y,
+              };
+
+              gestureRef.current.deltaZoom += distDelta * 0.15;
+
+              if (Math.abs(midDelta.x) > 0.5 || Math.abs(midDelta.y) > 0.5) {
+                const panFactor = Math.abs(distDelta) > 8 ? 0.08 : 0.25;
+                gestureRef.current.deltaPan.x += midDelta.x * panFactor;
+                gestureRef.current.deltaPan.y += midDelta.y * panFactor;
+              }
+            }
+
+            prevTouches.current = [
+              { x: t0.pageX, y: t0.pageY },
+              { x: t1.pageX, y: t1.pageY },
+            ];
           }
+        },
 
-          prevTouches.current = [
-            { x: t0.pageX, y: t0.pageY },
-            { x: t1.pageX, y: t1.pageY },
-          ];
-        }
-      },
+        onPanResponderRelease: () => {
+          prevTouches.current = [];
+        },
+        onPanResponderTerminate: () => {
+          prevTouches.current = [];
+        },
+      }),
+    [pinMode]
+  );
 
-      onPanResponderRelease: () => { prevTouches.current = []; },
-      onPanResponderTerminate: () => { prevTouches.current = []; },
-    }), []);
+  const pinPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => pinMode,
+        onMoveShouldSetPanResponder: () => pinMode,
 
-  useEffect(() => {
-    async function preloadAll() {
-      try {
-        await Promise.all(
-          Object.values(FLOOR_MODELS).map(async (mod) => {
-            const asset = Asset.fromModule(mod);
-            await asset.downloadAsync();
-          })
-        );
-      } catch (e) {
-        console.log("Error preloading floor models:", e);
-      } finally {
-        setIsReady(true);
-      }
-    }
-    preloadAll();
-  }, []);
+        onPanResponderGrant: (evt) => {
+          if (!pinMode) return;
 
-  if (!isReady) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
+          const { locationX, locationY } = evt.nativeEvent;
+          setDraggingPin({
+            x: locationX / mapSize.width,
+            y: locationY / mapSize.height,
+          });
+        },
 
-  return (
-    <View style={{ flex: 1 }} {...panResponder.panHandlers}>
-      <Canvas
-        style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
-        camera={{ position: [0, 0, 0], fov: 45 }}
-      >
-        <ambientLight intensity={1.1} />
-  const [location, setLocation] = useState<Location.LocationObject | null>(null);
-  const [mapSize, setMapSize] = useState({ width: 1, height: 1 });
-  const [search, setSearch] = useState("");
-  const [isExpanded, setIsExpanded] = useState(false);
+        onPanResponderMove: (evt) => {
+          if (!pinMode) return;
 
-  const bounds = {
-    minLat: 30.123,
-    maxLat: 30.124,
-    minLon: -91.123,
-    maxLon: -91.122,
-  };
+          const { locationX, locationY } = evt.nativeEvent;
+          setDraggingPin({
+            x: locationX / mapSize.width,
+            y: locationY / mapSize.height,
+          });
+        },
 
-  type Pin = { x: number; y: number };
+        onPanResponderRelease: () => {
+          if (draggingPin) {
+            setPins((prev) => [...prev, draggingPin]);
+            setDraggingPin(null);
+            setPinMode(false);
+          }
+        },
 
-  const [pins, setPins] = useState<Pin[]>([]);
-  const [pinMode, setPinMode] = useState(false);
-  const [draggingPin, setDraggingPin] = useState<Pin | null>(null);
-
-  const normalizeLocation = (lat: number, lon: number) => {
-    const x = (lon - bounds.minLon) / (bounds.maxLon - bounds.minLon);
-    const y = (lat - bounds.minLat) / (bounds.maxLat - bounds.minLat);
-    return { x, y };
-  };
-
-  const panResponder = PanResponder.create({
-    onStartShouldSetPanResponder: () => pinMode,
-    onPanResponderGrant: (evt) => {
-      if (!pinMode) return;
-
-      const { locationX, locationY } = evt.nativeEvent;
-      const normalizedX = locationX / mapSize.width;
-      const normalizedY = locationY / mapSize.height;
-
-      setDraggingPin({ x: normalizedX, y: normalizedY });
-    },
-    onPanResponderMove: (evt) => {
-      if (!pinMode) return;
-
-      const { locationX, locationY } = evt.nativeEvent;
-      const normalizedX = locationX / mapSize.width;
-      const normalizedY = locationY / mapSize.height;
-
-      setDraggingPin({ x: normalizedX, y: normalizedY });
-    },
-    onPanResponderRelease: () => {
-      if (draggingPin) {
-        setPins((prev) => [...prev, draggingPin]);
-        setDraggingPin(null);
-        setPinMode(false);
-      }
-    },
-  });
+        onPanResponderTerminate: () => {
+          setDraggingPin(null);
+        },
+      }),
+    [pinMode, mapSize.width, mapSize.height, draggingPin]
+  );
 
   useEffect(() => {
     let subscription: Location.LocationSubscription | undefined;
@@ -360,6 +387,33 @@ export default function HomeScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    async function preloadAll() {
+      try {
+        await Promise.all(
+          Object.values(FLOOR_MODELS).map(async (mod) => {
+            const asset = Asset.fromModule(mod);
+            await asset.downloadAsync();
+          })
+        );
+      } catch (e) {
+        console.log("Error preloading floor models:", e);
+      } finally {
+        setIsReady(true);
+      }
+    }
+
+    preloadAll();
+  }, []);
+
+  if (!isReady) {
+    return (
+      <View style={styles.loaderWrap}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
   return (
     <View
       style={styles.container}
@@ -367,9 +421,12 @@ export default function HomeScreen() {
         const { width, height } = e.nativeEvent.layout;
         setMapSize({ width, height });
       }}
+      {...cameraPanResponder.panHandlers}
     >
-      {/* 3D MAP */}
-      <Canvas style={styles.canvas} camera={{ position: [0, 1.5, 4], fov: 50 }}>
+      <Canvas
+        style={styles.canvasAbsolute}
+        camera={{ position: [0, 0, 0], fov: 45 }}
+      >
         <ambientLight intensity={1.2} />
         <directionalLight position={[3, 5, 2]} intensity={1} />
         <directionalLight position={[-3, 5, -2]} intensity={0.9} />
@@ -390,25 +447,23 @@ export default function HomeScreen() {
 
       <FloorSwitcher
         activeFloor={activeFloor}
-        onFloorChange={(floor) => setActiveFloor(floor as FloorNumber)}
+        onFloorChange={(floor) => {
+          const nextFloor = floor as FloorNumber;
+          activeFloorRef.current = nextFloor;
+          setActiveFloor(nextFloor);
+          lerpRadiusRef.current = FLOOR_CONFIG[nextFloor].snapRadius;
+        }}
       />
-    </View>
-  );
-}
-        <OrbitControls
-          makeDefault
-          enableDamping
-          dampingFactor={0.1}
-          rotateSpeed={0.8}
-        />
-      </Canvas>
 
-      {/* PAN OVERLAY */}
-      <View style={styles.panOverlay} {...panResponder.panHandlers} />
+      {pinMode && (
+        <View style={styles.pinOverlay} {...pinPanResponder.panHandlers} />
+      )}
 
-      {/* PIN MODE BUTTON */}
       <Pressable
-        onPress={() => setPinMode(!pinMode)}
+        onPress={() => {
+          setPinMode((prev) => !prev);
+          setDraggingPin(null);
+        }}
         style={[
           styles.pinButton,
           { backgroundColor: pinMode ? "red" : "blue" },
@@ -419,7 +474,6 @@ export default function HomeScreen() {
         </Text>
       </Pressable>
 
-      {/* DEBUG GPS */}
       {location && (
         <Text style={styles.gpsText}>
           {location.coords.latitude.toFixed(6)},{" "}
@@ -427,7 +481,6 @@ export default function HomeScreen() {
         </Text>
       )}
 
-      {/* DRAGGING PIN */}
       {draggingPin && (
         <View
           style={[
@@ -440,7 +493,6 @@ export default function HomeScreen() {
         />
       )}
 
-      {/* PLACED PINS */}
       {pins.map((pin, index) => (
         <View
           key={index}
@@ -454,7 +506,6 @@ export default function HomeScreen() {
         />
       ))}
 
-      {/* USER LOCATION */}
       {location &&
         (() => {
           const pos = normalizeLocation(
@@ -475,7 +526,6 @@ export default function HomeScreen() {
           );
         })()}
 
-      {/* BOTTOM SHEET */}
       <Animated.View
         style={[
           styles.bottomSheet,
@@ -527,6 +577,10 @@ export default function HomeScreen() {
               type="chatbubble-outline"
               color="#E67E22"
             />
+
+            <Text style={styles.radiusText}>
+              Floor: L{activeFloor} • Radius: {cameraRadius.toFixed(1)}
+            </Text>
           </ScrollView>
         )}
       </Animated.View>
@@ -538,16 +592,25 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  canvas: {
-    flex: 1,
-  },
-  panOverlay: {
+  canvasAbsolute: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 10,
+  },
+  loaderWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pinOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 15,
   },
   bottomSheet: {
     position: "absolute",
@@ -585,6 +648,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 12,
     color: "#333",
+    marginTop: 8,
   },
   pinButton: {
     position: "absolute",
@@ -629,5 +693,11 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: "#3B82F6",
     zIndex: 20,
+  },
+  radiusText: {
+    marginTop: 16,
+    marginBottom: 30,
+    color: "#333",
+    fontWeight: "600",
   },
 });
