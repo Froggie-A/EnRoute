@@ -27,6 +27,11 @@ import { FloorSwitcher } from "@/components/floorSwitcher";
 import SearchBarRow from "@/components/SearchBarRow";
 import NearbyChips from "@/components/NearbyChips";
 import EventCard from "@/components/EventCard";
+import { Ionicons } from "@expo/vector-icons";
+import RoomHitboxes, {
+  type RoomBox,
+  getRoomAtScreenPoint,
+} from "@/components/roomHitbox";
 
 const FLOOR_MODELS = {
   1: require("../../assets/models/1stFloorModel.glb"),
@@ -42,6 +47,7 @@ type GestureState = {
   deltaZoom: number;
   deltaPan: { x: number; y: number };
 };
+
 
 const FLOOR_CONFIG: Record<
   FloorNumber,
@@ -98,11 +104,13 @@ function CameraController({
   onRadiusChange,
   lerpRadiusRef,
   maxRadius,
+  cameraRef,
 }: {
   gestureRef: React.MutableRefObject<GestureState>;
   onRadiusChange: (radius: number) => void;
   lerpRadiusRef: React.MutableRefObject<number | null>;
   maxRadius: number;
+cameraRef: React.MutableRefObject<THREE.Camera | null>;
 }) {
   const { camera } = useThree();
 
@@ -166,6 +174,7 @@ function CameraController({
       new THREE.Vector3().setFromSpherical(spherical.current).add(target.current)
     );
     camera.lookAt(target.current);
+    cameraRef.current = camera;
 
     g.deltaRotate.x *= 0.85;
     g.deltaRotate.y *= 0.85;
@@ -196,6 +205,19 @@ export default function HomeScreen() {
   const [pins, setPins] = useState<Pin[]>([]);
   const [pinMode, setPinMode] = useState(false);
   const [draggingPin, setDraggingPin] = useState<Pin | null>(null);
+  const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const touchRoomRef = useRef<string | null>(null);
+  const touchMovedRef = useRef(false);
+  
+  
+
+  const [selectedEvent, setSelectedEvent] = useState<{
+    title: string;
+    date: string;
+    location: string;
+    description: string;
+  } | null>(null);
 
   const bounds = {
     minLat: 30.123,
@@ -204,8 +226,24 @@ export default function HomeScreen() {
     maxLon: -91.122,
   };
 
+
+const showEventDetails = (event: {
+  title: string;
+  date: string;
+  location: string;
+  description: string;
+}) => {
+  setSelectedEvent(event);
+};
+
+const showEventList = () => {
+  setSelectedEvent(null);
+};
+
+
   const lerpRadiusRef = useRef<number | null>(null);
   const activeFloorRef = useRef<FloorNumber>(1);
+  const cameraRef = useRef<THREE.Camera | null>(null);
   const gestureRef = useRef<GestureState>({
     deltaRotate: { x: 0, y: 0 },
     deltaZoom: 0,
@@ -247,80 +285,125 @@ export default function HomeScreen() {
     }
   }, []);
 
-  const cameraPanResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => !pinMode,
-        onMoveShouldSetPanResponder: () => !pinMode,
+const cameraPanResponder = useMemo(
+  () =>
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => !pinMode && !isExpanded,
+      onMoveShouldSetPanResponder: () => !pinMode && !isExpanded,
 
-        onPanResponderGrant: (e) => {
-          prevTouches.current = e.nativeEvent.touches.map((t) => ({
-            x: t.pageX,
-            y: t.pageY,
-          }));
-        },
+      onPanResponderGrant: (e) => {
+        const { pageX, pageY } = e.nativeEvent;
 
-        onPanResponderMove: (e) => {
-          if (pinMode) return;
+        touchStartRef.current = { x: pageX, y: pageY };
+        touchMovedRef.current = false;
 
-          const touches = e.nativeEvent.touches;
+        prevTouches.current = e.nativeEvent.touches.map((t) => ({
+          x: t.pageX,
+          y: t.pageY,
+        }));
 
-          if (touches.length === 1) {
-            const prev = prevTouches.current[0];
-            if (prev) {
-              gestureRef.current.deltaRotate.x += touches[0].pageX - prev.x;
-              gestureRef.current.deltaRotate.y += touches[0].pageY - prev.y;
-            }
+        const cam = cameraRef.current;
+        if (cam) {
+          const hitRoom = getRoomAtScreenPoint(
+            pageX,
+            pageY,
+            activeFloorRef.current,
+            cam,
+            mapSize.width,
+            mapSize.height
+          );
 
-            prevTouches.current = [
-              { x: touches[0].pageX, y: touches[0].pageY },
-            ];
-          } else if (touches.length === 2) {
-            const [t0, t1] = [touches[0], touches[1]];
-            const currDist = Math.hypot(t1.pageX - t0.pageX, t1.pageY - t0.pageY);
-            const currMid = {
-              x: (t0.pageX + t1.pageX) / 2,
-              y: (t0.pageY + t1.pageY) / 2,
+          touchRoomRef.current = hitRoom?.id ?? null;
+        } else {
+          touchRoomRef.current = null;
+        }
+      },
+
+      onPanResponderMove: (e) => {
+        if (pinMode || isExpanded) return;
+
+        const touches = e.nativeEvent.touches;
+
+        if (touchStartRef.current && touches.length > 0) {
+          const dx0 = touches[0].pageX - touchStartRef.current.x;
+          const dy0 = touches[0].pageY - touchStartRef.current.y;
+          if (Math.hypot(dx0, dy0) > 8) {
+            touchMovedRef.current = true;
+          }
+        }
+
+        if (touches.length === 1) {
+          const prev = prevTouches.current[0];
+          if (prev) {
+            gestureRef.current.deltaRotate.x += touches[0].pageX - prev.x;
+            gestureRef.current.deltaRotate.y += touches[0].pageY - prev.y;
+          }
+
+          prevTouches.current = [
+            { x: touches[0].pageX, y: touches[0].pageY },
+          ];
+        } else if (touches.length === 2) {
+          touchMovedRef.current = true;
+
+          const [t0, t1] = [touches[0], touches[1]];
+          const currDist = Math.hypot(t1.pageX - t0.pageX, t1.pageY - t0.pageY);
+          const currMid = {
+            x: (t0.pageX + t1.pageX) / 2,
+            y: (t0.pageY + t1.pageY) / 2,
+          };
+
+          if (prevTouches.current.length === 2) {
+            const [p0, p1] = prevTouches.current;
+            const prevDist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+            const prevMid = {
+              x: (p0.x + p1.x) / 2,
+              y: (p0.y + p1.y) / 2,
             };
 
-            if (prevTouches.current.length === 2) {
-              const [p0, p1] = prevTouches.current;
-              const prevDist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-              const prevMid = {
-                x: (p0.x + p1.x) / 2,
-                y: (p0.y + p1.y) / 2,
-              };
-              const distDelta = currDist - prevDist;
-              const midDelta = {
-                x: currMid.x - prevMid.x,
-                y: currMid.y - prevMid.y,
-              };
+            const distDelta = currDist - prevDist;
+            const midDelta = {
+              x: currMid.x - prevMid.x,
+              y: currMid.y - prevMid.y,
+            };
 
-              gestureRef.current.deltaZoom += distDelta * 0.15;
+            gestureRef.current.deltaZoom += distDelta * 0.15;
 
-              if (Math.abs(midDelta.x) > 0.5 || Math.abs(midDelta.y) > 0.5) {
-                const panFactor = Math.abs(distDelta) > 8 ? 0.08 : 0.25;
-                gestureRef.current.deltaPan.x += midDelta.x * panFactor;
-                gestureRef.current.deltaPan.y += midDelta.y * panFactor;
-              }
+            if (Math.abs(midDelta.x) > 0.5 || Math.abs(midDelta.y) > 0.5) {
+              const panFactor = Math.abs(distDelta) > 8 ? 0.08 : 0.25;
+              gestureRef.current.deltaPan.x += midDelta.x * panFactor;
+              gestureRef.current.deltaPan.y += midDelta.y * panFactor;
             }
-
-            prevTouches.current = [
-              { x: t0.pageX, y: t0.pageY },
-              { x: t1.pageX, y: t1.pageY },
-            ];
           }
-        },
 
-        onPanResponderRelease: () => {
-          prevTouches.current = [];
-        },
-        onPanResponderTerminate: () => {
-          prevTouches.current = [];
-        },
-      }),
-    [pinMode]
-  );
+          prevTouches.current = [
+            { x: t0.pageX, y: t0.pageY },
+            { x: t1.pageX, y: t1.pageY },
+          ];
+        }
+      },
+
+      onPanResponderRelease: () => {
+        if (!touchMovedRef.current && touchRoomRef.current) {
+          setSelectedRoom((prev) =>
+            prev === touchRoomRef.current ? null : touchRoomRef.current
+          );
+        }
+
+        touchStartRef.current = null;
+        touchRoomRef.current = null;
+        touchMovedRef.current = false;
+        prevTouches.current = [];
+      },
+
+      onPanResponderTerminate: () => {
+        touchStartRef.current = null;
+        touchRoomRef.current = null;
+        touchMovedRef.current = false;
+        prevTouches.current = [];
+      },
+    }),
+  [pinMode, isExpanded, mapSize.width, mapSize.height]
+);
 
   const pinPanResponder = useMemo(
     () =>
@@ -363,29 +446,36 @@ export default function HomeScreen() {
     [pinMode, mapSize.width, mapSize.height, draggingPin]
   );
 
-  useEffect(() => {
-    let subscription: Location.LocationSubscription | undefined;
+ useEffect(() => {
+  let subscription: Location.LocationSubscription | null = null;
 
-    (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") return;
+  (async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") {
+      console.log("Permission denied");
+      return;
+    }
+    const current = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.BestForNavigation,
+    });
+    setLocation(current);
+    subscription = await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.BestForNavigation,
+        timeInterval: 250,     
+        distanceInterval: 0,    
+      },
+      (loc) => {
+        console.log("NEW LOCATION:", loc.coords.latitude,loc.coords.longitude,loc.coords.altitude );
+        setLocation(loc);
+      }
+    );
+  })();
 
-      subscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.High,
-          timeInterval: 1000,
-          distanceInterval: 1,
-        },
-        (loc) => {
-          setLocation(loc);
-        }
-      );
-    })();
-
-    return () => {
-      subscription?.remove();
-    };
-  }, []);
+  return () => {
+    subscription?.remove();
+  };
+}, []);
 
   useEffect(() => {
     async function preloadAll() {
@@ -416,13 +506,12 @@ export default function HomeScreen() {
 
   return (
     <View
-      style={styles.container}
-      onLayout={(e) => {
-        const { width, height } = e.nativeEvent.layout;
-        setMapSize({ width, height });
-      }}
-      {...cameraPanResponder.panHandlers}
-    >
+  style={styles.container}
+  onLayout={(e) => {
+    const { width, height } = e.nativeEvent.layout;
+    setMapSize({ width, height });
+  }}
+>
       <Canvas
         style={styles.canvasAbsolute}
         camera={{ position: [0, 0, 0], fov: 45 }}
@@ -435,6 +524,14 @@ export default function HomeScreen() {
 
         <Suspense fallback={null}>
           <Building activeFloor={activeFloor} />
+
+          <group scale={[0.1, 0.1, 0.1]}>
+            <RoomHitboxes
+              activeFloor={activeFloor}
+              selectedRoom={selectedRoom}
+              setSelectedRoom={setSelectedRoom}
+            />
+          </group>
         </Suspense>
 
         <CameraController
@@ -442,8 +539,16 @@ export default function HomeScreen() {
           onRadiusChange={handleRadiusChange}
           lerpRadiusRef={lerpRadiusRef}
           maxRadius={FLOOR_CONFIG[activeFloor].switchRadius}
+          cameraRef={cameraRef}
         />
       </Canvas>
+      {!isExpanded && !pinMode && (
+        <View
+          style={styles.mapGestureLayer}
+          pointerEvents={!isExpanded && !pinMode ? "auto" : "none"}
+          {...cameraPanResponder.panHandlers} 
+        />
+)}
 
       <FloorSwitcher
         activeFloor={activeFloor}
@@ -476,8 +581,10 @@ export default function HomeScreen() {
 
       {location && (
         <Text style={styles.gpsText}>
-          {location.coords.latitude.toFixed(6)},{" "}
-          {location.coords.longitude.toFixed(6)}
+          {location.coords.latitude.toFixed(15)},{" "}
+          {location.coords.longitude.toFixed(15)},{" "}
+          {location.coords.altitude?.toFixed(15) ?? "N/A"}
+
         </Text>
       )}
 
@@ -506,6 +613,13 @@ export default function HomeScreen() {
         />
       ))}
 
+      {selectedRoom && (
+        <Text style={styles.selectedRoomText}>
+          Selected Room: {selectedRoom}
+        </Text>
+)}
+
+
       {location &&
         (() => {
           const pos = normalizeLocation(
@@ -527,6 +641,7 @@ export default function HomeScreen() {
         })()}
 
       <Animated.View
+      pointerEvents="box-none"
         style={[
           styles.bottomSheet,
           {
@@ -548,9 +663,40 @@ export default function HomeScreen() {
 
         {isExpanded && (
           <ScrollView
-            style={styles.content}
-            showsVerticalScrollIndicator={false}
-          >
+              style={styles.content}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+            > 
+            {selectedEvent ? (
+      <>
+        <Pressable onPress={showEventList} style={styles.backButton}>
+          <Text style={styles.backButtonText}>← Back</Text>
+        </Pressable>
+
+        <Text style={styles.eventTitle}>{selectedEvent.title}</Text>
+
+        <View style={styles.eventActionRow}>
+  <Pressable style={styles.eventActionButton}>
+    <Ionicons name="bookmark-outline" size={22} color="#222" />
+    <Text style={styles.eventActionText}>Saved</Text>
+  </Pressable>
+
+  <Pressable style={styles.eventActionButton}>
+    <Ionicons name="arrow-redo-outline" size={22} color="#222" />
+    <Text style={styles.eventActionText}>Navigate</Text>
+  </Pressable>
+</View>
+        <Text style={styles.eventMeta}>{selectedEvent.date}</Text>
+        <Text style={styles.eventMeta}>{selectedEvent.location}</Text>
+
+        <Text style={styles.eventSectionTitle}>Description</Text>
+        <Text style={styles.eventDescription}>
+          {selectedEvent.description}
+        </Text>
+      </>
+    ) : (
+      <>
             <Text style={styles.sectionTitle}>Nearby</Text>
             <NearbyChips />
 
@@ -561,6 +707,14 @@ export default function HomeScreen() {
               date="Feb 28 • 11 AM - 7 PM"
               location="PFT 3147"
               type="book-outline"
+              onPress={() =>
+              setSelectedEvent({
+                title: "Resume Help",
+                date: "Feb 28 • 11 AM - 7 PM",
+                location: "PFT 3147",
+                description: "Resume review event details here.",
+              })
+            }
             />
 
             <EventCard
@@ -581,7 +735,9 @@ export default function HomeScreen() {
             <Text style={styles.radiusText}>
               Floor: L{activeFloor} • Radius: {cameraRadius.toFixed(1)}
             </Text>
-          </ScrollView>
+            </>
+           )}
+        </ScrollView>
         )}
       </Animated.View>
     </View>
@@ -700,4 +856,97 @@ const styles = StyleSheet.create({
     color: "#333",
     fontWeight: "600",
   },
+  mapGestureLayer: {
+  position: "absolute",
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  zIndex: 1,
+},
+
+eventTitle: {
+  fontSize: 22,
+  fontWeight: "700",
+  color: "#222",
+  marginBottom: 8,
+},
+eventMeta: {
+  fontSize: 14,
+  color: "#666",
+  marginBottom: 4,
+},
+eventSectionTitle: {
+  marginTop: 18,
+  marginBottom: 8,
+  fontSize: 18,
+  fontWeight: "700",
+  color: "#222",
+},
+eventDescription: {
+  fontSize: 15,
+  color: "#333",
+  lineHeight: 22,
+},
+closeButton: {
+  marginTop: 24,
+  alignSelf: "flex-start",
+  backgroundColor: "#111",
+  paddingHorizontal: 18,
+  paddingVertical: 10,
+  borderRadius: 999,
+},
+closeButtonText: {
+  color: "#fff",
+  fontWeight: "600",
+},
+backButton: {
+  marginBottom: 16,
+  alignSelf: "flex-start",
+},
+backButtonText: {
+  fontSize: 16,
+  fontWeight: "600",
+  color: "#3498DB",
+},
+sheetContentWrap: {
+  flex: 1,
+},
+animatedPage: {
+  width: "100%",
+},
+eventActionRow: {
+  flexDirection: "row",
+  gap: 14,
+  marginTop: 14,
+  marginBottom: 18,
+},
+
+eventActionButton: {
+  backgroundColor: "#BFDDF3",
+  borderRadius: 14,
+  paddingVertical: 10,
+  paddingHorizontal: 18,
+  alignItems: "center",
+  justifyContent: "center",
+  minWidth: 92,
+},
+
+eventActionText: {
+  marginTop: 4,
+  fontSize: 13,
+  fontWeight: "600",
+  color: "#222",
+},
+
+selectedRoomText: {
+  position: "absolute",
+  top: 80,
+  left: 20,
+  color: "white",
+  fontSize: 16,
+  fontWeight: "700",
+  zIndex: 20,
+},
+
 });
