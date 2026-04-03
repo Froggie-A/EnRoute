@@ -8,6 +8,7 @@ type EventCardProps = {
   location: string;
   type: React.ComponentProps<typeof Ionicons>["name"];
   color?: string;
+  onPress?: () => void;
 };
 
 export default function EventCard({
@@ -17,8 +18,10 @@ export default function EventCard({
   location,
   type,
   color = "#3498DB",
+  onPress,
 }: EventCardProps) {
   return (
+    <Pressable onPress={onPress}>
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <Ionicons name={type} size={18} color={color} />
@@ -29,10 +32,9 @@ export default function EventCard({
         {date} • {club} • {location}
       </Text>
 
-      <Pressable>
-        <Text style={styles.addText}>Add</Text>
-      </Pressable>
+      <Text style={styles.addText}>View</Text>
     </View>
+  </Pressable>
   );
 }
 
