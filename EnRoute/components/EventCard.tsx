@@ -4,19 +4,24 @@ import { Ionicons } from "@expo/vector-icons";
 type EventCardProps = {
   title: string;
   date: string;
+  club: string
   location: string;
   type: React.ComponentProps<typeof Ionicons>["name"];
   color?: string;
+  onPress?: () => void;
 };
 
 export default function EventCard({
   title,
   date,
+  club,
   location,
   type,
   color = "#3498DB",
+  onPress,
 }: EventCardProps) {
   return (
+    <Pressable onPress={onPress}>
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <Ionicons name={type} size={18} color={color} />
@@ -24,22 +29,24 @@ export default function EventCard({
       </View>
 
       <Text style={styles.cardSubtitle}>
-        {date} • {location}
+        {date} • {club} • {location}
       </Text>
 
-      <Pressable>
-        <Text style={styles.addText}>Add</Text>
-      </Pressable>
+      <Text style={styles.addText}>View</Text>
     </View>
+  </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "rgba(253, 254, 238, 1)",
+    boxShadow: '0px 4px 4px 2px rgba(0, 0, 0, 0.1)',
     borderRadius: 18,
     padding: 16,
     marginBottom: 12,
+    marginLeft: 12,
+    marginRight: 12,
     borderWidth: 1,
     borderColor: "rgba(0,0,0,0.04)",
   },
