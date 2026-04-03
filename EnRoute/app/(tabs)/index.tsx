@@ -11,10 +11,8 @@ import {
   StyleSheet,
   View,
   Text,
-  ScrollView,
   Pressable,
   PanResponder,
-  Animated,
   ActivityIndicator,
 } from "react-native";
 import { Canvas, useThree, useFrame } from "@react-three/fiber/native";
@@ -22,6 +20,8 @@ import { useGLTF } from "@react-three/drei/native";
 import { Asset } from "expo-asset";
 import * as Location from "expo-location";
 import * as THREE from "three";
+import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { FloorSwitcher } from "@/components/floorSwitcher";
 import SearchBarRow from "@/components/SearchBarRow";
@@ -216,7 +216,6 @@ export default function HomeScreen() {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [mapSize, setMapSize] = useState({ width: 1, height: 1 });
   const [search, setSearch] = useState("");
-  const [isExpanded, setIsExpanded] = useState(false);
 
   const [pins, setPins] = useState<Pin[]>([]);
   const [pinMode, setPinMode] = useState(false);
@@ -234,6 +233,8 @@ export default function HomeScreen() {
     location: string;
     description: string;
   } | null>(null);
+
+  const [sheetIndex, setSheetIndex] = useState(-1);
 
   const bounds = {
     minLat: 30.123,
@@ -266,6 +267,65 @@ const showEventList = () => {
     deltaPan: { x: 0, y: 0 },
   });
   const prevTouches = useRef<{ x: number; y: number }[]>([]);
+
+  const bottomSheetRef = useRef<BottomSheet>(null);
+  const snapPoints = useMemo(() => ["50%", "75%", "90%"], []);
+  const [showCollapsedPill, setShowCollapsedPill] = useState(true);
+
+  const events = [
+  {
+    id: "1",
+    title: "Resume Help",
+    date: "Feb 28 • 11 AM - 7 PM",
+    club: "Student Government",
+    location: "PFT 3147",
+    type: "book-outline" as const,
+  },
+  {
+    id: "2",
+    title: "Flutter Workshop",
+    date: "Mar 1 • 6 AM - 1 PM",
+    club: "Women in Cybersecurity",
+    location: "PFT 2246",
+    type: "laptop-outline" as const,
+  },
+  {
+    id: "3",
+    title: "Relaxation Social",
+    date: "Mar 2 • 1 PM - 10 PM",
+    club: "Robotics",
+    location: "PFT 1255",
+    type: "chatbubble-outline" as const,
+  },
+    {
+    id: "4",
+    title: "Physics Tutoring",
+    date: "Mar 4 • 4 PM - 8 PM",
+    club: "Society of Physics Students",
+    location: "PFT 2612",
+    type: "book-outline" as const,
+  },
+      {
+    id: "5",
+    title: "Free Lunch Event",
+    date: "Mar 6 • 11 AM - 2 PM",
+    club: "Google Developer Student Club",
+    location: "PFT 1145",
+    type: "chatbubble-outline" as const,
+  },
+];
+
+const filteredEvents = events.filter((event) => {
+  const query = search.trim().toLowerCase();
+
+  if (!query) return true;
+
+  return (
+    event.title.toLowerCase().includes(query) ||
+    event.location.toLowerCase().includes(query) ||
+    event.date.toLowerCase().includes(query)
+  );
+});
 
   useEffect(() => {
     activeFloorRef.current = activeFloor;
@@ -512,15 +572,23 @@ const cameraPanResponder = useMemo(
     preloadAll();
   }, []);
 
-  if (!isReady) {
-    return (
-      <View style={styles.loaderWrap}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
+const handleSheetChange = useCallback((index: number) => {
+  setSheetIndex(index);
+
+  if (index === -1) {
+    setTimeout(() => {
+      setShowCollapsedPill(true);
+    }, 1);
   }
+}, []);
 
   return (
+    <GestureHandlerRootView style={styles.container}>
+      <View
+        style={styles.container}
+        onLayout={(e) => {
+          const { width, height } = e.nativeEvent.layout;
+          setMapSize({ width, height });
     <View
   style={styles.container}
   onLayout={(e) => {
@@ -585,10 +653,7 @@ const cameraPanResponder = useMemo(
           setPinMode((prev) => !prev);
           setDraggingPin(null);
         }}
-        style={[
-          styles.pinButton,
-          { backgroundColor: pinMode ? "red" : "blue" },
-        ]}
+        {...cameraPanResponder.panHandlers}
       >
         <Text style={styles.pinButtonText}>
           {pinMode ? "Place Pin" : "Add Pin"}
@@ -616,15 +681,18 @@ const cameraPanResponder = useMemo(
         />
       )}
 
-      {pins.map((pin, index) => (
-        <View
-          key={index}
+        {pinMode && (
+          <View style={styles.pinOverlay} {...pinPanResponder.panHandlers} />
+        )}
+        {sheetIndex === -1 && (
+        <Pressable
+          onPress={() => {
+            setPinMode((prev) => !prev);
+            setDraggingPin(null);
+          }}
           style={[
-            styles.placedPin,
-            {
-              left: pin.x * mapSize.width - 6,
-              top: pin.y * mapSize.height - 6,
-            },
+            styles.pinButton,
+            { backgroundColor: pinMode ? "red" : "blue" },
           ]}
         />
       ))}
@@ -670,12 +738,105 @@ const cameraPanResponder = useMemo(
           style={styles.handleWrap}
           onPress={() => setIsExpanded(!isExpanded)}
         >
-          <View style={styles.handle} />
+          <Text style={styles.pinButtonText}>
+            {pinMode ? "Place Pin" : "Add Pin"}
+          </Text>
         </Pressable>
+        )}
+        {location && (
+          <Text style={styles.gpsText}>
+            {location.coords.latitude.toFixed(6)},{" "}
+            {location.coords.longitude.toFixed(6)}
+          </Text>
+        )}
 
-        <Pressable onPress={() => setIsExpanded(true)}>
-          <SearchBarRow search={search} setSearch={setSearch} />
-        </Pressable>
+        {draggingPin && (
+          <View
+            style={[
+              styles.draggingPin,
+              {
+                left: draggingPin.x * mapSize.width - 10,
+                top: draggingPin.y * mapSize.height - 10,
+              },
+            ]}
+          />
+        )}
+
+        {pins.map((pin, index) => (
+          <View
+            key={index}
+            style={[
+              styles.placedPin,
+              {
+                left: pin.x * mapSize.width - 6,
+                top: pin.y * mapSize.height - 6,
+              },
+            ]}
+          />
+        ))}
+
+        {location &&
+          (() => {
+            const pos = normalizeLocation(
+              location.coords.latitude,
+              location.coords.longitude
+            );
+
+            return (
+              <View
+                style={[
+                  styles.userDot,
+                  {
+                    left: pos.x * mapSize.width - 6,
+                    top: pos.y * mapSize.height - 6,
+                  },
+                ]}
+              />
+            );
+          })()}
+
+        {showCollapsedPill && (
+          <Pressable
+            style={styles.collapsedSearchWrap}
+            onPress={() => {
+              setShowCollapsedPill(false);
+              bottomSheetRef.current?.snapToIndex(1);
+              setSheetIndex(1);
+            }}
+          >
+            <View style={styles.collapsedHandle} />
+
+            <SearchBarRow
+              search={search}
+              setSearch={setSearch}
+              onPressExpand={() => {
+                setShowCollapsedPill(false);
+                bottomSheetRef.current?.snapToIndex(1);
+                setSheetIndex(1);
+              }}
+            />
+          </Pressable>
+        )}
+
+        <BottomSheet
+          ref={bottomSheetRef}
+          index={-1}
+          snapPoints={snapPoints}
+          enableDynamicSizing={false}
+          enablePanDownToClose={true}
+          onChange={handleSheetChange}
+          backgroundStyle={styles.bottomSheetBackground}
+          handleIndicatorStyle={styles.handleIndicator}
+        >
+          <BottomSheetScrollView
+            contentContainerStyle={styles.sheetContentContainer}
+            showsVerticalScrollIndicator={false}
+          >
+            <SearchBarRow
+              search={search}
+              setSearch={setSearch}
+              onPressExpand={() => bottomSheetRef.current?.snapToIndex(1)}
+            />
 
         {isExpanded && (
           <ScrollView
@@ -717,6 +878,20 @@ const cameraPanResponder = useMemo(
             <NearbyChips />
 
             <Text style={styles.sectionTitle}>Events</Text>
+            {filteredEvents.map((event) => (
+              <EventCard
+                key={event.id}
+                title={event.title}
+                date={event.date}
+                club={event.club}
+                location={event.location}
+                type={event.type}
+              />
+            ))}
+
+            {filteredEvents.length === 0 && (
+              <Text style={styles.emptytext}>No matching events found.</Text>
+            )}
 
             <EventCard
               title="Resume Help"
@@ -751,6 +926,10 @@ const cameraPanResponder = useMemo(
             <Text style={styles.radiusText}>
               Floor: L{activeFloor} • Radius: {cameraRadius.toFixed(1)}
             </Text>
+          </BottomSheetScrollView>
+        </BottomSheet>
+      </View>
+    </GestureHandlerRootView>
             </>
            )}
         </ScrollView>
@@ -763,6 +942,13 @@ const cameraPanResponder = useMemo(
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+
+  emptytext:{
+    paddingHorizontal: 20,
+    color: "#666",
+    marginTop:8,
+    fontSize: 15,
   },
   canvasAbsolute: {
     position: "absolute",
@@ -784,51 +970,67 @@ const styles = StyleSheet.create({
     bottom: 0,
     zIndex: 15,
   },
-  bottomSheet: {
+
+  collapsedSearchWrap: {
     position: "absolute",
     left: 16,
     right: 16,
-    bottom: 18,
+    bottom: 34,
     backgroundColor: "rgba(189, 189, 189, 0.75)",
+    borderRadius: 36,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.35)",
+    paddingTop: 8,
+    paddingBottom: 6,
+    zIndex: 40,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  collapsedHandle: {
+    alignSelf: "center",
+    width: 54,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: "rgba(120,120,120,0.7)",
+    marginBottom: 8,
+  },
+
+  bottomSheetBackground: {
+    backgroundColor: "rgba(235, 235, 218, 1)",
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
     borderWidth: 1,
     borderColor: "rgb(255, 255, 255)",
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 5,
-    zIndex: 30,
   },
-  handleWrap: {
-    alignItems: "center",
-    paddingTop: 10,
-    paddingBottom: 6,
-  },
-  handle: {
+  handleIndicator: {
     width: 42,
     height: 4,
     borderRadius: 2,
     backgroundColor: "rgba(0,0,0,0.25)",
   },
-  content: {
-    paddingHorizontal: 20,
+  sheetContentContainer: {
     paddingBottom: 20,
   },
+
   sectionTitle: {
     fontSize: 18,
     fontWeight: "700",
     marginBottom: 12,
     color: "#333",
     marginTop: 8,
+    paddingHorizontal: 20,
   },
   pinButton: {
     position: "absolute",
-    bottom: 120,
+    bottom: 145,
     right: 20,
     padding: 12,
     borderRadius: 24,
-    zIndex: 20,
+    zIndex: 5,
   },
   pinButtonText: {
     color: "white",
@@ -871,6 +1073,7 @@ const styles = StyleSheet.create({
     marginBottom: 30,
     color: "#333",
     fontWeight: "600",
+    paddingHorizontal: 20,
   },
   mapGestureLayer: {
   position: "absolute",
