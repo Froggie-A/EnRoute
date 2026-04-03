@@ -1,16 +1,19 @@
-import { StyleSheet, TextInput, View } from "react-native";
+import { StyleSheet, TextInput, View, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 type SearchBarRowProps = {
   search: string;
   setSearch: (value: string) => void;
+  onPressExpand: () => void;
 };
 
 export default function SearchBarRow({
   search,
   setSearch,
+  onPressExpand,
 }: SearchBarRowProps) {
   return (
+    <Pressable onPress={onPressExpand}>
     <View style={styles.searchRow}>
       <View style={styles.searchInputContainer}>
         <Ionicons
@@ -25,6 +28,7 @@ export default function SearchBarRow({
           value={search}
           onChangeText={setSearch}
           placeholderTextColor="#f2f2f2"
+          onFocus = {onPressExpand}
         />
       </View>
 
@@ -32,6 +36,7 @@ export default function SearchBarRow({
         <Ionicons name="person" size={20} color="#1A365D" />
       </View>
     </View>
+    </Pressable>
   );
 }
 
@@ -46,7 +51,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(120, 116, 116, 1)",
+    backgroundColor: "rgba(120, 116, 116, 0.75)",
     borderRadius: 100,
     paddingHorizontal: 12,
     borderWidth: 1,
@@ -65,7 +70,7 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: "#d7d3b8",
+    backgroundColor: "#d3d4bc",
     justifyContent: "center",
     alignItems: "center",
     marginLeft: 10,

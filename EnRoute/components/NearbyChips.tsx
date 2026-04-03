@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 
-const nearbyItems = ["Restrooms", "Study Rooms", "Vending Machines"];
+const nearbyItems = ["Restrooms", "Study Rooms", "Vending Machines", "Water Fountains", "Elevators", "Emergency Exits"];
 
 export default function NearbyChips() {
   return (
@@ -20,9 +20,10 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 8,
     marginBottom: 20,
+    marginLeft: 12,
   },
   chip: {
-    backgroundColor: "#D6D4C0",
+    backgroundColor: "#D3d4bc",
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
