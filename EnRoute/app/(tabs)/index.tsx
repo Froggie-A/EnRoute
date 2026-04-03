@@ -28,6 +28,10 @@ import SearchBarRow from "@/components/SearchBarRow";
 import NearbyChips from "@/components/NearbyChips";
 import EventCard from "@/components/EventCard";
 
+import { usePins } from "@/hooks/usePins";
+
+import PinLayer from "@/components/PinLayer";
+
 const FLOOR_MODELS = {
   1: require("../../assets/models/1stFloorModel.glb"),
   2: require("../../assets/models/2ndFloorModel.glb"),
@@ -35,7 +39,11 @@ const FLOOR_MODELS = {
 } as const;
 
 type FloorNumber = keyof typeof FLOOR_MODELS;
-type Pin = { x: number; y: number };
+type Pin = {
+  x: number;
+  y: number;
+  z: number;
+};
 
 type GestureState = {
   deltaRotate: { x: number; y: number };
@@ -188,14 +196,82 @@ export default function HomeScreen() {
   const [cameraRadius, setCameraRadius] = useState(FLOOR_CONFIG[1].snapRadius);
   const [isReady, setIsReady] = useState(false);
 
+  const [pinMode, setPinMode] = useState(false);
+
+    const { pins } = usePins();
+
+  const cameraPanResponder = useMemo(
+  () =>
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+
+      onPanResponderGrant: (e) => {
+        prevTouches.current = e.nativeEvent.touches.map((t) => ({
+          x: t.pageX,
+          y: t.pageY,
+        }));
+      },
+
+      onPanResponderMove: (e) => {
+        const touches = e.nativeEvent.touches;
+
+        if (touches.length === 1) {
+          const prev = prevTouches.current[0];
+          if (prev) {
+            gestureRef.current.deltaRotate.x += touches[0].pageX - prev.x;
+            gestureRef.current.deltaRotate.y += touches[0].pageY - prev.y;
+          }
+
+          prevTouches.current = [
+            { x: touches[0].pageX, y: touches[0].pageY },
+          ];
+        } else if (touches.length === 2) {
+          const [t0, t1] = [touches[0], touches[1]];
+          const currDist = Math.hypot(t1.pageX - t0.pageX, t1.pageY - t0.pageY);
+          const currMid = {
+            x: (t0.pageX + t1.pageX) / 2,
+            y: (t0.pageY + t1.pageY) / 2,
+          };
+
+          if (prevTouches.current.length === 2) {
+            const [p0, p1] = prevTouches.current;
+            const prevDist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+            const prevMid = {
+              x: (p0.x + p1.x) / 2,
+              y: (p0.y + p1.y) / 2,
+            };
+
+            const distDelta = currDist - prevDist;
+            const midDelta = {
+              x: currMid.x - prevMid.x,
+              y: currMid.y - prevMid.y,
+            };
+
+            gestureRef.current.deltaZoom += distDelta * 0.15;
+            gestureRef.current.deltaPan.x += midDelta.x * 0.2;
+            gestureRef.current.deltaPan.y += midDelta.y * 0.2;
+          }
+
+          prevTouches.current = [
+            { x: t0.pageX, y: t0.pageY },
+            { x: t1.pageX, y: t1.pageY },
+          ];
+        }
+      },
+
+      onPanResponderRelease: () => {
+        prevTouches.current = [];
+      },
+    }),
+  []
+);
+
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [mapSize, setMapSize] = useState({ width: 1, height: 1 });
   const [search, setSearch] = useState("");
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const [pins, setPins] = useState<Pin[]>([]);
-  const [pinMode, setPinMode] = useState(false);
-  const [draggingPin, setDraggingPin] = useState<Pin | null>(null);
 
   const bounds = {
     minLat: 30.123,
@@ -247,145 +323,7 @@ export default function HomeScreen() {
     }
   }, []);
 
-  const cameraPanResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => !pinMode,
-        onMoveShouldSetPanResponder: () => !pinMode,
 
-        onPanResponderGrant: (e) => {
-          prevTouches.current = e.nativeEvent.touches.map((t) => ({
-            x: t.pageX,
-            y: t.pageY,
-          }));
-        },
-
-        onPanResponderMove: (e) => {
-          if (pinMode) return;
-
-          const touches = e.nativeEvent.touches;
-
-          if (touches.length === 1) {
-            const prev = prevTouches.current[0];
-            if (prev) {
-              gestureRef.current.deltaRotate.x += touches[0].pageX - prev.x;
-              gestureRef.current.deltaRotate.y += touches[0].pageY - prev.y;
-            }
-
-            prevTouches.current = [
-              { x: touches[0].pageX, y: touches[0].pageY },
-            ];
-          } else if (touches.length === 2) {
-            const [t0, t1] = [touches[0], touches[1]];
-            const currDist = Math.hypot(t1.pageX - t0.pageX, t1.pageY - t0.pageY);
-            const currMid = {
-              x: (t0.pageX + t1.pageX) / 2,
-              y: (t0.pageY + t1.pageY) / 2,
-            };
-
-            if (prevTouches.current.length === 2) {
-              const [p0, p1] = prevTouches.current;
-              const prevDist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-              const prevMid = {
-                x: (p0.x + p1.x) / 2,
-                y: (p0.y + p1.y) / 2,
-              };
-              const distDelta = currDist - prevDist;
-              const midDelta = {
-                x: currMid.x - prevMid.x,
-                y: currMid.y - prevMid.y,
-              };
-
-              gestureRef.current.deltaZoom += distDelta * 0.15;
-
-              if (Math.abs(midDelta.x) > 0.5 || Math.abs(midDelta.y) > 0.5) {
-                const panFactor = Math.abs(distDelta) > 8 ? 0.08 : 0.25;
-                gestureRef.current.deltaPan.x += midDelta.x * panFactor;
-                gestureRef.current.deltaPan.y += midDelta.y * panFactor;
-              }
-            }
-
-            prevTouches.current = [
-              { x: t0.pageX, y: t0.pageY },
-              { x: t1.pageX, y: t1.pageY },
-            ];
-          }
-        },
-
-        onPanResponderRelease: () => {
-          prevTouches.current = [];
-        },
-        onPanResponderTerminate: () => {
-          prevTouches.current = [];
-        },
-      }),
-    [pinMode]
-  );
-
-  const pinPanResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => pinMode,
-        onMoveShouldSetPanResponder: () => pinMode,
-
-        onPanResponderGrant: (evt) => {
-          if (!pinMode) return;
-
-          const { locationX, locationY } = evt.nativeEvent;
-          setDraggingPin({
-            x: locationX / mapSize.width,
-            y: locationY / mapSize.height,
-          });
-        },
-
-        onPanResponderMove: (evt) => {
-          if (!pinMode) return;
-
-          const { locationX, locationY } = evt.nativeEvent;
-          setDraggingPin({
-            x: locationX / mapSize.width,
-            y: locationY / mapSize.height,
-          });
-        },
-
-        onPanResponderRelease: () => {
-          if (draggingPin) {
-            setPins((prev) => [...prev, draggingPin]);
-            setDraggingPin(null);
-            setPinMode(false);
-          }
-        },
-
-        onPanResponderTerminate: () => {
-          setDraggingPin(null);
-        },
-      }),
-    [pinMode, mapSize.width, mapSize.height, draggingPin]
-  );
-
-  useEffect(() => {
-    let subscription: Location.LocationSubscription | undefined;
-
-    (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") return;
-
-      subscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.High,
-          timeInterval: 1000,
-          distanceInterval: 1,
-        },
-        (loc) => {
-          setLocation(loc);
-        }
-      );
-    })();
-
-    return () => {
-      subscription?.remove();
-    };
-  }, []);
 
   useEffect(() => {
     async function preloadAll() {
@@ -417,11 +355,12 @@ export default function HomeScreen() {
   return (
     <View
       style={styles.container}
+      {...cameraPanResponder.panHandlers}
       onLayout={(e) => {
         const { width, height } = e.nativeEvent.layout;
         setMapSize({ width, height });
       }}
-      {...cameraPanResponder.panHandlers}
+    
     >
       <Canvas
         style={styles.canvasAbsolute}
@@ -437,6 +376,15 @@ export default function HomeScreen() {
           <Building activeFloor={activeFloor} />
         </Suspense>
 
+        <PinLayer pinMode={pinMode} setPinMode={setPinMode} />
+
+        {pins.map((p, i) => (
+  <mesh key={i} position={[p.x, p.y, p.z]}>
+    <sphereGeometry args={[0.05, 16, 16]} />
+    <meshStandardMaterial color="red" />
+  </mesh>
+))}
+
         <CameraController
           gestureRef={gestureRef}
           onRadiusChange={handleRadiusChange}
@@ -444,6 +392,24 @@ export default function HomeScreen() {
           maxRadius={FLOOR_CONFIG[activeFloor].switchRadius}
         />
       </Canvas>
+
+        <Pressable
+        onPress={() => setPinMode((prev) => !prev)}
+        style={{
+          position: "absolute",
+          bottom: 140,
+          right: 20,
+          backgroundColor: pinMode ? "red" : "blue",
+          padding: 12,
+          borderRadius: 24,
+          zIndex: 100,
+        }}
+      >
+        <Text style={{ color: "white", fontWeight: "bold" }}>
+          {pinMode ? "Placing..." : "Add Pin"}
+        </Text>
+      </Pressable>
+
 
       <FloorSwitcher
         activeFloor={activeFloor}
@@ -455,24 +421,6 @@ export default function HomeScreen() {
         }}
       />
 
-      {pinMode && (
-        <View style={styles.pinOverlay} {...pinPanResponder.panHandlers} />
-      )}
-
-      <Pressable
-        onPress={() => {
-          setPinMode((prev) => !prev);
-          setDraggingPin(null);
-        }}
-        style={[
-          styles.pinButton,
-          { backgroundColor: pinMode ? "red" : "blue" },
-        ]}
-      >
-        <Text style={styles.pinButtonText}>
-          {pinMode ? "Place Pin" : "Add Pin"}
-        </Text>
-      </Pressable>
 
       {location && (
         <Text style={styles.gpsText}>
@@ -481,30 +429,8 @@ export default function HomeScreen() {
         </Text>
       )}
 
-      {draggingPin && (
-        <View
-          style={[
-            styles.draggingPin,
-            {
-              left: draggingPin.x * mapSize.width - 10,
-              top: draggingPin.y * mapSize.height - 10,
-            },
-          ]}
-        />
-      )}
+  
 
-      {pins.map((pin, index) => (
-        <View
-          key={index}
-          style={[
-            styles.placedPin,
-            {
-              left: pin.x * mapSize.width - 6,
-              top: pin.y * mapSize.height - 6,
-            },
-          ]}
-        />
-      ))}
 
       {location &&
         (() => {
@@ -535,6 +461,8 @@ export default function HomeScreen() {
           },
         ]}
       >
+
+
         <Pressable
           style={styles.handleWrap}
           onPress={() => setIsExpanded(!isExpanded)}
