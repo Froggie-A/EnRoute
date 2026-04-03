@@ -44,6 +44,10 @@ function gpsToNodeCoords(lat: number, lon: number) {
   return { x, y };
 }
 
+import { usePins } from "@/hooks/usePins";
+
+import PinLayer from "@/components/PinLayer";
+
 const FLOOR_MODELS = {
   1: require("../../assets/models/1stFloorModel.glb"),
   2: require("../../assets/models/2ndFloorModel.glb"),
@@ -51,7 +55,11 @@ const FLOOR_MODELS = {
 } as const;
 
 type FloorNumber = keyof typeof FLOOR_MODELS;
-type Pin = { x: number; y: number };
+type Pin = {
+  x: number;
+  y: number;
+  z: number;
+};
 
 type GestureState = {
   deltaRotate: { x: number; y: number };
@@ -217,6 +225,77 @@ export default function HomeScreen() {
   const [cameraRadius, setCameraRadius] = useState(FLOOR_CONFIG[1].snapRadius);
   const [isReady, setIsReady] = useState(false);
 
+  const [pinMode, setPinMode] = useState(false);
+
+    const { pins } = usePins();
+
+  const cameraPanResponder = useMemo(
+  () =>
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+
+      onPanResponderGrant: (e) => {
+        prevTouches.current = e.nativeEvent.touches.map((t) => ({
+          x: t.pageX,
+          y: t.pageY,
+        }));
+      },
+
+      onPanResponderMove: (e) => {
+        const touches = e.nativeEvent.touches;
+
+        if (touches.length === 1) {
+          const prev = prevTouches.current[0];
+          if (prev) {
+            gestureRef.current.deltaRotate.x += touches[0].pageX - prev.x;
+            gestureRef.current.deltaRotate.y += touches[0].pageY - prev.y;
+          }
+
+          prevTouches.current = [
+            { x: touches[0].pageX, y: touches[0].pageY },
+          ];
+        } else if (touches.length === 2) {
+          const [t0, t1] = [touches[0], touches[1]];
+          const currDist = Math.hypot(t1.pageX - t0.pageX, t1.pageY - t0.pageY);
+          const currMid = {
+            x: (t0.pageX + t1.pageX) / 2,
+            y: (t0.pageY + t1.pageY) / 2,
+          };
+
+          if (prevTouches.current.length === 2) {
+            const [p0, p1] = prevTouches.current;
+            const prevDist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+            const prevMid = {
+              x: (p0.x + p1.x) / 2,
+              y: (p0.y + p1.y) / 2,
+            };
+
+            const distDelta = currDist - prevDist;
+            const midDelta = {
+              x: currMid.x - prevMid.x,
+              y: currMid.y - prevMid.y,
+            };
+
+            gestureRef.current.deltaZoom += distDelta * 0.15;
+            gestureRef.current.deltaPan.x += midDelta.x * 0.2;
+            gestureRef.current.deltaPan.y += midDelta.y * 0.2;
+          }
+
+          prevTouches.current = [
+            { x: t0.pageX, y: t0.pageY },
+            { x: t1.pageX, y: t1.pageY },
+          ];
+        }
+      },
+
+      onPanResponderRelease: () => {
+        prevTouches.current = [];
+      },
+    }),
+  []
+);
+
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [mapSize, setMapSize] = useState({ width: 1, height: 1 });
   const [search, setSearch] = useState("");
@@ -347,6 +426,7 @@ export default function HomeScreen() {
       lerpRadiusRef.current = zoomInRadius;
     }
   }, []);
+
 
   const cameraPanResponder = useMemo(
     () =>
