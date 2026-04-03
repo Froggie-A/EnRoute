@@ -28,6 +28,19 @@ import SearchBarRow from "@/components/SearchBarRow";
 import NearbyChips from "@/components/NearbyChips";
 import EventCard from "@/components/EventCard";
 
+const PFT_BOUNDS = {
+  sw: { lat: 30.28832, lon: -91.17991 },
+  ne: { lat: 30.28950, lon: -91.17870 },
+  mapWidth:  750,
+  mapHeight: 800,
+};
+
+function gpsToNodeCoords(lat: number, lon: number) {
+  const x = ((lon - PFT_BOUNDS.sw.lon) / (PFT_BOUNDS.ne.lon - PFT_BOUNDS.sw.lon)) * PFT_BOUNDS.mapWidth;
+  const y = ((PFT_BOUNDS.ne.lat - lat) / (PFT_BOUNDS.ne.lat - PFT_BOUNDS.sw.lat)) * PFT_BOUNDS.mapHeight;
+  return { x, y };
+}
+
 const FLOOR_MODELS = {
   1: require("../../assets/models/1stFloorModel.glb"),
   2: require("../../assets/models/2ndFloorModel.glb"),
