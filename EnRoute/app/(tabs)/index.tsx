@@ -638,7 +638,7 @@ export default function HomeScreen() {
             {...cameraPanResponder.panHandlers}
           />
         )}
-
+    {sheetIndex === -1 && (
         <Pressable
         onPress={() => setPinMode((prev) => !prev)}
         style={{
@@ -654,7 +654,9 @@ export default function HomeScreen() {
         <Text style={{ color: "white", fontWeight: "bold" }}>
           {pinMode ? "Placing..." : "Add Pin"}
         </Text>
+        
       </Pressable>
+       )}
 
         {sheetIndex === -1 && (
           <FloorSwitcher
@@ -682,9 +684,6 @@ export default function HomeScreen() {
           </Text>
         )}
 
-       
-
-      
 
         {selectedRoom && (
           <Text style={styles.selectedRoomText}>
@@ -844,7 +843,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 15,
+    zIndex: 3,
   },
   collapsedSearchWrap: {
     position: "absolute",
