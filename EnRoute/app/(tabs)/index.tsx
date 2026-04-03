@@ -94,7 +94,10 @@ function FloorModel({ source }: { source: number }) {
 function Building({ activeFloor }: { activeFloor: FloorNumber }) {
   return (
     <group scale={[0.1, 0.1, 0.1]}>
-      <FloorModel source={FLOOR_MODELS[activeFloor]} />
+      <FloorModel
+        key={`floor-${activeFloor}`}
+        source={FLOOR_MODELS[activeFloor]}
+      />
     </group>
   );
 }
