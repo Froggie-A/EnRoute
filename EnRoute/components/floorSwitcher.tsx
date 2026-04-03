@@ -31,8 +31,8 @@ export function FloorSwitcher({
         position: "absolute",
         right: 16,
         bottom: 200,
-        zIndex: 5,
-        elevation: 5,
+        zIndex: 2,
+        elevation: 2,
         alignItems: "center",
       }}
     >

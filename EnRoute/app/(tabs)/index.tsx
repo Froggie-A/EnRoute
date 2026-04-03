@@ -22,16 +22,14 @@ import * as Location from "expo-location";
 import * as THREE from "three";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { Ionicons } from "@expo/vector-icons";
 
 import { FloorSwitcher } from "@/components/floorSwitcher";
 import SearchBarRow from "@/components/SearchBarRow";
 import NearbyChips from "@/components/NearbyChips";
 import EventCard from "@/components/EventCard";
-import { Ionicons } from "@expo/vector-icons";
-import RoomHitboxes, {
-  type RoomBox,
-  getRoomAtScreenPoint,
-} from "@/components/roomHitbox";
+import RoomHitboxes, { getRoomAtScreenPoint } from "@/components/roomHitbox";
+
 
 const PFT_BOUNDS = {
   sw: { lat: 30.28832, lon: -91.17991 },
@@ -61,7 +59,6 @@ type GestureState = {
   deltaPan: { x: number; y: number };
 };
 
-
 const FLOOR_CONFIG: Record<
   FloorNumber,
   { switchRadius: number; snapRadius: number; zoomInRadius: number }
@@ -69,6 +66,13 @@ const FLOOR_CONFIG: Record<
   1: { switchRadius: 20, snapRadius: 10, zoomInRadius: 5 },
   2: { switchRadius: 120, snapRadius: 10, zoomInRadius: 5 },
   3: { switchRadius: 45, snapRadius: 10, zoomInRadius: 5 },
+};
+
+const bounds = {
+  minLat: 30.123,
+  maxLat: 30.124,
+  minLon: -91.123,
+  maxLon: -91.122,
 };
 
 function FloorModel({ source }: { source: number }) {
@@ -126,7 +130,7 @@ function CameraController({
   onRadiusChange: (radius: number) => void;
   lerpRadiusRef: React.MutableRefObject<number | null>;
   maxRadius: number;
-cameraRef: React.MutableRefObject<THREE.Camera | null>;
+  cameraRef: React.MutableRefObject<THREE.Camera | null>;
 }) {
   const { camera } = useThree();
 
@@ -221,11 +225,6 @@ export default function HomeScreen() {
   const [pinMode, setPinMode] = useState(false);
   const [draggingPin, setDraggingPin] = useState<Pin | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-  const touchRoomRef = useRef<string | null>(null);
-  const touchMovedRef = useRef(false);
-  
-  
 
   const [selectedEvent, setSelectedEvent] = useState<{
     title: string;
@@ -235,97 +234,85 @@ export default function HomeScreen() {
   } | null>(null);
 
   const [sheetIndex, setSheetIndex] = useState(-1);
+  const [showCollapsedPill, setShowCollapsedPill] = useState(true);
 
-  const bounds = {
-    minLat: 30.123,
-    maxLat: 30.124,
-    minLon: -91.123,
-    maxLon: -91.122,
-  };
-
-
-const showEventDetails = (event: {
-  title: string;
-  date: string;
-  location: string;
-  description: string;
-}) => {
-  setSelectedEvent(event);
-};
-
-const showEventList = () => {
-  setSelectedEvent(null);
-};
-
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const touchRoomRef = useRef<string | null>(null);
+  const touchMovedRef = useRef(false);
 
   const lerpRadiusRef = useRef<number | null>(null);
   const activeFloorRef = useRef<FloorNumber>(1);
   const cameraRef = useRef<THREE.Camera | null>(null);
+  const bottomSheetRef = useRef<BottomSheet>(null);
+
   const gestureRef = useRef<GestureState>({
     deltaRotate: { x: 0, y: 0 },
     deltaZoom: 0,
     deltaPan: { x: 0, y: 0 },
   });
-  const prevTouches = useRef<{ x: number; y: number }[]>([]);
 
-  const bottomSheetRef = useRef<BottomSheet>(null);
+  const prevTouches = useRef<{ x: number; y: number }[]>([]);
   const snapPoints = useMemo(() => ["50%", "75%", "90%"], []);
-  const [showCollapsedPill, setShowCollapsedPill] = useState(true);
+  const isSheetOpen = sheetIndex >= 0;
 
   const events = [
-  {
-    id: "1",
-    title: "Resume Help",
-    date: "Feb 28 • 11 AM - 7 PM",
-    club: "Student Government",
-    location: "PFT 3147",
-    type: "book-outline" as const,
-  },
-  {
-    id: "2",
-    title: "Flutter Workshop",
-    date: "Mar 1 • 6 AM - 1 PM",
-    club: "Women in Cybersecurity",
-    location: "PFT 2246",
-    type: "laptop-outline" as const,
-  },
-  {
-    id: "3",
-    title: "Relaxation Social",
-    date: "Mar 2 • 1 PM - 10 PM",
-    club: "Robotics",
-    location: "PFT 1255",
-    type: "chatbubble-outline" as const,
-  },
     {
-    id: "4",
-    title: "Physics Tutoring",
-    date: "Mar 4 • 4 PM - 8 PM",
-    club: "Society of Physics Students",
-    location: "PFT 2612",
-    type: "book-outline" as const,
-  },
-      {
-    id: "5",
-    title: "Free Lunch Event",
-    date: "Mar 6 • 11 AM - 2 PM",
-    club: "Google Developer Student Club",
-    location: "PFT 1145",
-    type: "chatbubble-outline" as const,
-  },
-];
+      id: "1",
+      title: "Resume Help",
+      date: "Feb 28 • 11 AM - 7 PM",
+      club: "Student Government",
+      location: "PFT 3147",
+      type: "book-outline" as const,
+      description: "Resume review event details here.",
+    },
+    {
+      id: "2",
+      title: "Flutter Workshop",
+      date: "Mar 1 • 6 AM - 1 PM",
+      club: "Women in Cybersecurity",
+      location: "PFT 2246",
+      type: "laptop-outline" as const,
+      description: "Flutter workshop details here.",
+    },
+    {
+      id: "3",
+      title: "Relaxation Social",
+      date: "Mar 2 • 1 PM - 10 PM",
+      club: "Robotics",
+      location: "PFT 1255",
+      type: "chatbubble-outline" as const,
+      description: "Relaxation social details here.",
+    },
+    {
+      id: "4",
+      title: "Physics Tutoring",
+      date: "Mar 4 • 4 PM - 8 PM",
+      club: "Society of Physics Students",
+      location: "PFT 2612",
+      type: "book-outline" as const,
+      description: "Physics tutoring details here.",
+    },
+    {
+      id: "5",
+      title: "Free Lunch Event",
+      date: "Mar 6 • 11 AM - 2 PM",
+      club: "Google Developer Student Club",
+      location: "PFT 1145",
+      type: "chatbubble-outline" as const,
+      description: "Free lunch event details here.",
+    },
+  ];
 
-const filteredEvents = events.filter((event) => {
-  const query = search.trim().toLowerCase();
+  const filteredEvents = events.filter((event) => {
+    const query = search.trim().toLowerCase();
+    if (!query) return true;
 
-  if (!query) return true;
-
-  return (
-    event.title.toLowerCase().includes(query) ||
-    event.location.toLowerCase().includes(query) ||
-    event.date.toLowerCase().includes(query)
-  );
-});
+    return (
+      event.title.toLowerCase().includes(query) ||
+      event.location.toLowerCase().includes(query) ||
+      event.date.toLowerCase().includes(query)
+    );
+  });
 
   useEffect(() => {
     activeFloorRef.current = activeFloor;
@@ -361,125 +348,124 @@ const filteredEvents = events.filter((event) => {
     }
   }, []);
 
-const cameraPanResponder = useMemo(
-  () =>
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => !pinMode && !isExpanded,
-      onMoveShouldSetPanResponder: () => !pinMode && !isExpanded,
+  const cameraPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => !pinMode && !isSheetOpen,
+        onMoveShouldSetPanResponder: () => !pinMode && !isSheetOpen,
 
-      onPanResponderGrant: (e) => {
-        const { pageX, pageY } = e.nativeEvent;
+        onPanResponderGrant: (e) => {
+          const { pageX, pageY } = e.nativeEvent;
 
-        touchStartRef.current = { x: pageX, y: pageY };
-        touchMovedRef.current = false;
+          touchStartRef.current = { x: pageX, y: pageY };
+          touchMovedRef.current = false;
 
-        prevTouches.current = e.nativeEvent.touches.map((t) => ({
-          x: t.pageX,
-          y: t.pageY,
-        }));
+          prevTouches.current = e.nativeEvent.touches.map((t) => ({
+            x: t.pageX,
+            y: t.pageY,
+          }));
 
-        const cam = cameraRef.current;
-        if (cam) {
-          const hitRoom = getRoomAtScreenPoint(
-            pageX,
-            pageY,
-            activeFloorRef.current,
-            cam,
-            mapSize.width,
-            mapSize.height
-          );
-
-          touchRoomRef.current = hitRoom?.id ?? null;
-        } else {
-          touchRoomRef.current = null;
-        }
-      },
-
-      onPanResponderMove: (e) => {
-        if (pinMode || isExpanded) return;
-
-        const touches = e.nativeEvent.touches;
-
-        if (touchStartRef.current && touches.length > 0) {
-          const dx0 = touches[0].pageX - touchStartRef.current.x;
-          const dy0 = touches[0].pageY - touchStartRef.current.y;
-          if (Math.hypot(dx0, dy0) > 8) {
-            touchMovedRef.current = true;
+          const cam = cameraRef.current;
+          if (cam) {
+            const hitRoom = getRoomAtScreenPoint(
+              pageX,
+              pageY,
+              activeFloorRef.current,
+              cam,
+              mapSize.width,
+              mapSize.height
+            );
+            touchRoomRef.current = hitRoom?.id ?? null;
+          } else {
+            touchRoomRef.current = null;
           }
-        }
+        },
 
-        if (touches.length === 1) {
-          const prev = prevTouches.current[0];
-          if (prev) {
-            gestureRef.current.deltaRotate.x += touches[0].pageX - prev.x;
-            gestureRef.current.deltaRotate.y += touches[0].pageY - prev.y;
-          }
+        onPanResponderMove: (e) => {
+          if (pinMode || isSheetOpen) return;
 
-          prevTouches.current = [
-            { x: touches[0].pageX, y: touches[0].pageY },
-          ];
-        } else if (touches.length === 2) {
-          touchMovedRef.current = true;
+          const touches = e.nativeEvent.touches;
 
-          const [t0, t1] = [touches[0], touches[1]];
-          const currDist = Math.hypot(t1.pageX - t0.pageX, t1.pageY - t0.pageY);
-          const currMid = {
-            x: (t0.pageX + t1.pageX) / 2,
-            y: (t0.pageY + t1.pageY) / 2,
-          };
-
-          if (prevTouches.current.length === 2) {
-            const [p0, p1] = prevTouches.current;
-            const prevDist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-            const prevMid = {
-              x: (p0.x + p1.x) / 2,
-              y: (p0.y + p1.y) / 2,
-            };
-
-            const distDelta = currDist - prevDist;
-            const midDelta = {
-              x: currMid.x - prevMid.x,
-              y: currMid.y - prevMid.y,
-            };
-
-            gestureRef.current.deltaZoom += distDelta * 0.15;
-
-            if (Math.abs(midDelta.x) > 0.5 || Math.abs(midDelta.y) > 0.5) {
-              const panFactor = Math.abs(distDelta) > 8 ? 0.08 : 0.25;
-              gestureRef.current.deltaPan.x += midDelta.x * panFactor;
-              gestureRef.current.deltaPan.y += midDelta.y * panFactor;
+          if (touchStartRef.current && touches.length > 0) {
+            const dx0 = touches[0].pageX - touchStartRef.current.x;
+            const dy0 = touches[0].pageY - touchStartRef.current.y;
+            if (Math.hypot(dx0, dy0) > 8) {
+              touchMovedRef.current = true;
             }
           }
 
-          prevTouches.current = [
-            { x: t0.pageX, y: t0.pageY },
-            { x: t1.pageX, y: t1.pageY },
-          ];
-        }
-      },
+          if (touches.length === 1) {
+            const prev = prevTouches.current[0];
+            if (prev) {
+              gestureRef.current.deltaRotate.x += touches[0].pageX - prev.x;
+              gestureRef.current.deltaRotate.y += touches[0].pageY - prev.y;
+            }
 
-      onPanResponderRelease: () => {
-        if (!touchMovedRef.current && touchRoomRef.current) {
-          setSelectedRoom((prev) =>
-            prev === touchRoomRef.current ? null : touchRoomRef.current
-          );
-        }
+            prevTouches.current = [
+              { x: touches[0].pageX, y: touches[0].pageY },
+            ];
+          } else if (touches.length === 2) {
+            touchMovedRef.current = true;
 
-        touchStartRef.current = null;
-        touchRoomRef.current = null;
-        touchMovedRef.current = false;
-        prevTouches.current = [];
-      },
+            const [t0, t1] = [touches[0], touches[1]];
+            const currDist = Math.hypot(t1.pageX - t0.pageX, t1.pageY - t0.pageY);
+            const currMid = {
+              x: (t0.pageX + t1.pageX) / 2,
+              y: (t0.pageY + t1.pageY) / 2,
+            };
 
-      onPanResponderTerminate: () => {
-        touchStartRef.current = null;
-        touchRoomRef.current = null;
-        touchMovedRef.current = false;
-        prevTouches.current = [];
-      },
-    }),
-  [pinMode, isExpanded, mapSize.width, mapSize.height]
-);
+            if (prevTouches.current.length === 2) {
+              const [p0, p1] = prevTouches.current;
+              const prevDist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+              const prevMid = {
+                x: (p0.x + p1.x) / 2,
+                y: (p0.y + p1.y) / 2,
+              };
+
+              const distDelta = currDist - prevDist;
+              const midDelta = {
+                x: currMid.x - prevMid.x,
+                y: currMid.y - prevMid.y,
+              };
+
+              gestureRef.current.deltaZoom += distDelta * 0.15;
+
+              if (Math.abs(midDelta.x) > 0.5 || Math.abs(midDelta.y) > 0.5) {
+                const panFactor = Math.abs(distDelta) > 8 ? 0.08 : 0.25;
+                gestureRef.current.deltaPan.x += midDelta.x * panFactor;
+                gestureRef.current.deltaPan.y += midDelta.y * panFactor;
+              }
+            }
+
+            prevTouches.current = [
+              { x: t0.pageX, y: t0.pageY },
+              { x: t1.pageX, y: t1.pageY },
+            ];
+          }
+        },
+
+        onPanResponderRelease: () => {
+          if (!touchMovedRef.current && touchRoomRef.current) {
+            setSelectedRoom((prev) =>
+              prev === touchRoomRef.current ? null : touchRoomRef.current
+            );
+          }
+
+          touchStartRef.current = null;
+          touchRoomRef.current = null;
+          touchMovedRef.current = false;
+          prevTouches.current = [];
+        },
+
+        onPanResponderTerminate: () => {
+          touchStartRef.current = null;
+          touchRoomRef.current = null;
+          touchMovedRef.current = false;
+          prevTouches.current = [];
+        },
+      }),
+    [pinMode, isSheetOpen, mapSize.width, mapSize.height]
+  );
 
   const pinPanResponder = useMemo(
     () =>
@@ -522,36 +508,35 @@ const cameraPanResponder = useMemo(
     [pinMode, mapSize.width, mapSize.height, draggingPin]
   );
 
- useEffect(() => {
-  let subscription: Location.LocationSubscription | null = null;
+  useEffect(() => {
+    let subscription: Location.LocationSubscription | null = null;
 
-  (async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== "granted") {
-      console.log("Permission denied");
-      return;
-    }
-    const current = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.BestForNavigation,
-    });
-    setLocation(current);
-    subscription = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.BestForNavigation,
-        timeInterval: 250,     
-        distanceInterval: 0,    
-      },
-      (loc) => {
-        console.log("NEW LOCATION:", loc.coords.latitude,loc.coords.longitude,loc.coords.altitude );
-        setLocation(loc);
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        console.log("Permission denied");
+        return;
       }
-    );
-  })();
+      const current = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.BestForNavigation,
+      });
+      setLocation(current);
+      subscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.BestForNavigation,
+          timeInterval: 250,
+          distanceInterval: 0,
+        },
+        (loc) => {
+          setLocation(loc);
+        }
+      );
+    })();
 
-  return () => {
-    subscription?.remove();
-  };
-}, []);
+    return () => {
+      subscription?.remove();
+    };
+  }, []);
 
   useEffect(() => {
     async function preloadAll() {
@@ -572,15 +557,31 @@ const cameraPanResponder = useMemo(
     preloadAll();
   }, []);
 
-const handleSheetChange = useCallback((index: number) => {
-  setSheetIndex(index);
+  const handleSheetChange = useCallback((index: number) => {
+    setSheetIndex(index);
 
-  if (index === -1) {
-    setTimeout(() => {
-      setShowCollapsedPill(true);
-    }, 1);
+    if (index === -1) {
+      setTimeout(() => {
+        setShowCollapsedPill(true);
+      }, 1);
+    } else {
+      setShowCollapsedPill(false);
+    }
+  }, []);
+
+  const openSheet = () => {
+    setShowCollapsedPill(false);
+    bottomSheetRef.current?.snapToIndex(1);
+    setSheetIndex(1);
+  };
+
+  if (!isReady) {
+    return (
+      <View style={styles.loaderWrap}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
   }
-}, []);
 
   return (
     <GestureHandlerRootView style={styles.container}>
@@ -589,164 +590,83 @@ const handleSheetChange = useCallback((index: number) => {
         onLayout={(e) => {
           const { width, height } = e.nativeEvent.layout;
           setMapSize({ width, height });
-    <View
-  style={styles.container}
-  onLayout={(e) => {
-    const { width, height } = e.nativeEvent.layout;
-    setMapSize({ width, height });
-  }}
->
-      <Canvas
-        style={styles.canvasAbsolute}
-        camera={{ position: [0, 0, 0], fov: 45 }}
-      >
-        <ambientLight intensity={1.2} />
-        <directionalLight position={[3, 5, 2]} intensity={1} />
-        <directionalLight position={[-3, 5, -2]} intensity={0.9} />
-        <directionalLight position={[0, 4, 4]} intensity={0.7} />
-        <directionalLight position={[0, -5, 0]} intensity={0.7} />
-
-        <Suspense fallback={null}>
-          <Building activeFloor={activeFloor} />
-
-          <group scale={[0.1, 0.1, 0.1]}>
-            <RoomHitboxes
-              activeFloor={activeFloor}
-              selectedRoom={selectedRoom}
-              setSelectedRoom={setSelectedRoom}
-            />
-          </group>
-        </Suspense>
-
-        <CameraController
-          gestureRef={gestureRef}
-          onRadiusChange={handleRadiusChange}
-          lerpRadiusRef={lerpRadiusRef}
-          maxRadius={FLOOR_CONFIG[activeFloor].switchRadius}
-          cameraRef={cameraRef}
-        />
-      </Canvas>
-      {!isExpanded && !pinMode && (
-        <View
-          style={styles.mapGestureLayer}
-          pointerEvents={!isExpanded && !pinMode ? "auto" : "none"}
-          {...cameraPanResponder.panHandlers} 
-        />
-)}
-
-      <FloorSwitcher
-        activeFloor={activeFloor}
-        onFloorChange={(floor) => {
-          const nextFloor = floor as FloorNumber;
-          activeFloorRef.current = nextFloor;
-          setActiveFloor(nextFloor);
-          lerpRadiusRef.current = FLOOR_CONFIG[nextFloor].snapRadius;
         }}
-      />
-
-      {pinMode && (
-        <View style={styles.pinOverlay} {...pinPanResponder.panHandlers} />
-      )}
-
-      <Pressable
-        onPress={() => {
-          setPinMode((prev) => !prev);
-          setDraggingPin(null);
-        }}
-        {...cameraPanResponder.panHandlers}
       >
-        <Text style={styles.pinButtonText}>
-          {pinMode ? "Place Pin" : "Add Pin"}
-        </Text>
-      </Pressable>
+        <Canvas
+          style={styles.canvasAbsolute}
+          camera={{ position: [0, 0, 0], fov: 45 }}
+        >
+          <ambientLight intensity={1.2} />
+          <directionalLight position={[3, 5, 2]} intensity={1} />
+          <directionalLight position={[-3, 5, -2]} intensity={0.9} />
+          <directionalLight position={[0, 4, 4]} intensity={0.7} />
+          <directionalLight position={[0, -5, 0]} intensity={0.7} />
 
-      {location && (
-        <Text style={styles.gpsText}>
-          {location.coords.latitude.toFixed(15)},{" "}
-          {location.coords.longitude.toFixed(15)},{" "}
-          {location.coords.altitude?.toFixed(15) ?? "N/A"}
+          <Suspense fallback={null}>
+            <Building activeFloor={activeFloor} />
 
-        </Text>
-      )}
+            <group scale={[0.1, 0.1, 0.1]}>
+              <RoomHitboxes
+                activeFloor={activeFloor}
+                selectedRoom={selectedRoom}
+                setSelectedRoom={setSelectedRoom}
+              />
+            </group>
+          </Suspense>
 
-      {draggingPin && (
-        <View
-          style={[
-            styles.draggingPin,
-            {
-              left: draggingPin.x * mapSize.width - 10,
-              top: draggingPin.y * mapSize.height - 10,
-            },
-          ]}
+          <CameraController
+            gestureRef={gestureRef}
+            onRadiusChange={handleRadiusChange}
+            lerpRadiusRef={lerpRadiusRef}
+            maxRadius={FLOOR_CONFIG[activeFloor].switchRadius}
+            cameraRef={cameraRef}
+          />
+        </Canvas>
+
+        {!isSheetOpen && !pinMode && (
+          <View
+            style={styles.mapGestureLayer}
+            pointerEvents="auto"
+            {...cameraPanResponder.panHandlers}
+          />
+        )}
+{sheetIndex === -1 && (
+        <FloorSwitcher
+          activeFloor={activeFloor}
+          onFloorChange={(floor) => {
+            const nextFloor = floor as FloorNumber;
+            activeFloorRef.current = nextFloor;
+            setActiveFloor(nextFloor);
+            lerpRadiusRef.current = FLOOR_CONFIG[nextFloor].snapRadius;
+          }}
         />
-      )}
-
+        )}
         {pinMode && (
           <View style={styles.pinOverlay} {...pinPanResponder.panHandlers} />
         )}
+
         {sheetIndex === -1 && (
-        <Pressable
-          onPress={() => {
-            setPinMode((prev) => !prev);
-            setDraggingPin(null);
-          }}
-          style={[
-            styles.pinButton,
-            { backgroundColor: pinMode ? "red" : "blue" },
-          ]}
-        />
-      ))}
-
-      {selectedRoom && (
-        <Text style={styles.selectedRoomText}>
-          Selected Room: {selectedRoom}
-        </Text>
-)}
-
-
-      {location &&
-        (() => {
-          const pos = normalizeLocation(
-            location.coords.latitude,
-            location.coords.longitude
-          );
-
-          return (
-            <View
-              style={[
-                styles.userDot,
-                {
-                  left: pos.x * mapSize.width - 6,
-                  top: pos.y * mapSize.height - 6,
-                },
-              ]}
-            />
-          );
-        })()}
-
-      <Animated.View
-      pointerEvents="box-none"
-        style={[
-          styles.bottomSheet,
-          {
-            height: isExpanded ? mapSize.height * 0.62 : 90,
-            borderRadius: isExpanded ? 26 : 32,
-          },
-        ]}
-      >
-        <Pressable
-          style={styles.handleWrap}
-          onPress={() => setIsExpanded(!isExpanded)}
-        >
-          <Text style={styles.pinButtonText}>
-            {pinMode ? "Place Pin" : "Add Pin"}
-          </Text>
-        </Pressable>
+          <Pressable
+            onPress={() => {
+              setPinMode((prev) => !prev);
+              setDraggingPin(null);
+            }}
+            style={[
+              styles.pinButton,
+              { backgroundColor: pinMode ? "red" : "blue" },
+            ]}
+          >
+            <Text style={styles.pinButtonText}>
+              {pinMode ? "Place Pin" : "Add Pin"}
+            </Text>
+          </Pressable>
         )}
+
         {location && (
           <Text style={styles.gpsText}>
-            {location.coords.latitude.toFixed(6)},{" "}
-            {location.coords.longitude.toFixed(6)}
+            {location.coords.latitude.toFixed(15)},{" "}
+            {location.coords.longitude.toFixed(15)},{" "}
+            {location.coords.altitude?.toFixed(15) ?? "N/A"}
           </Text>
         )}
 
@@ -775,6 +695,12 @@ const handleSheetChange = useCallback((index: number) => {
           />
         ))}
 
+        {selectedRoom && (
+          <Text style={styles.selectedRoomText}>
+            Selected Room: {selectedRoom}
+          </Text>
+        )}
+
         {location &&
           (() => {
             const pos = normalizeLocation(
@@ -796,24 +722,13 @@ const handleSheetChange = useCallback((index: number) => {
           })()}
 
         {showCollapsedPill && (
-          <Pressable
-            style={styles.collapsedSearchWrap}
-            onPress={() => {
-              setShowCollapsedPill(false);
-              bottomSheetRef.current?.snapToIndex(1);
-              setSheetIndex(1);
-            }}
-          >
+          <Pressable style={styles.collapsedSearchWrap} onPress={openSheet}>
             <View style={styles.collapsedHandle} />
 
             <SearchBarRow
               search={search}
               setSearch={setSearch}
-              onPressExpand={() => {
-                setShowCollapsedPill(false);
-                bottomSheetRef.current?.snapToIndex(1);
-                setSheetIndex(1);
-              }}
+              onPressExpand={openSheet}
             />
           </Pressable>
         )}
@@ -823,7 +738,7 @@ const handleSheetChange = useCallback((index: number) => {
           index={-1}
           snapPoints={snapPoints}
           enableDynamicSizing={false}
-          enablePanDownToClose={true}
+          enablePanDownToClose
           onChange={handleSheetChange}
           backgroundStyle={styles.bottomSheetBackground}
           handleIndicatorStyle={styles.handleIndicator}
@@ -838,104 +753,73 @@ const handleSheetChange = useCallback((index: number) => {
               onPressExpand={() => bottomSheetRef.current?.snapToIndex(1)}
             />
 
-        {isExpanded && (
-          <ScrollView
-              style={styles.content}
-              showsVerticalScrollIndicator={false}
-              nestedScrollEnabled
-              keyboardShouldPersistTaps="handled"
-            > 
             {selectedEvent ? (
-      <>
-        <Pressable onPress={showEventList} style={styles.backButton}>
-          <Text style={styles.backButtonText}>← Back</Text>
-        </Pressable>
+              <View>
+                <Pressable onPress={() => setSelectedEvent(null)} style={styles.backButton}>
+                  <Text style={styles.backButtonText}>← Back</Text>
+                </Pressable>
 
-        <Text style={styles.eventTitle}>{selectedEvent.title}</Text>
+                <Text style={styles.eventTitle}>{selectedEvent.title}</Text>
 
-        <View style={styles.eventActionRow}>
-  <Pressable style={styles.eventActionButton}>
-    <Ionicons name="bookmark-outline" size={22} color="#222" />
-    <Text style={styles.eventActionText}>Saved</Text>
-  </Pressable>
+                <View style={styles.eventActionRow}>
+                  <Pressable style={styles.eventActionButton}>
+                    <Ionicons name="bookmark-outline" size={22} color="#222" />
+                    <Text style={styles.eventActionText}>Saved</Text>
+                  </Pressable>
 
-  <Pressable style={styles.eventActionButton}>
-    <Ionicons name="arrow-redo-outline" size={22} color="#222" />
-    <Text style={styles.eventActionText}>Navigate</Text>
-  </Pressable>
-</View>
-        <Text style={styles.eventMeta}>{selectedEvent.date}</Text>
-        <Text style={styles.eventMeta}>{selectedEvent.location}</Text>
+                  <Pressable style={styles.eventActionButton}>
+                    <Ionicons name="arrow-redo-outline" size={22} color="#222" />
+                    <Text style={styles.eventActionText}>Navigate</Text>
+                  </Pressable>
+                </View>
 
-        <Text style={styles.eventSectionTitle}>Description</Text>
-        <Text style={styles.eventDescription}>
-          {selectedEvent.description}
-        </Text>
-      </>
-    ) : (
-      <>
-            <Text style={styles.sectionTitle}>Nearby</Text>
-            <NearbyChips />
+                <Text style={styles.eventMeta}>{selectedEvent.date}</Text>
+                <Text style={styles.eventMeta}>{selectedEvent.location}</Text>
 
-            <Text style={styles.sectionTitle}>Events</Text>
-            {filteredEvents.map((event) => (
-              <EventCard
-                key={event.id}
-                title={event.title}
-                date={event.date}
-                club={event.club}
-                location={event.location}
-                type={event.type}
-              />
-            ))}
+                <Text style={styles.eventSectionTitle}>Description</Text>
+                <Text style={styles.eventDescription}>
+                  {selectedEvent.description}
+                </Text>
+              </View>
+            ) : (
+              <View>
+                <Text style={styles.sectionTitle}>Nearby</Text>
+                <NearbyChips />
 
-            {filteredEvents.length === 0 && (
-              <Text style={styles.emptytext}>No matching events found.</Text>
+                <Text style={styles.sectionTitle}>Events</Text>
+
+                {filteredEvents.map((event) => (
+                  <EventCard
+                    key={event.id}
+                    title={event.title}
+                    date={event.date}
+                    club={event.club}
+                    location={event.location}
+                    type={event.type}
+                    onPress={() =>
+                      setSelectedEvent({
+                        title: event.title,
+                        date: event.date,
+                        location: event.location,
+                        description: event.description,
+                      })
+                    }
+                  />
+                ))}
+
+                {filteredEvents.length === 0 && (
+                  <Text style={styles.emptytext}>No matching events found.</Text>
+                )}
+
+                <Text style={styles.radiusText}>
+                  Floor: L{activeFloor} • Radius: {cameraRadius.toFixed(1)}
+                </Text>
+              </View>
             )}
-
-            <EventCard
-              title="Resume Help"
-              date="Feb 28 • 11 AM - 7 PM"
-              location="PFT 3147"
-              type="book-outline"
-              onPress={() =>
-              setSelectedEvent({
-                title: "Resume Help",
-                date: "Feb 28 • 11 AM - 7 PM",
-                location: "PFT 3147",
-                description: "Resume review event details here.",
-              })
-            }
-            />
-
-            <EventCard
-              title="Flutter Workshop"
-              date="Mar 1 • 6 AM - 1 PM"
-              location="PFT 2246"
-              type="laptop-outline"
-            />
-
-            <EventCard
-              title="Relaxation Social"
-              date="Mar 2 • 1 PM - 10 PM"
-              location="PFT 1255"
-              type="chatbubble-outline"
-              color="#E67E22"
-            />
-
-            <Text style={styles.radiusText}>
-              Floor: L{activeFloor} • Radius: {cameraRadius.toFixed(1)}
-            </Text>
           </BottomSheetScrollView>
         </BottomSheet>
       </View>
     </GestureHandlerRootView>
-            </>
-           )}
-        </ScrollView>
-        )}
-      </Animated.View>
-    </View>
   );
 }
 
@@ -943,11 +827,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-
-  emptytext:{
+  emptytext: {
     paddingHorizontal: 20,
     color: "#666",
-    marginTop:8,
+    marginTop: 8,
     fontSize: 15,
   },
   canvasAbsolute: {
@@ -970,7 +853,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     zIndex: 15,
   },
-
   collapsedSearchWrap: {
     position: "absolute",
     left: 16,
@@ -997,7 +879,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(120,120,120,0.7)",
     marginBottom: 8,
   },
-
   bottomSheetBackground: {
     backgroundColor: "rgba(235, 235, 218, 1)",
     borderTopLeftRadius: 26,
@@ -1015,7 +896,6 @@ const styles = StyleSheet.create({
   sheetContentContainer: {
     paddingBottom: 20,
   },
-
   sectionTitle: {
     fontSize: 18,
     fontWeight: "700",
@@ -1076,96 +956,79 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   mapGestureLayer: {
-  position: "absolute",
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  zIndex: 1,
-},
-
-eventTitle: {
-  fontSize: 22,
-  fontWeight: "700",
-  color: "#222",
-  marginBottom: 8,
-},
-eventMeta: {
-  fontSize: 14,
-  color: "#666",
-  marginBottom: 4,
-},
-eventSectionTitle: {
-  marginTop: 18,
-  marginBottom: 8,
-  fontSize: 18,
-  fontWeight: "700",
-  color: "#222",
-},
-eventDescription: {
-  fontSize: 15,
-  color: "#333",
-  lineHeight: 22,
-},
-closeButton: {
-  marginTop: 24,
-  alignSelf: "flex-start",
-  backgroundColor: "#111",
-  paddingHorizontal: 18,
-  paddingVertical: 10,
-  borderRadius: 999,
-},
-closeButtonText: {
-  color: "#fff",
-  fontWeight: "600",
-},
-backButton: {
-  marginBottom: 16,
-  alignSelf: "flex-start",
-},
-backButtonText: {
-  fontSize: 16,
-  fontWeight: "600",
-  color: "#3498DB",
-},
-sheetContentWrap: {
-  flex: 1,
-},
-animatedPage: {
-  width: "100%",
-},
-eventActionRow: {
-  flexDirection: "row",
-  gap: 14,
-  marginTop: 14,
-  marginBottom: 18,
-},
-
-eventActionButton: {
-  backgroundColor: "#BFDDF3",
-  borderRadius: 14,
-  paddingVertical: 10,
-  paddingHorizontal: 18,
-  alignItems: "center",
-  justifyContent: "center",
-  minWidth: 92,
-},
-
-eventActionText: {
-  marginTop: 4,
-  fontSize: 13,
-  fontWeight: "600",
-  color: "#222",
-},
-
-selectedRoomText: {
-  position: "absolute",
-  top: 80,
-  left: 20,
-  color: "white",
-  fontSize: 16,
-  fontWeight: "700",
-  zIndex: 20,
-},
-
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1,
+  },
+  eventTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#222",
+    marginBottom: 8,
+    paddingHorizontal: 20,
+  },
+  eventMeta: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 4,
+    paddingHorizontal: 20,
+  },
+  eventSectionTitle: {
+    marginTop: 18,
+    marginBottom: 8,
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#222",
+    paddingHorizontal: 20,
+  },
+  eventDescription: {
+    fontSize: 15,
+    color: "#333",
+    lineHeight: 22,
+    paddingHorizontal: 20,
+  },
+  backButton: {
+    marginBottom: 16,
+    alignSelf: "flex-start",
+    paddingHorizontal: 20,
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#3498DB",
+  },
+  eventActionRow: {
+    flexDirection: "row",
+    gap: 14,
+    marginTop: 14,
+    marginBottom: 18,
+    paddingHorizontal: 20,
+  },
+  eventActionButton: {
+    backgroundColor: "#BFDDF3",
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 92,
+  },
+  eventActionText: {
+    marginTop: 4,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#222",
+  },
+  selectedRoomText: {
+    position: "absolute",
+    top: 80,
+    left: 20,
+    color: "white",
+    fontSize: 16,
+    fontWeight: "700",
+    zIndex: 20,
+  },
 });
