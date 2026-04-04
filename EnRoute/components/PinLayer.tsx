@@ -1,79 +1,149 @@
-import React, { useMemo, useCallback } from "react";
-import { useThree } from "@react-three/fiber/native";
+import React, { useMemo, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import { useGLTF } from "@react-three/drei/native";
+import { Asset } from "expo-asset";
+import { useFrame } from "@react-three/fiber/native";
 
-import { usePins, Pin } from "@/hooks/usePins";
-
-type Props = {
-  pinMode: boolean;
-  setPinMode: React.Dispatch<React.SetStateAction<boolean>>;
+export type Pin = {
+  x: number;
+  y: number;
+  z: number;
 };
 
-export default function PinLayer({ pinMode, setPinMode }: Props) {
-  const { pins, setPins } = usePins();
-  const { camera, scene, gl } = useThree();
+type Props = {
+  pins: Pin[];
+  previewPin: Pin | null;
+  previewPinRef: React.MutableRefObject<Pin | null>;
+};
 
-  const raycaster = useMemo(() => new THREE.Raycaster(), []);
-  const pointer = useMemo(() => new THREE.Vector2(), []);
+const MAP_PIN_MODEL = require("../assets/models/mapPin.glb");
 
-  const handlePointerDown = useCallback(
-    (event: any) => {
-      if (!pinMode) return;
+function PinModel({
+  position,
+  preview = false,
+  previewPinRef,
+  modelUri,
+}: {
+  position: [number, number, number];
+  preview?: boolean;
+  previewPinRef?: React.MutableRefObject<Pin | null>;
+  modelUri: string;
+}) {
+  const { scene } = useGLTF(modelUri);
+  const groupRef = useRef<THREE.Group>(null);
+  const targetRef = useRef(new THREE.Vector3());
 
-      console.log("TOUCH DETECTED"); // 🔥 debug
+  const clonedScene = useMemo(() => {
+    const clone = scene.clone(true);
 
-      // Get screen coordinates
-      const { clientX, clientY } = event.nativeEvent;
-      const rect = gl.domElement.getBoundingClientRect();
+    const box = new THREE.Box3().setFromObject(clone);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
 
-      // Convert to normalized device coordinates
-      pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-      pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    clone.position.x -= center.x;
+    clone.position.z -= center.z;
+    clone.position.y -= box.min.y;
 
-      raycaster.setFromCamera(pointer, camera);
+    clone.traverse((child: any) => {
+      if (child.isMesh) {
+        child.frustumCulled = false;
 
-      // Raycast against entire scene
-      const intersects = raycaster.intersectObjects(scene.children, true);
+        if (child.material) {
+          const materials = Array.isArray(child.material)
+            ? child.material
+            : [child.material];
 
-      if (intersects.length > 0) {
-        const point = intersects[0].point;
-
-        // Snap to grid
-        const snapSize = 0.5;
-
-        const snappedPoint: Pin = {
-          x: Math.round(point.x / snapSize) * snapSize,
-          y: Math.round(point.y / snapSize) * snapSize,
-          z: Math.round(point.z / snapSize) * snapSize,
-        };
-
-        setPins((prev) => [...prev, snappedPoint]);
-
-        // Exit pin mode
-        setPinMode(false);
+          materials.forEach((mat: any) => {
+            mat.transparent = preview;
+            mat.opacity = preview ? 0.6 : 1;
+            mat.depthWrite = true;
+            mat.needsUpdate = true;
+          });
+        }
       }
-    },
-    [pinMode, camera, scene, gl, raycaster, pointer, setPins, setPinMode]
+    });
+
+    return clone;
+  }, [scene, preview]);
+
+  useEffect(() => {
+    if (!groupRef.current || preview) return;
+    groupRef.current.position.set(position[0], position[1], position[2]);
+  }, [position, preview]);
+
+  useFrame((_, delta) => {
+    if (!groupRef.current) return;
+
+    if (preview && previewPinRef?.current) {
+      targetRef.current.set(
+        previewPinRef.current.x,
+        previewPinRef.current.y - 0.02,
+        previewPinRef.current.z
+      );
+
+      groupRef.current.position.lerp(
+        targetRef.current,
+        1 - Math.pow(0.01, delta)
+      );
+    }
+  });
+
+  return (
+    <group ref={groupRef} scale={[0.04, 0.04, 0.04]} rotation={[0, 0, 0]}>
+      <primitive object={clonedScene} />
+    </group>
   );
+}
+
+export default function PinLayer({
+  pins,
+  previewPin,
+  previewPinRef,
+}: Props) {
+  const [modelUri, setModelUri] = useState<string | null>(null);
+  const EMBED_DEPTH = 0.00;
+
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      const asset = Asset.fromModule(MAP_PIN_MODEL);
+      await asset.downloadAsync();
+
+      if (!mounted) return;
+
+      const resolvedUri = asset.localUri ?? asset.uri;
+      if (resolvedUri) {
+        setModelUri(resolvedUri);
+        useGLTF.preload(resolvedUri);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (!modelUri) return null;
 
   return (
     <>
-      {/* Invisible interaction layer */}
-      <mesh
-        onPointerDown={handlePointerDown}
-        position={[0, 0, 0]}
-      >
-        <boxGeometry args={[1000, 1000, 1000]} />
-        <meshBasicMaterial transparent opacity={0} />
-      </mesh>
-
-      {/* Render pins */}
       {pins.map((pin, index) => (
-        <mesh key={index} position={[pin.x, pin.y, pin.z]}>
-          <sphereGeometry args={[0.05, 16, 16]} />
-          <meshStandardMaterial color="red" />
-        </mesh>
+        <PinModel
+          key={`pin-${index}`}
+          position={[pin.x, pin.y - EMBED_DEPTH, pin.z]}
+          modelUri={modelUri}
+        />
       ))}
+
+      {previewPin && (
+        <PinModel
+          position={[previewPin.x, previewPin.y - EMBED_DEPTH, previewPin.z]}
+          preview
+          previewPinRef={previewPinRef}
+          modelUri={modelUri}
+        />
+      )}
     </>
   );
 }

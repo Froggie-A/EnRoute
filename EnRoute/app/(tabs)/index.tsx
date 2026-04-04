@@ -30,7 +30,7 @@ import NearbyChips from "@/components/NearbyChips";
 import EventCard from "@/components/EventCard";
 import RoomHitboxes, { getRoomAtScreenPoint } from "@/components/roomHitbox";
 
-import PinLayer from "@/components/PinLayer";
+import PinLayer, { Pin } from "@/components/PinLayer";
 
 const FLOOR_MODELS = {
   1: require("../../assets/models/1stFloorModel.glb"),
@@ -39,12 +39,6 @@ const FLOOR_MODELS = {
 } as const;
 
 type FloorNumber = keyof typeof FLOOR_MODELS;
-
-type Pin = {
-  x: number;
-  y: number;
-  z: number;
-};
 
 type GestureState = {
   deltaRotate: { x: number; y: number };
@@ -205,21 +199,39 @@ function CameraController({
   return null;
 }
 
+function SceneCapture({
+  sceneRef,
+}: {
+  sceneRef: React.MutableRefObject<THREE.Object3D[] | null>;
+}) {
+  const { scene } = useThree();
+
+  useEffect(() => {
+    sceneRef.current = scene.children;
+  }, [scene, sceneRef]);
+
+  return null;
+}
+
 export default function HomeScreen() {
+  const previewPinRef = useRef<Pin | null>(null);
   const [activeFloor, setActiveFloor] = useState<FloorNumber>(1);
   const [cameraRadius, setCameraRadius] = useState(FLOOR_CONFIG[1].snapRadius);
   const [isReady, setIsReady] = useState(false);
 
-
+  const sceneRef = useRef<THREE.Object3D[] | null>(null);
 
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [mapSize, setMapSize] = useState({ width: 1, height: 1 });
   const [search, setSearch] = useState("");
+  const [pinMode, setPinMode] = useState(false);
+  const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
 
   const [pins, setPins] = useState<Pin[]>([]);
-  const [pinMode, setPinMode] = useState(false);
-  const [draggingPin, setDraggingPin] = useState<Pin | null>(null);
-  const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
+  const [previewPin, setPreviewPin] = useState<Pin | null>(null);
+
+  const raycasterRef = useRef(new THREE.Raycaster());
+  const pointerRef = useRef(new THREE.Vector2());
 
   const [selectedEvent, setSelectedEvent] = useState<{
     title: string;
@@ -318,6 +330,92 @@ export default function HomeScreen() {
     const y = (bounds.maxLat - lat) / (bounds.maxLat - bounds.minLat);
     return { x, y };
   };
+
+const PIN_Y = -0.05;
+const getPinPointFromTouch = useCallback(
+  
+  (pageX: number, pageY: number): Pin | null => {
+    const cam = cameraRef.current;
+    if (!cam || mapSize.width <= 0 || mapSize.height <= 0) return null;
+
+    const pointer = pointerRef.current;
+    const raycaster = raycasterRef.current;
+
+    pointer.x = (pageX / mapSize.width) * 2 - 1;
+    pointer.y = -(pageY / mapSize.height) * 2 + 1;
+
+    raycaster.setFromCamera(pointer, cam);
+
+    const intersects = raycaster.intersectObjects(
+      (sceneRef.current ?? []).length ? sceneRef.current! : [],
+      true
+    );
+
+    if (intersects.length === 0) return null;
+
+    const point = intersects[0].point;
+
+    return {
+      x: point.x,
+      y: PIN_Y,
+      z: point.z,
+    };
+  },
+  [mapSize.width, mapSize.height]
+);
+
+const pinPanResponder = useMemo(
+  () =>
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => pinMode,
+      onMoveShouldSetPanResponder: () => pinMode,
+
+      onPanResponderGrant: (evt) => {
+        if (!pinMode) return;
+
+        const point = getPinPointFromTouch(
+          evt.nativeEvent.pageX,
+          evt.nativeEvent.pageY
+        );
+
+        if (point) {
+          previewPinRef.current = point;
+          setPreviewPin(point); // only to make preview appear
+        }
+      },
+
+      onPanResponderMove: (evt) => {
+        if (!pinMode) return;
+
+        const point = getPinPointFromTouch(
+          evt.nativeEvent.pageX,
+          evt.nativeEvent.pageY
+        );
+
+        if (point) {
+          previewPinRef.current = point;
+        }
+      },
+
+      onPanResponderRelease: () => {
+        if (previewPinRef.current) {
+          setPins((prev) => [...prev, previewPinRef.current!]);
+        }
+
+        previewPinRef.current = null;
+        setPreviewPin(null);
+        setPinMode(false);
+      },
+
+      onPanResponderTerminate: () => {
+        previewPinRef.current = null;
+        setPreviewPin(null);
+      },
+    }),
+  [pinMode, getPinPointFromTouch]
+);
+
+
 
   const handleRadiusChange = useCallback((radius: number) => {
     setCameraRadius(radius);
@@ -462,48 +560,6 @@ export default function HomeScreen() {
     [pinMode, isSheetOpen, mapSize.width, mapSize.height]
   );
 
-  const pinPanResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => pinMode,
-        onMoveShouldSetPanResponder: () => pinMode,
-
-        onPanResponderGrant: (evt) => {
-          if (!pinMode) return;
-
-          const { locationX, locationY } = evt.nativeEvent;
-          setDraggingPin({
-            x: locationX / mapSize.width,
-            y: locationY / mapSize.height,
-            z: 0,
-          });
-        },
-
-        onPanResponderMove: (evt) => {
-          if (!pinMode) return;
-
-          const { locationX, locationY } = evt.nativeEvent;
-          setDraggingPin({
-            x: locationX / mapSize.width,
-            y: locationY / mapSize.height,
-            z: 0,
-          });
-        },
-
-        onPanResponderRelease: () => {
-          if (draggingPin) {
-            setPins((prev) => [...prev, draggingPin]);
-            setDraggingPin(null);
-            setPinMode(false);
-          }
-        },
-
-        onPanResponderTerminate: () => {
-          setDraggingPin(null);
-        },
-      }),
-    [pinMode, mapSize.width, mapSize.height, draggingPin]
-  );
 
   useEffect(() => {
     let subscription: Location.LocationSubscription | null = null;
@@ -600,9 +656,10 @@ export default function HomeScreen() {
           <directionalLight position={[-3, 5, -2]} intensity={0.9} />
           <directionalLight position={[0, 4, 4]} intensity={0.7} />
           <directionalLight position={[0, -5, 0]} intensity={0.7} />
-
+          <SceneCapture sceneRef={sceneRef} />
           <Suspense fallback={null}>
             <Building activeFloor={activeFloor} />
+           
 
             <group scale={[0.1, 0.1, 0.1]}>
               <RoomHitboxes
@@ -611,16 +668,15 @@ export default function HomeScreen() {
                 setSelectedRoom={setSelectedRoom}
               />
             </group>
+             <PinLayer
+                pins={pins}
+                previewPin={previewPin}
+                previewPinRef={previewPinRef}
+              />
           </Suspense>
 
-          <PinLayer pinMode={pinMode} setPinMode={setPinMode} />
+       
 
-        {pins.map((p, i) => (
-  <mesh key={i} position={[p.x, p.y, p.z]}>
-    <sphereGeometry args={[0.05, 16, 16]} />
-    <meshStandardMaterial color="red" />
-  </mesh>
-))}
 
           <CameraController
             gestureRef={gestureRef}
@@ -670,9 +726,7 @@ export default function HomeScreen() {
           />
         )}
 
-        {pinMode && (
-          <View style={styles.pinOverlay} {...pinPanResponder.panHandlers} />
-        )}
+        
 
        
 
@@ -710,6 +764,10 @@ export default function HomeScreen() {
               />
             );
           })()}
+
+          {pinMode && (
+            <View style={styles.pinOverlay} {...pinPanResponder.panHandlers} />
+          )}
 
         {showCollapsedPill && (
           <Pressable style={styles.collapsedSearchWrap} onPress={openSheet}>
