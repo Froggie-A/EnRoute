@@ -28,9 +28,16 @@ import { FloorSwitcher } from "@/components/floorSwitcher";
 import SearchBarRow from "@/components/SearchBarRow";
 import NearbyChips from "@/components/NearbyChips";
 import EventCard from "@/components/EventCard";
-import RoomHitboxes, { getRoomAtScreenPoint } from "@/components/roomHitbox";
+import RoomHitboxes, {
+  getRoomAtScreenPoint,
+  getRoomById,
+} from "@/components/roomHitbox";
 
 import PinLayer, { Pin } from "@/components/PinLayer";
+import { normalizeLocationToBuilding } from "@/utils/buildingLocation";
+import UserLocationMarker from "@/components/UserLocationMarker";
+
+
 
 const FLOOR_MODELS = {
   1: require("../../assets/models/1stFloorModel.glb"),
@@ -55,12 +62,6 @@ const FLOOR_CONFIG: Record<
   3: { switchRadius: 45, snapRadius: 10, zoomInRadius: 5 },
 };
 
-const bounds = {
-  minLat: 30.123,
-  maxLat: 30.124,
-  minLon: -91.123,
-  maxLon: -91.122,
-};
 
 function FloorModel({ source }: { source: number }) {
   const asset = Asset.fromModule(source);
@@ -112,19 +113,20 @@ function CameraController({
   lerpRadiusRef,
   maxRadius,
   cameraRef,
+  targetRef,
 }: {
   gestureRef: React.MutableRefObject<GestureState>;
   onRadiusChange: (radius: number) => void;
   lerpRadiusRef: React.MutableRefObject<number | null>;
   maxRadius: number;
   cameraRef: React.MutableRefObject<THREE.Camera | null>;
+  targetRef: React.MutableRefObject<THREE.Vector3>;
 }) {
   const { camera } = useThree();
 
   const spherical = useRef(
     new THREE.Spherical(FLOOR_CONFIG[1].snapRadius, Math.PI / 4, 0)
   );
-  const target = useRef(new THREE.Vector3());
   const maxRadiusRef = useRef(maxRadius);
 
   useEffect(() => {
@@ -156,8 +158,8 @@ function CameraController({
       .crossVectors(right, new THREE.Vector3(0, 1, 0))
       .normalize();
 
-    target.current.addScaledVector(right, -g.deltaPan.x * 0.01);
-    target.current.addScaledVector(forward, g.deltaPan.y * 0.01);
+    targetRef.current.addScaledVector(right, -g.deltaPan.x * 0.01);
+    targetRef.current.addScaledVector(forward, g.deltaPan.y * 0.01);
 
     spherical.current.theta -= g.deltaRotate.x * 0.0035;
     spherical.current.phi = Math.max(
@@ -178,9 +180,11 @@ function CameraController({
     onRadiusChange(spherical.current.radius);
 
     camera.position.copy(
-      new THREE.Vector3().setFromSpherical(spherical.current).add(target.current)
+      new THREE.Vector3()
+        .setFromSpherical(spherical.current)
+        .add(targetRef.current)
     );
-    camera.lookAt(target.current);
+    camera.lookAt(targetRef.current);
     cameraRef.current = camera;
 
     g.deltaRotate.x *= 0.85;
@@ -226,7 +230,7 @@ export default function HomeScreen() {
   const [search, setSearch] = useState("");
   const [pinMode, setPinMode] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
-
+  const cameraTargetRef = useRef(new THREE.Vector3(0, 0, 0));
   const [pins, setPins] = useState<Pin[]>([]);
   const [previewPin, setPreviewPin] = useState<Pin | null>(null);
 
@@ -321,17 +325,40 @@ export default function HomeScreen() {
     );
   });
 
+  
+
   useEffect(() => {
     activeFloorRef.current = activeFloor;
   }, [activeFloor]);
 
-  const normalizeLocation = (lat: number, lon: number) => {
-    const x = (lon - bounds.minLon) / (bounds.maxLon - bounds.minLon);
-    const y = (bounds.maxLat - lat) / (bounds.maxLat - bounds.minLat);
-    return { x, y };
-  };
+  
 
 const PIN_Y = -0.05;
+
+const focusRoom = useCallback(
+  (roomId: string | null, floor: FloorNumber) => {
+    if (!roomId) return;
+
+    const room = getRoomById(floor, roomId);
+    if (!room) return;
+
+    const groupScale = 0.1;
+    const [x, y, z] = room.position;
+    const [, sy, sz] = room.size;
+
+   
+    cameraTargetRef.current.set(
+      x * groupScale,
+      y * groupScale,
+      z * groupScale
+    );
+
+   
+    const zoomRadius = Math.max(2.5, Math.max(sy, sz) * groupScale * 2.2);
+    lerpRadiusRef.current = zoomRadius;
+  },
+  []
+);
 const getPinPointFromTouch = useCallback(
   
   (pageX: number, pageY: number): Pin | null => {
@@ -359,10 +386,17 @@ const getPinPointFromTouch = useCallback(
       x: point.x,
       y: PIN_Y,
       z: point.z,
+      floor: activeFloorRef.current,
     };
   },
   [mapSize.width, mapSize.height]
 );
+
+useEffect(() => {
+  if (selectedRoom) {
+    focusRoom(selectedRoom, activeFloor);
+  }
+}, [selectedRoom, activeFloor, focusRoom]);
 
 const pinPanResponder = useMemo(
   () =>
@@ -380,7 +414,7 @@ const pinPanResponder = useMemo(
 
         if (point) {
           previewPinRef.current = point;
-          setPreviewPin(point); // only to make preview appear
+          setPreviewPin(point); 
         }
       },
 
@@ -474,6 +508,8 @@ const pinPanResponder = useMemo(
           }
         },
 
+        
+
         onPanResponderMove: (e) => {
           if (pinMode || isSheetOpen) return;
 
@@ -539,16 +575,22 @@ const pinPanResponder = useMemo(
 
         onPanResponderRelease: () => {
           if (!touchMovedRef.current && touchRoomRef.current) {
-            setSelectedRoom((prev) =>
-              prev === touchRoomRef.current ? null : touchRoomRef.current
-            );
-          }
+            setSelectedRoom((prev) => {
+              const nextRoom = prev === touchRoomRef.current ? null : touchRoomRef.current;
 
-          touchStartRef.current = null;
-          touchRoomRef.current = null;
-          touchMovedRef.current = false;
-          prevTouches.current = [];
-        },
+              if (nextRoom) {
+                focusRoom(nextRoom, activeFloorRef.current);
+              }
+
+              return nextRoom;
+            });
+          }   
+
+  touchStartRef.current = null;
+  touchRoomRef.current = null;
+  touchMovedRef.current = false;
+  prevTouches.current = [];
+},
 
         onPanResponderTerminate: () => {
           touchStartRef.current = null;
@@ -658,23 +700,31 @@ const pinPanResponder = useMemo(
           <directionalLight position={[0, -5, 0]} intensity={0.7} />
           <SceneCapture sceneRef={sceneRef} />
           <Suspense fallback={null}>
-            <Building activeFloor={activeFloor} />
-           
+              <Building activeFloor={activeFloor} />
 
-            <group scale={[0.1, 0.1, 0.1]}>
-              <RoomHitboxes
-                activeFloor={activeFloor}
-                selectedRoom={selectedRoom}
-                setSelectedRoom={setSelectedRoom}
-              />
-            </group>
-             <PinLayer
+              <group scale={[0.1, 0.1, 0.1]}>
+                <RoomHitboxes
+                  activeFloor={activeFloor}
+                  selectedRoom={selectedRoom}
+                  setSelectedRoom={setSelectedRoom}
+                />
+
+                {location && (
+                  <UserLocationMarker
+                    latitude={location.coords.latitude}
+                    longitude={location.coords.longitude}
+                    activeFloor={activeFloor}
+                  />
+                )}
+              </group>
+
+              <PinLayer
                 pins={pins}
                 previewPin={previewPin}
                 previewPinRef={previewPinRef}
+                activeFloor={activeFloor}
               />
-          </Suspense>
-
+            </Suspense>
        
 
 
@@ -684,6 +734,7 @@ const pinPanResponder = useMemo(
             lerpRadiusRef={lerpRadiusRef}
             maxRadius={FLOOR_CONFIG[activeFloor].switchRadius}
             cameraRef={cameraRef}
+            targetRef={cameraTargetRef}
           />
         </Canvas>
 
@@ -745,25 +796,6 @@ const pinPanResponder = useMemo(
           </Text>
         )}
 
-        {location &&
-          (() => {
-            const pos = normalizeLocation(
-              location.coords.latitude,
-              location.coords.longitude
-            );
-
-            return (
-              <View
-                style={[
-                  styles.userDot,
-                  {
-                    left: pos.x * mapSize.width - 6,
-                    top: pos.y * mapSize.height - 6,
-                  },
-                ]}
-              />
-            );
-          })()}
 
           {pinMode && (
             <View style={styles.pinOverlay} {...pinPanResponder.panHandlers} />

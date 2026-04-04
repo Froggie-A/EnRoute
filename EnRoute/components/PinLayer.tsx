@@ -8,12 +8,14 @@ export type Pin = {
   x: number;
   y: number;
   z: number;
+  floor: 1 | 2 | 3;
 };
 
 type Props = {
   pins: Pin[];
   previewPin: Pin | null;
   previewPinRef: React.MutableRefObject<Pin | null>;
+  activeFloor: 1 | 2 | 3;
 };
 
 const MAP_PIN_MODEL = require("../assets/models/mapPin.glb");
@@ -77,7 +79,7 @@ function PinModel({
     if (preview && previewPinRef?.current) {
       targetRef.current.set(
         previewPinRef.current.x,
-        previewPinRef.current.y - 0.02,
+        previewPinRef.current.y,
         previewPinRef.current.z
       );
 
@@ -99,9 +101,10 @@ export default function PinLayer({
   pins,
   previewPin,
   previewPinRef,
+  activeFloor,
 }: Props) {
   const [modelUri, setModelUri] = useState<string | null>(null);
-  const EMBED_DEPTH = 0.00;
+  const EMBED_DEPTH = 0.0;
 
   useEffect(() => {
     let mounted = true;
@@ -126,9 +129,12 @@ export default function PinLayer({
 
   if (!modelUri) return null;
 
+  const visiblePins = pins.filter((pin) => pin.floor === activeFloor);
+  const showPreview = previewPin && previewPin.floor === activeFloor;
+
   return (
     <>
-      {pins.map((pin, index) => (
+      {visiblePins.map((pin, index) => (
         <PinModel
           key={`pin-${index}`}
           position={[pin.x, pin.y - EMBED_DEPTH, pin.z]}
@@ -136,7 +142,7 @@ export default function PinLayer({
         />
       ))}
 
-      {previewPin && (
+      {showPreview && previewPin && (
         <PinModel
           position={[previewPin.x, previewPin.y - EMBED_DEPTH, previewPin.z]}
           preview

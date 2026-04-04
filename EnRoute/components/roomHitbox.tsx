@@ -27,6 +27,14 @@ const ROOM_DATA: Record<1 | 2 | 3, RoomBox[]> = {
   ],
 };
 
+export function getRoomById(
+  activeFloor: 1 | 2 | 3,
+  roomId: string
+): RoomBox | null {
+  const rooms = ROOM_DATA[activeFloor] ?? [];
+  return rooms.find((room) => room.id === roomId) ?? null;
+}
+
 export default function RoomHitboxes({
   activeFloor,
   selectedRoom,
