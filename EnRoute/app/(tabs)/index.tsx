@@ -30,7 +30,10 @@ import NearbyChips from "@/components/NearbyChips";
 import EventCard from "@/components/EventCard";
 import RoomHitboxes, { getRoomAtScreenPoint } from "@/components/roomHitbox";
 
+import IconLayer from "@/components/IconLayer";
+
 import PinLayer from "@/components/PinLayer";
+
 
 const FLOOR_MODELS = {
   1: require("../../assets/models/1stFloorModel.glb"),
@@ -610,6 +613,7 @@ export default function HomeScreen() {
                 selectedRoom={selectedRoom}
                 setSelectedRoom={setSelectedRoom}
               />
+              <IconLayer />
             </group>
           </Suspense>
 
