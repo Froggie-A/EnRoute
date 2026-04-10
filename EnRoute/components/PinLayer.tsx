@@ -91,7 +91,7 @@ function PinModel({
   });
 
   return (
-    <group ref={groupRef} scale={[0.04, 0.04, 0.04]} rotation={[0, 0, 0]}>
+    <group ref={groupRef} scale={[0.1, 0.1, 0.1]} rotation={[0, 0, 0]}>
       <primitive object={clonedScene} />
     </group>
   );

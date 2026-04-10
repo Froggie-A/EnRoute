@@ -34,13 +34,12 @@ import RoomHitboxes, {
 } from "@/components/roomHitbox";
 
 import PinLayer, { Pin } from "@/components/PinLayer";
-import { normalizeLocationToBuilding } from "@/utils/buildingLocation";
 import UserLocationMarker from "@/components/UserLocationMarker";
 
 
 
 const FLOOR_MODELS = {
-  1: require("../../assets/models/1stFloorModel.glb"),
+  1: require("../../assets/models/newfloorplan.glb"),
   2: require("../../assets/models/2ndFloorModel.glb"),
   3: require("../../assets/models/3rdFloorModel.glb"),
 } as const;
@@ -57,7 +56,7 @@ const FLOOR_CONFIG: Record<
   FloorNumber,
   { switchRadius: number; snapRadius: number; zoomInRadius: number }
 > = {
-  1: { switchRadius: 20, snapRadius: 10, zoomInRadius: 5 },
+  1: { switchRadius: 50, snapRadius: 10, zoomInRadius: 5 },
   2: { switchRadius: 120, snapRadius: 10, zoomInRadius: 5 },
   3: { switchRadius: 45, snapRadius: 10, zoomInRadius: 5 },
 };
