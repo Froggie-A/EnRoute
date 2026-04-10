@@ -37,6 +37,10 @@ import PinLayer, { Pin } from "@/components/PinLayer";
 import UserLocationMarker from "@/components/UserLocationMarker";
 
 
+import IconLayer from "@/components/IconLayer";
+
+import PinLayer from "@/components/PinLayer";
+
 
 const FLOOR_MODELS = {
   1: require("../../assets/models/newfloorplan.glb"),
@@ -723,8 +727,11 @@ const pinPanResponder = useMemo(
                 previewPinRef={previewPinRef}
                 activeFloor={activeFloor}
               />
-            </Suspense>
-       
+              <IconLayer />
+            </group>
+          </Suspense>
+
+          <PinLayer pinMode={pinMode} setPinMode={setPinMode} />
 
 
           <CameraController
