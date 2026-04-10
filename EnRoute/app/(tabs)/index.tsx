@@ -35,11 +35,7 @@ import RoomHitboxes, {
 
 import PinLayer, { Pin } from "@/components/PinLayer";
 import UserLocationMarker from "@/components/UserLocationMarker";
-
-
 import IconLayer from "@/components/IconLayer";
-
-import PinLayer from "@/components/PinLayer";
 
 
 const FLOOR_MODELS = {
@@ -702,36 +698,34 @@ const pinPanResponder = useMemo(
           <directionalLight position={[0, 4, 4]} intensity={0.7} />
           <directionalLight position={[0, -5, 0]} intensity={0.7} />
           <SceneCapture sceneRef={sceneRef} />
-          <Suspense fallback={null}>
-              <Building activeFloor={activeFloor} />
+         <Suspense fallback={null}>
+            <Building activeFloor={activeFloor} />
 
-              <group scale={[0.1, 0.1, 0.1]}>
-                <RoomHitboxes
-                  activeFloor={activeFloor}
-                  selectedRoom={selectedRoom}
-                  setSelectedRoom={setSelectedRoom}
-                />
-
-                {location && (
-                  <UserLocationMarker
-                    latitude={location.coords.latitude}
-                    longitude={location.coords.longitude}
-                    activeFloor={activeFloor}
-                  />
-                )}
-              </group>
-
-              <PinLayer
-                pins={pins}
-                previewPin={previewPin}
-                previewPinRef={previewPinRef}
+            <group scale={[0.1, 0.1, 0.1]}>
+              <RoomHitboxes
                 activeFloor={activeFloor}
+                selectedRoom={selectedRoom}
+                setSelectedRoom={setSelectedRoom}
               />
-              <IconLayer />
-            </group>
-          </Suspense>
 
-          <PinLayer pinMode={pinMode} setPinMode={setPinMode} />
+              {location && (
+                <UserLocationMarker
+                  latitude={location.coords.latitude}
+                  longitude={location.coords.longitude}
+                  activeFloor={activeFloor}
+                />
+              )}
+            </group>
+
+            <PinLayer
+              pins={pins}
+              previewPin={previewPin}
+              previewPinRef={previewPinRef}
+              activeFloor={activeFloor}
+            />
+
+            <IconLayer />
+          </Suspense>
 
 
           <CameraController
