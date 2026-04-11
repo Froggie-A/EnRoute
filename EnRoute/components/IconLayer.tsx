@@ -19,14 +19,14 @@ type IconPin = {
 };
 
 const ICON_DATA: IconPin[] = [
-  { x: 1, y: 0.5, z: 0, type: "studyroom" },
+  { x: 10, y: 5, z: 0, type: "studyroom" },
   { x: 5, y: 0.5, z: 0, type: "emergency" },
   { x: 10, y: 0.5, z: 0, type: "restroom" },
-  { x: 10, y: 0.5, z: 20, type: "restroom" },
+  { x: 0, y: 0.5, z: 0, type: "restroom" },
   { x: 15, y: 0.5, z: 0, type: "vending" },
   { x: 20, y: 0.5, z: 0, type: "elevator" },
   { x: 25, y: 0.5, z: 0, type: "fountain" },
-  { x: -1, y: 0.5, z: 0, type: "fire" },
+  { x: -10, y: 0.5, z: 0, type: "fire" },
   { x: 30, y: 0.5, z: 0, type: "defib" },
 ];
 
@@ -87,7 +87,7 @@ export default function IconLayer() {
         <sprite
           key={i}
           position={[icon.x, icon.y + 0.2, icon.z]}
-          scale={[1.5, 1.5, 1.5]}
+          scale={[1.1, 1.1, 1.1]}
         >
           <spriteMaterial map={textures[icon.type]} transparent />
         </sprite>

@@ -1,9 +1,9 @@
- // navigation/db.ts
- // database layer
+// navigation/db.ts
+// database layer
 
 import { openDatabaseSync, SQLiteDatabase } from "expo-sqlite";
-import { SEED_NODES } from './seed-nodes';
-import { computeEdgeCosts } from './seed-edges';
+import { SEED_NODES } from "./seed-nodes";
+import { computeEdgeCosts } from "./seed-edges";
 
 export type NodeType =
     | "room"
@@ -22,12 +22,7 @@ export type NodeType =
     | "user_pin"
     | string;
 
-export type EdgeType =
-    | "hallway"
-    | "door"
-    | "stairs"
-    | "elevator"
-    | string;
+export type EdgeType = "hallway" | "door" | "stairs" | "elevator" | string;
 
 export interface NavNode {
     id: string;
@@ -51,22 +46,19 @@ export interface NavEdge {
 }
 
 // open/create db
+let _db: SQLiteDatabase | null = null;
 
- let _db: SQLiteDatabase | null = null;
-
- export function getDb(): SQLiteDatabase {
-     if (!_db) {
-         _db = openDatabaseSync("enroute.db");
-         _db.execSync("PRAGMA foreign_keys = ON;");
-     }
-     return _db;
- }
+export function getDb(): SQLiteDatabase {
+    if (!_db) {
+        _db = openDatabaseSync("enroute.db");
+        _db.execSync("PRAGMA foreign_keys = ON;");
+    }
+    return _db;
+}
 
 // schema
-
 export function initSchema(): void {
     const db = getDb();
-
     db.execSync(`
     PRAGMA journal_mode = WAL;
 
@@ -100,9 +92,8 @@ export function initSchema(): void {
   `);
 }
 
-// seeding
-
-const SEED_VERSION = "1";
+// Bump this any time you change seed data so the db re-seeds on next launch
+const SEED_VERSION = "2";
 
 export function seedIfNeeded(): void {
     const db = getDb();
@@ -113,6 +104,9 @@ export function seedIfNeeded(): void {
 
     if (row?.value === SEED_VERSION) return;
 
+    // Disable FK constraints during seeding — some edges may reference nodes
+    // that appear later in the insert order, or there may be minor data bugs
+    db.execSync("PRAGMA foreign_keys = OFF;");
     db.execSync("DELETE FROM nav_edges; DELETE FROM nav_nodes;");
 
     const insertNode = db.prepareSync(
@@ -144,6 +138,9 @@ export function seedIfNeeded(): void {
     insertNode.finalizeSync();
     insertEdge.finalizeSync();
 
+    // Re-enable FK constraints for normal runtime queries
+    db.execSync("PRAGMA foreign_keys = ON;");
+
     db.runSync(
         "INSERT OR REPLACE INTO app_meta (key, value) VALUES ('seed_version', ?)",
         [SEED_VERSION]
@@ -151,31 +148,26 @@ export function seedIfNeeded(): void {
 }
 
 // query helpers
-// load nodes
 export function getNodes(floor?: number): NavNode[] {
     const db = getDb();
     const rows = floor !== undefined
         ? db.getAllSync<any>("SELECT * FROM nav_nodes WHERE floor = ?", [floor])
         : db.getAllSync<any>("SELECT * FROM nav_nodes");
-
     return rows.map(rowToNode);
 }
 
-// load one
 export function getNode(id: string): NavNode | null {
     const db = getDb();
     const row = db.getFirstSync<any>("SELECT * FROM nav_nodes WHERE id = ?", [id]);
     return row ? rowToNode(row) : null;
 }
 
-// load edges
 export function getEdges(): NavEdge[] {
     const db = getDb();
     const rows = db.getAllSync<any>("SELECT * FROM nav_edges");
     return rows.map(rowToEdge);
 }
 
-// amenity search (filter by type)
 export function getNodesByType(type: NodeType, floor?: number): NavNode[] {
     const db = getDb();
     const rows = floor !== undefined
@@ -184,11 +176,9 @@ export function getNodesByType(type: NodeType, floor?: number): NavNode[] {
             [type, floor]
         )
         : db.getAllSync<any>("SELECT * FROM nav_nodes WHERE type = ?", [type]);
-
     return rows.map(rowToNode);
 }
 
-// helpers
 function rowToNode(r: any): NavNode {
     return {
         id: r.id,
