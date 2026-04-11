@@ -31,12 +31,18 @@ import EventCard from "@/components/EventCard";
 import RoomHitboxes, {
   getRoomAtScreenPoint,
   getRoomById,
+  getNavNodeId,
 } from "@/components/roomHitbox";
-
+import RoomDetailSheet from "@/components/roomDetail";
+import DirectionsSheet, { START_NODE_ID } from "@/components/Directions";
 import PinLayer, { Pin } from "@/components/PinLayer";
 import UserLocationMarker from "@/components/UserLocationMarker";
 import IconLayer from "@/components/IconLayer";
 
+import { getNode } from "@/navigation/db";
+import { useRoute } from "@/hooks/use-route";
+import type { NavNode } from "@/navigation/db";
+import type { RouteResult } from "@/navigation/pathfinding";
 
 const FLOOR_MODELS = {
   1: require("../../assets/models/newfloorplan.glb"),
@@ -45,6 +51,7 @@ const FLOOR_MODELS = {
 } as const;
 
 type FloorNumber = keyof typeof FLOOR_MODELS;
+type SheetView = "default" | "detail" | "directions";
 
 type GestureState = {
   deltaRotate: { x: number; y: number };
@@ -53,14 +60,57 @@ type GestureState = {
 };
 
 const FLOOR_CONFIG: Record<
-  FloorNumber,
-  { switchRadius: number; snapRadius: number; zoomInRadius: number }
+    FloorNumber,
+    { switchRadius: number; snapRadius: number; zoomInRadius: number }
 > = {
   1: { switchRadius: 50, snapRadius: 10, zoomInRadius: 5 },
   2: { switchRadius: 120, snapRadius: 10, zoomInRadius: 5 },
   3: { switchRadius: 45, snapRadius: 10, zoomInRadius: 5 },
 };
 
+const SNAP_FRACTIONS = [0.5, 0.75, 0.9];
+
+// ── Hardcoded test location — center of PFT floor 1 ──────────────────────────
+// Swap these for real GPS once you're testing inside the building.
+// The building GPS bounding box is roughly:
+//   lat 30.4070–30.4085, lon -91.1808–91.1791
+const HARDCODED_LAT = 30.40775;
+const HARDCODED_LON = -91.17995;
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Building bounding box — must match BUILDING_CORNERS in buildingLocation.tsx
+const BUILDING_MIN_LAT = 30.406977;
+const BUILDING_MAX_LAT = 30.408520;
+const BUILDING_MIN_LON = -91.180786;
+const BUILDING_MAX_LON = -91.179059;
+
+// Nav coordinate space dimensions (feet)
+const NAV_WIDTH = 750;
+const NAV_HEIGHT = 780;
+
+// Convert GPS coords to nav layer (x/y in feet) for nearest-node snapping
+function gpsToNavCoords(lat: number, lon: number): { x: number; y: number } {
+  const x = ((lon - BUILDING_MIN_LON) / (BUILDING_MAX_LON - BUILDING_MIN_LON)) * NAV_WIDTH;
+  const y = ((BUILDING_MAX_LAT - lat) / (BUILDING_MAX_LAT - BUILDING_MIN_LAT)) * NAV_HEIGHT;
+  return { x, y };
+}
+
+// Convert GPS coords to 3D model world space for camera centering.
+// The model is auto-centered to origin by FloorModel, so we need the
+// normalised [0,1] position then map into MODEL_FLOOR_BOUNDS.
+// These bounds match UserLocationMarker's MODEL_FLOOR_BOUNDS.
+const MODEL_MIN_X = -12;
+const MODEL_MAX_X = 12;
+const MODEL_MIN_Z = -18;
+const MODEL_MAX_Z = 18;
+
+function gpsToModelCoords(lat: number, lon: number): { x: number; z: number } {
+  const normX = (lon - BUILDING_MIN_LON) / (BUILDING_MAX_LON - BUILDING_MIN_LON);
+  const normZ = (BUILDING_MAX_LAT - lat) / (BUILDING_MAX_LAT - BUILDING_MIN_LAT);
+  const x = MODEL_MIN_X + normX * (MODEL_MAX_X - MODEL_MIN_X);
+  const z = MODEL_MIN_Z + normZ * (MODEL_MAX_Z - MODEL_MIN_Z);
+  return { x, z };
+}
 
 function FloorModel({ source }: { source: number }) {
   const asset = Asset.fromModule(source);
@@ -79,9 +129,8 @@ function FloorModel({ source }: { source: number }) {
     clonedScene.traverse((child: any) => {
       if (child.isMesh && child.material) {
         const materials = Array.isArray(child.material)
-          ? child.material
-          : [child.material];
-
+            ? child.material
+            : [child.material];
         materials.forEach((mat: any) => {
           mat.transparent = false;
           mat.opacity = 1;
@@ -97,23 +146,23 @@ function FloorModel({ source }: { source: number }) {
 
 function Building({ activeFloor }: { activeFloor: FloorNumber }) {
   return (
-    <group scale={[0.1, 0.1, 0.1]}>
-      <FloorModel
-        key={`floor-${activeFloor}`}
-        source={FLOOR_MODELS[activeFloor]}
-      />
-    </group>
+      <group scale={[0.1, 0.1, 0.1]}>
+        <FloorModel
+            key={`floor-${activeFloor}`}
+            source={FLOOR_MODELS[activeFloor]}
+        />
+      </group>
   );
 }
 
 function CameraController({
-  gestureRef,
-  onRadiusChange,
-  lerpRadiusRef,
-  maxRadius,
-  cameraRef,
-  targetRef,
-}: {
+                            gestureRef,
+                            onRadiusChange,
+                            lerpRadiusRef,
+                            maxRadius,
+                            cameraRef,
+                            targetRef,
+                          }: {
   gestureRef: React.MutableRefObject<GestureState>;
   onRadiusChange: (radius: number) => void;
   lerpRadiusRef: React.MutableRefObject<number | null>;
@@ -122,9 +171,8 @@ function CameraController({
   targetRef: React.MutableRefObject<THREE.Vector3>;
 }) {
   const { camera } = useThree();
-
   const spherical = useRef(
-    new THREE.Spherical(FLOOR_CONFIG[1].snapRadius, Math.PI / 4, 0)
+      new THREE.Spherical(FLOOR_CONFIG[1].snapRadius, Math.PI / 4, 0)
   );
   const maxRadiusRef = useRef(maxRadius);
 
@@ -135,53 +183,47 @@ function CameraController({
   useFrame((_, delta) => {
     if (lerpRadiusRef.current !== null) {
       spherical.current.radius = THREE.MathUtils.lerp(
-        spherical.current.radius,
-        lerpRadiusRef.current,
-        1 - Math.pow(0.01, delta)
+          spherical.current.radius,
+          lerpRadiusRef.current,
+          1 - Math.pow(0.01, delta)
       );
-
       gestureRef.current.deltaZoom = 0;
-
       if (Math.abs(spherical.current.radius - lerpRadiusRef.current) < 0.05) {
         lerpRadiusRef.current = null;
       }
     }
 
     const g = gestureRef.current;
-
     const offset = new THREE.Vector3().setFromSpherical(spherical.current);
     const right = new THREE.Vector3()
-      .crossVectors(offset, new THREE.Vector3(0, 1, 0))
-      .normalize();
+        .crossVectors(offset, new THREE.Vector3(0, 1, 0))
+        .normalize();
     const forward = new THREE.Vector3()
-      .crossVectors(right, new THREE.Vector3(0, 1, 0))
-      .normalize();
+        .crossVectors(right, new THREE.Vector3(0, 1, 0))
+        .normalize();
 
     targetRef.current.addScaledVector(right, -g.deltaPan.x * 0.01);
     targetRef.current.addScaledVector(forward, g.deltaPan.y * 0.01);
 
     spherical.current.theta -= g.deltaRotate.x * 0.0035;
     spherical.current.phi = Math.max(
-      0.2,
-      Math.min(Math.PI - 0.2, spherical.current.phi - g.deltaRotate.y * 0.0035)
+        0.2,
+        Math.min(Math.PI - 0.2, spherical.current.phi - g.deltaRotate.y * 0.0035)
     );
 
     if (g.deltaZoom !== 0 && lerpRadiusRef.current === null) {
       spherical.current.radius = Math.max(
-        0.1,
-        Math.min(
-          maxRadiusRef.current * 1.2,
-          spherical.current.radius * (1 - g.deltaZoom * 0.0045)
-        )
+          0.1,
+          Math.min(
+              maxRadiusRef.current * 1.2,
+              spherical.current.radius * (1 - g.deltaZoom * 0.0045)
+          )
       );
     }
 
     onRadiusChange(spherical.current.radius);
-
     camera.position.copy(
-      new THREE.Vector3()
-        .setFromSpherical(spherical.current)
-        .add(targetRef.current)
+        new THREE.Vector3().setFromSpherical(spherical.current).add(targetRef.current)
     );
     camera.lookAt(targetRef.current);
     cameraRef.current = camera;
@@ -203,16 +245,14 @@ function CameraController({
 }
 
 function SceneCapture({
-  sceneRef,
-}: {
+                        sceneRef,
+                      }: {
   sceneRef: React.MutableRefObject<THREE.Object3D[] | null>;
 }) {
   const { scene } = useThree();
-
   useEffect(() => {
     sceneRef.current = scene.children;
   }, [scene, sceneRef]);
-
   return null;
 }
 
@@ -224,7 +264,22 @@ export default function HomeScreen() {
 
   const sceneRef = useRef<THREE.Object3D[] | null>(null);
 
-  const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [location, setLocation] = useState<Location.LocationObject | null>({
+    coords: {
+      latitude: HARDCODED_LAT,
+      longitude: HARDCODED_LON,
+      altitude: 0,
+      accuracy: 1,
+      altitudeAccuracy: 1,
+      heading: 0,
+      speed: 0,
+    },
+    timestamp: Date.now(),
+  });
+
+
+  const hasCenteredOnUser = useRef(false);
+
   const [mapSize, setMapSize] = useState({ width: 1, height: 1 });
   const [search, setSearch] = useState("");
   const [pinMode, setPinMode] = useState(false);
@@ -235,6 +290,10 @@ export default function HomeScreen() {
 
   const raycasterRef = useRef(new THREE.Raycaster());
   const pointerRef = useRef(new THREE.Vector2());
+
+  const [selectedNode, setSelectedNode] = useState<NavNode | null>(null);
+  const [sheetView, setSheetView] = useState<SheetView>("default");
+  const [activeRoute, setActiveRoute] = useState<RouteResult | null>(null);
 
   const [selectedEvent, setSelectedEvent] = useState<{
     title: string;
@@ -255,6 +314,9 @@ export default function HomeScreen() {
   const cameraRef = useRef<THREE.Camera | null>(null);
   const bottomSheetRef = useRef<BottomSheet>(null);
 
+  const sheetIndexRef = useRef(-1);
+  const mapSizeRef = useRef({ width: 1, height: 1 });
+
   const gestureRef = useRef<GestureState>({
     deltaRotate: { x: 0, y: 0 },
     deltaZoom: 0,
@@ -263,7 +325,14 @@ export default function HomeScreen() {
 
   const prevTouches = useRef<{ x: number; y: number }[]>([]);
   const snapPoints = useMemo(() => ["50%", "75%", "90%"], []);
-  const isSheetOpen = sheetIndex >= 0;
+
+  const { getRoute, dbReady, snapToNode } = useRoute();
+
+  const sheetTopY = useMemo(() => {
+    if (sheetIndex < 0) return mapSize.height;
+    const frac = SNAP_FRACTIONS[sheetIndex] ?? 0.5;
+    return mapSize.height * (1 - frac);
+  }, [sheetIndex, mapSize.height]);
 
   const events = [
     {
@@ -316,157 +385,119 @@ export default function HomeScreen() {
   const filteredEvents = events.filter((event) => {
     const query = search.trim().toLowerCase();
     if (!query) return true;
-
     return (
-      event.title.toLowerCase().includes(query) ||
-      event.location.toLowerCase().includes(query) ||
-      event.date.toLowerCase().includes(query)
+        event.title.toLowerCase().includes(query) ||
+        event.location.toLowerCase().includes(query) ||
+        event.date.toLowerCase().includes(query)
     );
   });
-
-  
 
   useEffect(() => {
     activeFloorRef.current = activeFloor;
   }, [activeFloor]);
 
-  
+  useEffect(() => {
+    mapSizeRef.current = mapSize;
+  }, [mapSize]);
 
-const PIN_Y = -0.05;
+  useEffect(() => {
+    if (!location || hasCenteredOnUser.current) return;
+    hasCenteredOnUser.current = true;
 
-const focusRoom = useCallback(
-  (roomId: string | null, floor: FloorNumber) => {
+    const { x, z } = gpsToModelCoords(
+        location.coords.latitude,
+        location.coords.longitude
+    );
+
+    cameraTargetRef.current.set(x, 0, z);
+
+    lerpRadiusRef.current = FLOOR_CONFIG[1].snapRadius;
+  }, [location]);
+
+  const PIN_Y = -0.05;
+
+  const focusRoom = useCallback((roomId: string | null, floor: FloorNumber) => {
     if (!roomId) return;
-
     const room = getRoomById(floor, roomId);
     if (!room) return;
-
     const groupScale = 0.1;
     const [x, y, z] = room.position;
     const [, sy, sz] = room.size;
-
-   
-    cameraTargetRef.current.set(
-      x * groupScale,
-      y * groupScale,
-      z * groupScale
-    );
-
-   
+    cameraTargetRef.current.set(x * groupScale, y * groupScale, z * groupScale);
     const zoomRadius = Math.max(2.5, Math.max(sy, sz) * groupScale * 2.2);
     lerpRadiusRef.current = zoomRadius;
-  },
-  []
-);
-const getPinPointFromTouch = useCallback(
-  
-  (pageX: number, pageY: number): Pin | null => {
-    const cam = cameraRef.current;
-    if (!cam || mapSize.width <= 0 || mapSize.height <= 0) return null;
+  }, []);
 
-    const pointer = pointerRef.current;
-    const raycaster = raycasterRef.current;
-
-    pointer.x = (pageX / mapSize.width) * 2 - 1;
-    pointer.y = -(pageY / mapSize.height) * 2 + 1;
-
-    raycaster.setFromCamera(pointer, cam);
-
-    const intersects = raycaster.intersectObjects(
-      (sceneRef.current ?? []).length ? sceneRef.current! : [],
-      true
-    );
-
-    if (intersects.length === 0) return null;
-
-    const point = intersects[0].point;
-
-    return {
-      x: point.x,
-      y: PIN_Y,
-      z: point.z,
-      floor: activeFloorRef.current,
-    };
-  },
-  [mapSize.width, mapSize.height]
-);
-
-useEffect(() => {
-  if (selectedRoom) {
-    focusRoom(selectedRoom, activeFloor);
-  }
-}, [selectedRoom, activeFloor, focusRoom]);
-
-const pinPanResponder = useMemo(
-  () =>
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => pinMode,
-      onMoveShouldSetPanResponder: () => pinMode,
-
-      onPanResponderGrant: (evt) => {
-        if (!pinMode) return;
-
-        const point = getPinPointFromTouch(
-          evt.nativeEvent.pageX,
-          evt.nativeEvent.pageY
+  const getPinPointFromTouch = useCallback(
+      (pageX: number, pageY: number): Pin | null => {
+        const cam = cameraRef.current;
+        if (!cam || mapSize.width <= 0 || mapSize.height <= 0) return null;
+        const pointer = pointerRef.current;
+        const raycaster = raycasterRef.current;
+        pointer.x = (pageX / mapSize.width) * 2 - 1;
+        pointer.y = -(pageY / mapSize.height) * 2 + 1;
+        raycaster.setFromCamera(pointer, cam);
+        const intersects = raycaster.intersectObjects(
+            (sceneRef.current ?? []).length ? sceneRef.current! : [],
+            true
         );
-
-        if (point) {
-          previewPinRef.current = point;
-          setPreviewPin(point); 
-        }
+        if (intersects.length === 0) return null;
+        const point = intersects[0].point;
+        return { x: point.x, y: PIN_Y, z: point.z, floor: activeFloorRef.current };
       },
+      [mapSize.width, mapSize.height]
+  );
 
-      onPanResponderMove: (evt) => {
-        if (!pinMode) return;
+  useEffect(() => {
+    if (selectedRoom) focusRoom(selectedRoom, activeFloor);
+  }, [selectedRoom, activeFloor, focusRoom]);
 
-        const point = getPinPointFromTouch(
-          evt.nativeEvent.pageX,
-          evt.nativeEvent.pageY
-        );
+  const pinPanResponder = useMemo(
+      () =>
+          PanResponder.create({
+            onStartShouldSetPanResponder: () => pinMode,
+            onMoveShouldSetPanResponder: () => pinMode,
 
-        if (point) {
-          previewPinRef.current = point;
-        }
-      },
+            onPanResponderGrant: (evt) => {
+              if (!pinMode) return;
+              const point = getPinPointFromTouch(evt.nativeEvent.pageX, evt.nativeEvent.pageY);
+              if (point) { previewPinRef.current = point; setPreviewPin(point); }
+            },
 
-      onPanResponderRelease: () => {
-        if (previewPinRef.current) {
-          setPins((prev) => [...prev, previewPinRef.current!]);
-        }
+            onPanResponderMove: (evt) => {
+              if (!pinMode) return;
+              const point = getPinPointFromTouch(evt.nativeEvent.pageX, evt.nativeEvent.pageY);
+              if (point) previewPinRef.current = point;
+            },
 
-        previewPinRef.current = null;
-        setPreviewPin(null);
-        setPinMode(false);
-      },
+            onPanResponderRelease: () => {
+              if (previewPinRef.current) setPins((prev) => [...prev, previewPinRef.current!]);
+              previewPinRef.current = null;
+              setPreviewPin(null);
+              setPinMode(false);
+            },
 
-      onPanResponderTerminate: () => {
-        previewPinRef.current = null;
-        setPreviewPin(null);
-      },
-    }),
-  [pinMode, getPinPointFromTouch]
-);
-
-
+            onPanResponderTerminate: () => {
+              previewPinRef.current = null;
+              setPreviewPin(null);
+            },
+          }),
+      [pinMode, getPinPointFromTouch]
+  );
 
   const handleRadiusChange = useCallback((radius: number) => {
     setCameraRadius(radius);
-
     if (lerpRadiusRef.current !== null) return;
-
     const current = activeFloorRef.current;
     const { switchRadius, snapRadius, zoomInRadius } = FLOOR_CONFIG[current];
     const nextFloor = (current < 3 ? current + 1 : current) as FloorNumber;
     const prevFloor = (current > 1 ? current - 1 : current) as FloorNumber;
-
     if (radius >= switchRadius && nextFloor !== current) {
       activeFloorRef.current = nextFloor;
       setActiveFloor(nextFloor);
       lerpRadiusRef.current = FLOOR_CONFIG[nextFloor].snapRadius;
       return;
     }
-
     if (radius < snapRadius * 0.2 && prevFloor !== current) {
       activeFloorRef.current = prevFloor;
       setActiveFloor(prevFloor);
@@ -474,174 +505,169 @@ const pinPanResponder = useMemo(
     }
   }, []);
 
-  const cameraPanResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => !pinMode && !isSheetOpen,
-        onMoveShouldSetPanResponder: () => !pinMode && !isSheetOpen,
+  const handleRoomSelect = useCallback((hitboxId: string | null) => {
+    if (!hitboxId) {
+      setSelectedRoom(null);
+      setSelectedNode(null);
+      return;
+    }
+    const navId = getNavNodeId(hitboxId, activeFloorRef.current);
+    const node = navId ? getNode(navId) : null;
+    console.log("[room select]", hitboxId, "->", navId, "->", node?.label);
+    setSelectedRoom(hitboxId);
+    setSelectedNode(node);
+    setSheetView("detail");
+    setActiveRoute(null);
+    focusRoom(hitboxId, activeFloorRef.current);
+    setShowCollapsedPill(false);
+    bottomSheetRef.current?.snapToIndex(0);
+    setSheetIndex(0);
+    sheetIndexRef.current = 0;
+  }, [focusRoom]);
 
-        onPanResponderGrant: (e) => {
-          const { pageX, pageY, touches } = e.nativeEvent;
+  const getFromNodeId = useCallback((): string => {
+    if (!location) return START_NODE_ID;
+    const { x, y } = gpsToNavCoords(
+        location.coords.latitude,
+        location.coords.longitude
+    );
+    const nearest = snapToNode(x, y, activeFloorRef.current);
+    if (nearest) {
+      console.log("[from node]", nearest.id, nearest.label);
+      return nearest.id;
+    }
+    return START_NODE_ID;
+  }, [location, snapToNode]);
 
-          touchStartRef.current = { x: pageX, y: pageY };
-          touchMovedRef.current = false;
-
-          prevTouches.current = touches.map((t) => ({
-            x: t.pageX,
-            y: t.pageY,
-          }));
-
-          const cam = cameraRef.current;
-          if (cam) {
-            const hitRoom = getRoomAtScreenPoint(
-              pageX,
-              pageY,
-              activeFloorRef.current,
-              cam,
-              mapSize.width,
-              mapSize.height
-            );
-            touchRoomRef.current = hitRoom?.id ?? null;
-          } else {
-            touchRoomRef.current = null;
-          }
-        },
-
-        
-
-        onPanResponderMove: (e) => {
-          if (pinMode || isSheetOpen) return;
-
-          const touches = e.nativeEvent.touches;
-
-          if (touchStartRef.current && touches.length > 0) {
-            const dx0 = touches[0].pageX - touchStartRef.current.x;
-            const dy0 = touches[0].pageY - touchStartRef.current.y;
-            if (Math.hypot(dx0, dy0) > 8) {
-              touchMovedRef.current = true;
-            }
-          }
-
-          if (touches.length === 1) {
-            const prev = prevTouches.current[0];
-            if (prev) {
-              gestureRef.current.deltaRotate.x += touches[0].pageX - prev.x;
-              gestureRef.current.deltaRotate.y += touches[0].pageY - prev.y;
-            }
-
-            prevTouches.current = [
-              { x: touches[0].pageX, y: touches[0].pageY },
-            ];
-          } else if (touches.length === 2) {
-            touchMovedRef.current = true;
-
-            const [t0, t1] = [touches[0], touches[1]];
-            const currDist = Math.hypot(t1.pageX - t0.pageX, t1.pageY - t0.pageY);
-            const currMid = {
-              x: (t0.pageX + t1.pageX) / 2,
-              y: (t0.pageY + t1.pageY) / 2,
-            };
-
-            if (prevTouches.current.length === 2) {
-              const [p0, p1] = prevTouches.current;
-              const prevDist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-              const prevMid = {
-                x: (p0.x + p1.x) / 2,
-                y: (p0.y + p1.y) / 2,
-              };
-
-              const distDelta = currDist - prevDist;
-              const midDelta = {
-                x: currMid.x - prevMid.x,
-                y: currMid.y - prevMid.y,
-              };
-
-              gestureRef.current.deltaZoom += distDelta * 0.15;
-
-              if (Math.abs(midDelta.x) > 0.5 || Math.abs(midDelta.y) > 0.5) {
-                const panFactor = Math.abs(distDelta) > 8 ? 0.08 : 0.25;
-                gestureRef.current.deltaPan.x += midDelta.x * panFactor;
-                gestureRef.current.deltaPan.y += midDelta.y * panFactor;
-              }
-            }
-
-            prevTouches.current = [
-              { x: t0.pageX, y: t0.pageY },
-              { x: t1.pageX, y: t1.pageY },
-            ];
-          }
-        },
-
-        onPanResponderRelease: () => {
-          if (!touchMovedRef.current && touchRoomRef.current) {
-            setSelectedRoom((prev) => {
-              const nextRoom = prev === touchRoomRef.current ? null : touchRoomRef.current;
-
-              if (nextRoom) {
-                focusRoom(nextRoom, activeFloorRef.current);
-              }
-
-              return nextRoom;
-            });
-          }   
-
-  touchStartRef.current = null;
-  touchRoomRef.current = null;
-  touchMovedRef.current = false;
-  prevTouches.current = [];
-},
-
-        onPanResponderTerminate: () => {
-          touchStartRef.current = null;
-          touchRoomRef.current = null;
-          touchMovedRef.current = false;
-          prevTouches.current = [];
-        },
-      }),
-    [pinMode, isSheetOpen, mapSize.width, mapSize.height]
+  const handleNavigate = useCallback(
+      (accessible = false) => {
+        if (!selectedNode) { console.warn("[navigate] no selectedNode"); return; }
+        if (!dbReady) { console.warn("[navigate] db not ready"); return; }
+        const fromId = getFromNodeId();
+        console.log("[navigate]", fromId, "->", selectedNode.id);
+        const result = getRoute(fromId, selectedNode.id, { accessible });
+        console.log("[navigate] result:", result ? `${result.steps.length} steps` : "null");
+        setActiveRoute(result);
+        setSheetView("directions");
+        bottomSheetRef.current?.snapToIndex(1);
+        setSheetIndex(1);
+        sheetIndexRef.current = 1;
+      },
+      [selectedNode, dbReady, getRoute, getFromNodeId]
   );
 
+  const handleAvoidStairsChange = useCallback(
+      (val: boolean) => {
+        if (!selectedNode || !dbReady) return;
+        const fromId = getFromNodeId();
+        const result = getRoute(fromId, selectedNode.id, { accessible: val });
+        setActiveRoute(result);
+      },
+      [selectedNode, dbReady, getRoute, getFromNodeId]
+  );
+
+  const cameraPanResponder = useMemo(
+      () =>
+          PanResponder.create({
+            onStartShouldSetPanResponder: () => !pinMode,
+            onMoveShouldSetPanResponder: () => !pinMode,
+
+            onPanResponderGrant: (e) => {
+              const { pageX, pageY, touches } = e.nativeEvent;
+              touchStartRef.current = { x: pageX, y: pageY };
+              touchMovedRef.current = false;
+              prevTouches.current = touches.map((t) => ({ x: t.pageX, y: t.pageY }));
+              const cam = cameraRef.current;
+              if (cam) {
+                const { width, height } = mapSizeRef.current;
+                const hit = getRoomAtScreenPoint(pageX, pageY, activeFloorRef.current, cam, width, height);
+                touchRoomRef.current = hit?.id ?? null;
+              } else {
+                touchRoomRef.current = null;
+              }
+            },
+
+            onPanResponderMove: (e) => {
+              const touches = e.nativeEvent.touches;
+              if (touchStartRef.current && touches.length > 0) {
+                const dx = touches[0].pageX - touchStartRef.current.x;
+                const dy = touches[0].pageY - touchStartRef.current.y;
+                if (Math.hypot(dx, dy) > 8) touchMovedRef.current = true;
+              }
+              if (touches.length === 1) {
+                const prev = prevTouches.current[0];
+                if (prev) {
+                  gestureRef.current.deltaRotate.x += touches[0].pageX - prev.x;
+                  gestureRef.current.deltaRotate.y += touches[0].pageY - prev.y;
+                }
+                prevTouches.current = [{ x: touches[0].pageX, y: touches[0].pageY }];
+              } else if (touches.length === 2) {
+                touchMovedRef.current = true;
+                const [t0, t1] = [touches[0], touches[1]];
+                const currDist = Math.hypot(t1.pageX - t0.pageX, t1.pageY - t0.pageY);
+                const currMid = { x: (t0.pageX + t1.pageX) / 2, y: (t0.pageY + t1.pageY) / 2 };
+                if (prevTouches.current.length === 2) {
+                  const [p0, p1] = prevTouches.current;
+                  const prevDist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+                  const prevMid = { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 };
+                  const distDelta = currDist - prevDist;
+                  const midDelta = { x: currMid.x - prevMid.x, y: currMid.y - prevMid.y };
+                  gestureRef.current.deltaZoom += distDelta * 0.15;
+                  if (Math.abs(midDelta.x) > 0.5 || Math.abs(midDelta.y) > 0.5) {
+                    const panFactor = Math.abs(distDelta) > 8 ? 0.08 : 0.25;
+                    gestureRef.current.deltaPan.x += midDelta.x * panFactor;
+                    gestureRef.current.deltaPan.y += midDelta.y * panFactor;
+                  }
+                }
+                prevTouches.current = [{ x: t0.pageX, y: t0.pageY }, { x: t1.pageX, y: t1.pageY }];
+              }
+            },
+
+            onPanResponderRelease: () => {
+              if (!touchMovedRef.current && touchRoomRef.current) {
+                handleRoomSelect(touchRoomRef.current);
+              }
+              touchStartRef.current = null;
+              touchRoomRef.current = null;
+              touchMovedRef.current = false;
+              prevTouches.current = [];
+            },
+
+            onPanResponderTerminate: () => {
+              touchStartRef.current = null;
+              touchRoomRef.current = null;
+              touchMovedRef.current = false;
+              prevTouches.current = [];
+            },
+          }),
+      []
+  );
 
   useEffect(() => {
     let subscription: Location.LocationSubscription | null = null;
-
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        console.log("Permission denied");
-        return;
-      }
-
+      if (status !== "granted") { console.log("Permission denied"); return; }
       const current = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.BestForNavigation,
       });
       setLocation(current);
-
       subscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.BestForNavigation,
-          timeInterval: 250,
-          distanceInterval: 0,
-        },
-        (loc) => {
-          setLocation(loc);
-        }
+          { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 250, distanceInterval: 0 },
+          (loc) => setLocation(loc)
       );
     })();
-
-    return () => {
-      subscription?.remove();
-    };
+    return () => { subscription?.remove(); };
   }, []);
 
   useEffect(() => {
     async function preloadAll() {
       try {
         await Promise.all(
-          Object.values(FLOOR_MODELS).map(async (mod) => {
-            const asset = Asset.fromModule(mod);
-            await asset.downloadAsync();
-          })
+            Object.values(FLOOR_MODELS).map(async (mod) => {
+              const asset = Asset.fromModule(mod);
+              await asset.downloadAsync();
+            })
         );
       } catch (e) {
         console.log("Error preloading floor models:", e);
@@ -649,292 +675,260 @@ const pinPanResponder = useMemo(
         setIsReady(true);
       }
     }
-
     preloadAll();
   }, []);
 
   const handleSheetChange = useCallback((index: number) => {
     setSheetIndex(index);
-
+    sheetIndexRef.current = index;
     if (index === -1) {
-      setTimeout(() => {
-        setShowCollapsedPill(true);
-      }, 1);
+      setSelectedRoom(null);
+      setSelectedNode(null);
+      setSheetView("default");
+      setActiveRoute(null);
+      setTimeout(() => setShowCollapsedPill(true), 1);
     } else {
       setShowCollapsedPill(false);
     }
   }, []);
 
-  const openSheet = () => {
+  const openSheet = useCallback(() => {
+    setSheetView("default");
     setShowCollapsedPill(false);
     bottomSheetRef.current?.snapToIndex(1);
     setSheetIndex(1);
-  };
+    sheetIndexRef.current = 1;
+  }, []);
 
   if (!isReady) {
     return (
-      <View style={styles.loaderWrap}>
-        <ActivityIndicator size="large" />
-      </View>
+        <View style={styles.loaderWrap}>
+          <ActivityIndicator size="large" />
+        </View>
     );
   }
 
   return (
-    <GestureHandlerRootView style={styles.container}>
-      <View
-        style={styles.container}
-        onLayout={(e) => {
-          const { width, height } = e.nativeEvent.layout;
-          setMapSize({ width, height });
-        }}
-      >
-        <Canvas
-          style={styles.canvasAbsolute}
-          camera={{ position: [0, 0, 0], fov: 45 }}
-        >
-          <ambientLight intensity={1.2} />
-          <directionalLight position={[3, 5, 2]} intensity={1} />
-          <directionalLight position={[-3, 5, -2]} intensity={0.9} />
-          <directionalLight position={[0, 4, 4]} intensity={0.7} />
-          <directionalLight position={[0, -5, 0]} intensity={0.7} />
-          <SceneCapture sceneRef={sceneRef} />
-         <Suspense fallback={null}>
-            <Building activeFloor={activeFloor} />
-
-            <group scale={[0.1, 0.1, 0.1]}>
-              <RoomHitboxes
-                activeFloor={activeFloor}
-                selectedRoom={selectedRoom}
-                setSelectedRoom={setSelectedRoom}
-              />
-
-              {location && (
-                <UserLocationMarker
-                  latitude={location.coords.latitude}
-                  longitude={location.coords.longitude}
-                  activeFloor={activeFloor}
-                />
-              )}
-            </group>
-
-            <PinLayer
-              pins={pins}
-              previewPin={previewPin}
-              previewPinRef={previewPinRef}
-              activeFloor={activeFloor}
-            />
-
-            <IconLayer />
-          </Suspense>
-
-
-          <CameraController
-            gestureRef={gestureRef}
-            onRadiusChange={handleRadiusChange}
-            lerpRadiusRef={lerpRadiusRef}
-            maxRadius={FLOOR_CONFIG[activeFloor].switchRadius}
-            cameraRef={cameraRef}
-            targetRef={cameraTargetRef}
-          />
-        </Canvas>
-
-        {!isSheetOpen && !pinMode && (
-          <View
-            style={styles.mapGestureLayer}
-            pointerEvents="auto"
-            {...cameraPanResponder.panHandlers}
-          />
-        )}
-    {sheetIndex === -1 && (
-        <Pressable
-        onPress={() => setPinMode((prev) => !prev)}
-        style={{
-          position: "absolute",
-          bottom: 140,
-          right: 20,
-          backgroundColor: pinMode ? "red" : "blue",
-          padding: 12,
-          borderRadius: 24,
-          zIndex: 100,
-        }}
-      >
-        <Text style={{ color: "white", fontWeight: "bold" }}>
-          {pinMode ? "Placing..." : "Add Pin"}
-        </Text>
-        
-      </Pressable>
-       )}
-
-        {sheetIndex === -1 && (
-          <FloorSwitcher
-            activeFloor={activeFloor}
-            onFloorChange={(floor) => {
-              const nextFloor = floor as FloorNumber;
-              activeFloorRef.current = nextFloor;
-              setActiveFloor(nextFloor);
-              lerpRadiusRef.current = FLOOR_CONFIG[nextFloor].snapRadius;
+      <GestureHandlerRootView style={styles.container}>
+        <View
+            style={styles.container}
+            onLayout={(e) => {
+              const { width, height } = e.nativeEvent.layout;
+              setMapSize({ width, height });
             }}
-          />
-        )}
+        >
+          <Canvas style={styles.canvasAbsolute} camera={{ position: [0, 0, 0], fov: 45 }}>
+            <ambientLight intensity={1.2} />
+            <directionalLight position={[3, 5, 2]} intensity={1} />
+            <directionalLight position={[-3, 5, -2]} intensity={0.9} />
+            <directionalLight position={[0, 4, 4]} intensity={0.7} />
+            <directionalLight position={[0, -5, 0]} intensity={0.7} />
+            <SceneCapture sceneRef={sceneRef} />
 
-        
+            <Suspense fallback={null}>
+              <Building activeFloor={activeFloor} />
 
-       
+              <group scale={[0.1, 0.1, 0.1]}>
+                <RoomHitboxes
+                    activeFloor={activeFloor}
+                    selectedRoom={selectedRoom}
+                    setSelectedRoom={setSelectedRoom}
+                />
+                {location && (
+                    <UserLocationMarker
+                        latitude={location.coords.latitude}
+                        longitude={location.coords.longitude}
+                        activeFloor={activeFloor}
+                    />
+                )}
+              </group>
 
-        {location && (
-          <Text style={styles.gpsText}>
-            {location.coords.latitude.toFixed(15)},{" "}
-            {location.coords.longitude.toFixed(15)},{" "}
-            {location.coords.altitude?.toFixed(15) ?? "N/A"}
-          </Text>
-        )}
+              <PinLayer
+                  pins={pins}
+                  previewPin={previewPin}
+                  previewPinRef={previewPinRef}
+                  activeFloor={activeFloor}
+              />
+              <IconLayer />
+            </Suspense>
 
+            <CameraController
+                gestureRef={gestureRef}
+                onRadiusChange={handleRadiusChange}
+                lerpRadiusRef={lerpRadiusRef}
+                maxRadius={FLOOR_CONFIG[activeFloor].switchRadius}
+                cameraRef={cameraRef}
+                targetRef={cameraTargetRef}
+            />
+          </Canvas>
 
-        {selectedRoom && (
-          <Text style={styles.selectedRoomText}>
-            Selected Room: {selectedRoom}
-          </Text>
-        )}
-
-
-          {pinMode && (
-            <View style={styles.pinOverlay} {...pinPanResponder.panHandlers} />
+          {!pinMode && (
+              <View
+                  style={[styles.mapGestureLayer, { height: sheetTopY }]}
+                  pointerEvents="auto"
+                  {...cameraPanResponder.panHandlers}
+              />
           )}
 
-        {showCollapsedPill && (
-          <Pressable style={styles.collapsedSearchWrap} onPress={openSheet}>
-            <View style={styles.collapsedHandle} />
-            <SearchBarRow
-              search={search}
-              setSearch={setSearch}
-              onPressExpand={openSheet}
-            />
-          </Pressable>
-        )}
+          {sheetIndex === -1 && (
+              <Pressable
+                  onPress={() => setPinMode((prev) => !prev)}
+                  style={{
+                    position: "absolute",
+                    bottom: 140,
+                    right: 20,
+                    backgroundColor: pinMode ? "red" : "blue",
+                    padding: 12,
+                    borderRadius: 24,
+                    zIndex: 100,
+                  }}
+              >
+                <Text style={{ color: "white", fontWeight: "bold" }}>
+                  {pinMode ? "Placing..." : "Add Pin"}
+                </Text>
+              </Pressable>
+          )}
 
-        <BottomSheet
-          ref={bottomSheetRef}
-          index={-1}
-          snapPoints={snapPoints}
-          enableDynamicSizing={false}
-          enablePanDownToClose
-          onChange={handleSheetChange}
-          backgroundStyle={styles.bottomSheetBackground}
-          handleIndicatorStyle={styles.handleIndicator}
-        >
-          <BottomSheetScrollView
-            contentContainerStyle={styles.sheetContentContainer}
-            showsVerticalScrollIndicator={false}
+          {sheetIndex === -1 && (
+              <FloorSwitcher
+                  activeFloor={activeFloor}
+                  onFloorChange={(floor) => {
+                    const nextFloor = floor as FloorNumber;
+                    activeFloorRef.current = nextFloor;
+                    setActiveFloor(nextFloor);
+                    lerpRadiusRef.current = FLOOR_CONFIG[nextFloor].snapRadius;
+                  }}
+              />
+          )}
+
+          {pinMode && (
+              <View style={styles.pinOverlay} {...pinPanResponder.panHandlers} />
+          )}
+
+          {showCollapsedPill && (
+              <Pressable style={styles.collapsedSearchWrap} onPress={openSheet}>
+                <View style={styles.collapsedHandle} />
+                <SearchBarRow search={search} setSearch={setSearch} onPressExpand={openSheet} />
+              </Pressable>
+          )}
+
+          <BottomSheet
+              ref={bottomSheetRef}
+              index={-1}
+              snapPoints={snapPoints}
+              enableDynamicSizing={false}
+              enablePanDownToClose
+              onChange={handleSheetChange}
+              backgroundStyle={styles.bottomSheetBackground}
+              handleIndicatorStyle={styles.handleIndicator}
           >
-            <SearchBarRow
-              search={search}
-              setSearch={setSearch}
-              onPressExpand={() => bottomSheetRef.current?.snapToIndex(1)}
-            />
-
-            {selectedEvent ? (
-              <View>
-                <Pressable
-                  onPress={() => setSelectedEvent(null)}
-                  style={styles.backButton}
-                >
-                  <Text style={styles.backButtonText}>← Back</Text>
-                </Pressable>
-
-                <Text style={styles.eventTitle}>{selectedEvent.title}</Text>
-
-                <View style={styles.eventActionRow}>
-                  <Pressable style={styles.eventActionButton}>
-                    <Ionicons name="bookmark-outline" size={22} color="#222" />
-                    <Text style={styles.eventActionText}>Saved</Text>
-                  </Pressable>
-
-                  <Pressable style={styles.eventActionButton}>
-                    <Ionicons name="arrow-redo-outline" size={22} color="#222" />
-                    <Text style={styles.eventActionText}>Navigate</Text>
-                  </Pressable>
-                </View>
-
-                <Text style={styles.eventMeta}>{selectedEvent.date}</Text>
-                <Text style={styles.eventMeta}>{selectedEvent.location}</Text>
-
-                <Text style={styles.eventSectionTitle}>Description</Text>
-                <Text style={styles.eventDescription}>
-                  {selectedEvent.description}
-                </Text>
-              </View>
-            ) : (
-              <View>
-                <Text style={styles.sectionTitle}>Nearby</Text>
-                <NearbyChips />
-
-                <Text style={styles.sectionTitle}>Events</Text>
-
-                {filteredEvents.map((event) => (
-                  <EventCard
-                    key={event.id}
-                    title={event.title}
-                    date={event.date}
-                    club={event.club}
-                    location={event.location}
-                    type={event.type}
-                    onPress={() =>
-                      setSelectedEvent({
-                        title: event.title,
-                        date: event.date,
-                        location: event.location,
-                        description: event.description,
-                      })
-                    }
+            <BottomSheetScrollView
+                contentContainerStyle={styles.sheetContentContainer}
+                showsVerticalScrollIndicator={false}
+            >
+              {/* ROOM DETAIL */}
+              {sheetView === "detail" && selectedNode && (
+                  <RoomDetailSheet
+                      node={selectedNode}
+                      onNavigate={() => handleNavigate(false)}
+                      onDismiss={() => {
+                        setSelectedRoom(null);
+                        setSelectedNode(null);
+                        setSheetView("default");
+                        bottomSheetRef.current?.close();
+                      }}
                   />
-                ))}
+              )}
 
-                {filteredEvents.length === 0 && (
-                  <Text style={styles.emptytext}>No matching events found.</Text>
-                )}
+              {/* DIRECTIONS */}
+              {sheetView === "directions" && selectedNode && (
+                  <DirectionsSheet
+                      destination={selectedNode}
+                      route={activeRoute}
+                      onAvoidStairsChange={handleAvoidStairsChange}
+                      onConfirm={() => {
+                        console.log("Route confirmed, steps:", activeRoute?.steps.length);
+                      }}
+                      onBack={() => setSheetView("detail")}
+                  />
+              )}
 
-                <Text style={styles.radiusText}>
-                  Floor: L{activeFloor} • Radius: {cameraRadius.toFixed(1)}
-                </Text>
-              </View>
-            )}
-          </BottomSheetScrollView>
-        </BottomSheet>
-      </View>
-    </GestureHandlerRootView>
+              {/* DEFAULT — search + events */}
+              {sheetView === "default" && (
+                  <>
+                    <SearchBarRow
+                        search={search}
+                        setSearch={setSearch}
+                        onPressExpand={() => bottomSheetRef.current?.snapToIndex(1)}
+                    />
+
+                    {selectedEvent ? (
+                        <View>
+                          <Pressable onPress={() => setSelectedEvent(null)} style={styles.backButton}>
+                            <Text style={styles.backButtonText}>← Back</Text>
+                          </Pressable>
+                          <Text style={styles.eventTitle}>{selectedEvent.title}</Text>
+                          <View style={styles.eventActionRow}>
+                            <Pressable style={styles.eventActionButton}>
+                              <Ionicons name="bookmark-outline" size={22} color="#222" />
+                              <Text style={styles.eventActionText}>Saved</Text>
+                            </Pressable>
+                            <Pressable style={styles.eventActionButton}>
+                              <Ionicons name="arrow-redo-outline" size={22} color="#222" />
+                              <Text style={styles.eventActionText}>Navigate</Text>
+                            </Pressable>
+                          </View>
+                          <Text style={styles.eventMeta}>{selectedEvent.date}</Text>
+                          <Text style={styles.eventMeta}>{selectedEvent.location}</Text>
+                          <Text style={styles.eventSectionTitle}>Description</Text>
+                          <Text style={styles.eventDescription}>{selectedEvent.description}</Text>
+                        </View>
+                    ) : (
+                        <View>
+                          <Text style={styles.sectionTitle}>Nearby</Text>
+                          <NearbyChips />
+                          <Text style={styles.sectionTitle}>Events</Text>
+                          {filteredEvents.map((event) => (
+                              <EventCard
+                                  key={event.id}
+                                  title={event.title}
+                                  date={event.date}
+                                  club={event.club}
+                                  location={event.location}
+                                  type={event.type}
+                                  onPress={() =>
+                                      setSelectedEvent({
+                                        title: event.title,
+                                        date: event.date,
+                                        location: event.location,
+                                        description: event.description,
+                                      })
+                                  }
+                              />
+                          ))}
+                          {filteredEvents.length === 0 && (
+                              <Text style={styles.emptytext}>No matching events found.</Text>
+                          )}
+                          <Text style={styles.radiusText}>
+                            Floor: L{activeFloor} • Radius: {cameraRadius.toFixed(1)}
+                          </Text>
+                        </View>
+                    )}
+                  </>
+              )}
+            </BottomSheetScrollView>
+          </BottomSheet>
+        </View>
+      </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  emptytext: {
-    paddingHorizontal: 20,
-    color: "#666",
-    marginTop: 8,
-    fontSize: 15,
-  },
-  canvasAbsolute: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  loaderWrap: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pinOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 3,
-  },
+  container: { flex: 1 },
+  emptytext: { paddingHorizontal: 20, color: "#666", marginTop: 8, fontSize: 15 },
+  canvasAbsolute: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
+  loaderWrap: { flex: 1, alignItems: "center", justifyContent: "center" },
+  pinOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 3 },
   collapsedSearchWrap: {
     position: "absolute",
     left: 16,
@@ -975,9 +969,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: "rgba(0,0,0,0.25)",
   },
-  sheetContentContainer: {
-    paddingBottom: 20,
-  },
+  sheetContentContainer: { paddingBottom: 20 },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "700",
@@ -986,109 +978,27 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingHorizontal: 20,
   },
-  pinButton: {
-    position: "absolute",
-    bottom: 145,
-    right: 20,
-    padding: 12,
-    borderRadius: 24,
-    zIndex: 5,
-  },
-  pinButtonText: {
-    color: "white",
-    fontWeight: "bold",
-  },
-  gpsText: {
-    position: "absolute",
-    top: 50,
-    left: 20,
-    color: "white",
-    fontSize: 14,
-    zIndex: 20,
-  },
-  draggingPin: {
-    position: "absolute",
-    width: 20,
-    height: 20,
-    backgroundColor: "red",
-    borderRadius: 10,
-    zIndex: 20,
-  },
-  placedPin: {
-    position: "absolute",
-    width: 12,
-    height: 12,
-    backgroundColor: "red",
-    borderRadius: 6,
-    zIndex: 20,
-  },
-  userDot: {
-    position: "absolute",
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#3B82F6",
-    zIndex: 20,
-  },
-  radiusText: {
-    marginTop: 16,
-    marginBottom: 30,
-    color: "#333",
-    fontWeight: "600",
-    paddingHorizontal: 20,
-  },
+  pinButton: { position: "absolute", bottom: 145, right: 20, padding: 12, borderRadius: 24, zIndex: 5 },
+  pinButtonText: { color: "white", fontWeight: "bold" },
+  gpsText: { position: "absolute", top: 50, left: 20, color: "white", fontSize: 14, zIndex: 20 },
+  draggingPin: { position: "absolute", width: 20, height: 20, backgroundColor: "red", borderRadius: 10, zIndex: 20 },
+  placedPin: { position: "absolute", width: 12, height: 12, backgroundColor: "red", borderRadius: 6, zIndex: 20 },
+  userDot: { position: "absolute", width: 12, height: 12, borderRadius: 6, backgroundColor: "#3B82F6", zIndex: 20 },
+  radiusText: { marginTop: 16, marginBottom: 30, color: "#333", fontWeight: "600", paddingHorizontal: 20 },
   mapGestureLayer: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
-    bottom: 0,
     zIndex: 1,
   },
-  eventTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#222",
-    marginBottom: 8,
-    paddingHorizontal: 20,
-  },
-  eventMeta: {
-    fontSize: 14,
-    color: "#666",
-    marginBottom: 4,
-    paddingHorizontal: 20,
-  },
-  eventSectionTitle: {
-    marginTop: 18,
-    marginBottom: 8,
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#222",
-    paddingHorizontal: 20,
-  },
-  eventDescription: {
-    fontSize: 15,
-    color: "#333",
-    lineHeight: 22,
-    paddingHorizontal: 20,
-  },
-  backButton: {
-    marginBottom: 16,
-    alignSelf: "flex-start",
-    paddingHorizontal: 20,
-  },
-  backButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#3498DB",
-  },
-  eventActionRow: {
-    flexDirection: "row",
-    gap: 14,
-    marginTop: 14,
-    marginBottom: 18,
-    paddingHorizontal: 20,
-  },
+  eventTitle: { fontSize: 22, fontWeight: "700", color: "#222", marginBottom: 8, paddingHorizontal: 20 },
+  eventMeta: { fontSize: 14, color: "#666", marginBottom: 4, paddingHorizontal: 20 },
+  eventSectionTitle: { marginTop: 18, marginBottom: 8, fontSize: 18, fontWeight: "700", color: "#222", paddingHorizontal: 20 },
+  eventDescription: { fontSize: 15, color: "#333", lineHeight: 22, paddingHorizontal: 20 },
+  backButton: { marginBottom: 16, alignSelf: "flex-start", paddingHorizontal: 20 },
+  backButtonText: { fontSize: 16, fontWeight: "600", color: "#3498DB" },
+  eventActionRow: { flexDirection: "row", gap: 14, marginTop: 14, marginBottom: 18, paddingHorizontal: 20 },
   eventActionButton: {
     backgroundColor: "#BFDDF3",
     borderRadius: 14,
@@ -1098,19 +1008,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     minWidth: 92,
   },
-  eventActionText: {
-    marginTop: 4,
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#222",
-  },
-  selectedRoomText: {
-    position: "absolute",
-    top: 80,
-    left: 20,
-    color: "white",
-    fontSize: 16,
-    fontWeight: "700",
-    zIndex: 20,
-  },
+  eventActionText: { marginTop: 4, fontSize: 13, fontWeight: "600", color: "#222" },
+  selectedRoomText: { position: "absolute", top: 80, left: 20, color: "white", fontSize: 16, fontWeight: "700", zIndex: 20 },
 });

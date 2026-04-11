@@ -1,15 +1,13 @@
- // use-route.ts
- // React hook initializes the database and route-finding to UI
- // line for index.tsx:
- //   const { getRoute, activeRoute, clearRoute, dbReady } = useRoute();
- // find a route between two node IDs
- //   getRoute("hallwayA_1", "room_1255_a", { accessible: false });
-
+// use-route.ts
+// React hook initializes the database and route-finding to UI
+// Usage in index.tsx:
+//   const { getRoute, activeRoute, clearRoute, dbReady } = useRoute();
+//   getRoute("hallwayA_1", "room_1255_a", { accessible: false });
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { initSchema, seedIfNeeded, getNodes, getEdges } from "@/navigation/db";
 import { findRoute, nearestNode } from "@/navigation/pathfinding";
-import type { NavNode, NodeType } from "@/navigation/db";
+import type { NavNode, NavEdge } from "@/navigation/db";
 import type { RouteResult } from "@/navigation/pathfinding";
 
 interface UseRouteOptions {
@@ -18,19 +16,11 @@ interface UseRouteOptions {
 
 interface UseRouteReturn {
     dbReady: boolean;
-
     activeRoute: RouteResult | null;
-
     getRoute: (fromId: string, toId: string, opts?: UseRouteOptions) => RouteResult | null;
-
-    // Find the nearest node to a screen tap position on floor
     snapToNode: (x: number, y: number, floor: number) => NavNode | null;
-
     clearRoute: () => void;
-
     nodes: NavNode[];
-
-    // ACCESSIBLE MODE
     recalculate: (accessible: boolean) => void;
 }
 
@@ -39,9 +29,9 @@ export function useRoute(): UseRouteReturn {
     const [activeRoute, setActiveRoute] = useState<RouteResult | null>(null);
     const [nodes, setNodes] = useState<NavNode[]>([]);
 
-    // keep last route params so we can recalculate on accessible toggle
     const lastRoute = useRef<{ fromId: string; toId: string } | null>(null);
-    const edgesRef = useRef(getEdges());
+    // IMPORTANT: do NOT call getEdges() here — tables don't exist yet at module load time
+    const edgesRef = useRef<NavEdge[]>([]);
 
     useEffect(() => {
         try {
@@ -57,7 +47,10 @@ export function useRoute(): UseRouteReturn {
 
     const getRoute = useCallback(
         (fromId: string, toId: string, opts: UseRouteOptions = {}): RouteResult | null => {
-            if (!dbReady) return null;
+            if (!dbReady) {
+                console.warn("[getRoute] db not ready yet");
+                return null;
+            }
             lastRoute.current = { fromId, toId };
             const result = findRoute(fromId, toId, nodes, edgesRef.current, opts.accessible ?? false);
             setActiveRoute(result);
