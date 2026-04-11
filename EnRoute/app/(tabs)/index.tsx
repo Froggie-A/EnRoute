@@ -70,35 +70,23 @@ const FLOOR_CONFIG: Record<
 
 const SNAP_FRACTIONS = [0.5, 0.75, 0.9];
 
-// ── Hardcoded test location — center of PFT floor 1 ──────────────────────────
-// Swap these for real GPS once you're testing inside the building.
-// The building GPS bounding box is roughly:
-//   lat 30.4070–30.4085, lon -91.1808–91.1791
 const HARDCODED_LAT = 30.40775;
 const HARDCODED_LON = -91.17995;
-// ─────────────────────────────────────────────────────────────────────────────
-
-// Building bounding box — must match BUILDING_CORNERS in buildingLocation.tsx
 const BUILDING_MIN_LAT = 30.406977;
 const BUILDING_MAX_LAT = 30.408520;
 const BUILDING_MIN_LON = -91.180786;
 const BUILDING_MAX_LON = -91.179059;
 
-// Nav coordinate space dimensions (feet)
 const NAV_WIDTH = 750;
 const NAV_HEIGHT = 780;
 
-// Convert GPS coords to nav layer (x/y in feet) for nearest-node snapping
 function gpsToNavCoords(lat: number, lon: number): { x: number; y: number } {
   const x = ((lon - BUILDING_MIN_LON) / (BUILDING_MAX_LON - BUILDING_MIN_LON)) * NAV_WIDTH;
   const y = ((BUILDING_MAX_LAT - lat) / (BUILDING_MAX_LAT - BUILDING_MIN_LAT)) * NAV_HEIGHT;
   return { x, y };
 }
 
-// Convert GPS coords to 3D model world space for camera centering.
-// The model is auto-centered to origin by FloorModel, so we need the
-// normalised [0,1] position then map into MODEL_FLOOR_BOUNDS.
-// These bounds match UserLocationMarker's MODEL_FLOOR_BOUNDS.
+
 const MODEL_MIN_X = -12;
 const MODEL_MAX_X = 12;
 const MODEL_MIN_Z = -18;
