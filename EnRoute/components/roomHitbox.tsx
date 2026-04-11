@@ -33,6 +33,13 @@ const ROOM_DATA: Record<1 | 2 | 3, RoomBox[]> = {
       size: [10, 2, 12],
     },
     {
+      id: "room-1263",
+      name: "Room 1263",
+      navNodeId: "room_1263_a",
+      position: [-30, 0, -23],
+      size: [10, 2, 12],
+    },
+    {
       id: "bathroom0",
       name: "Bathroom",
       navNodeId: "bathroom_3",
