@@ -210,11 +210,16 @@ export default function HomeScreen() {
   const [cameraRadius, setCameraRadius] = useState(FLOOR_CONFIG[1].snapRadius);
   const [isReady, setIsReady] = useState(false);
 
-
-
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [mapSize, setMapSize] = useState({ width: 1, height: 1 });
   const [search, setSearch] = useState("");
+
+  const [sheetMode, setSheetMode] = useState<"events" | "profile">("events");
+
+  const openProfile = () => {
+  setSheetMode("profile");
+  bottomSheetRef.current?.snapToIndex(1);
+};
 
   const [pins, setPins] = useState<Pin[]>([]);
   const [pinMode, setPinMode] = useState(false);
@@ -634,7 +639,7 @@ export default function HomeScreen() {
         {!isSheetOpen && !pinMode && (
           <View
             style={styles.mapGestureLayer}
-            pointerEvents="auto"
+            pointerEvents="box-none"
             {...cameraPanResponder.panHandlers}
           />
         )}
@@ -711,16 +716,26 @@ export default function HomeScreen() {
             );
           })()}
 
-        {showCollapsedPill && (
-          <Pressable style={styles.collapsedSearchWrap} onPress={openSheet}>
-            <View style={styles.collapsedHandle} />
-            <SearchBarRow
-              search={search}
-              setSearch={setSearch}
-              onPressExpand={openSheet}
-            />
-          </Pressable>
-        )}
+          {showCollapsedPill && (
+            <View style={styles.collapsedSearchWrap} pointerEvents="box-none">
+            
+              <Pressable onPress={openSheet}>
+                <View style={styles.collapsedHandle} />
+              </Pressable>
+              <SearchBarRow
+                search={search}
+                setSearch={setSearch}
+                onPressExpand={() => {
+                  setSheetMode("events");
+                  bottomSheetRef.current?.snapToIndex(1);
+                }}
+                onPressProfile={openProfile}
+              />
+
+            </View>
+          )}
+        
+
 
         <BottomSheet
           ref={bottomSheetRef}
@@ -736,78 +751,110 @@ export default function HomeScreen() {
             contentContainerStyle={styles.sheetContentContainer}
             showsVerticalScrollIndicator={false}
           >
-            <SearchBarRow
-              search={search}
-              setSearch={setSearch}
-              onPressExpand={() => bottomSheetRef.current?.snapToIndex(1)}
-            />
+          <SearchBarRow
+            search={search}
+            setSearch={setSearch}
+            onPressExpand={() => {
+              setSheetMode("events");
+              bottomSheetRef.current?.snapToIndex(1);
+            }}
+            onPressProfile={openProfile}
+          />
 
-            {selectedEvent ? (
-              <View>
-                <Pressable
-                  onPress={() => setSelectedEvent(null)}
-                  style={styles.backButton}
-                >
-                  <Text style={styles.backButtonText}>← Back</Text>
-                </Pressable>
+           {sheetMode === "profile" ? (
+  <View style={{ padding: 20 }}>
+       <Text style={{ fontSize: 22, fontWeight: "700" }}>
+      Your Saved Pins
+    </Text>
+    <Text style={{ fontSize: 22, fontWeight: "700" }}>
+      Your Saved Events
+    </Text>
 
-                <Text style={styles.eventTitle}>{selectedEvent.title}</Text>
+    {events.slice(0, 2).map((event) => (
+      <EventCard
+        key={event.id}
+        title={event.title}
+        date={event.date}
+        club={event.club}
+        location={event.location}
+        type={event.type}
+        onPress={() =>
+          setSelectedEvent({
+            title: event.title,
+            date: event.date,
+            location: event.location,
+            description: event.description,
+          })
+        }
+      />
+    ))}
+  </View>
+) : selectedEvent ? (
+  <View>
+    <Pressable
+      onPress={() => setSelectedEvent(null)}
+      style={styles.backButton}
+    >
+      <Text style={styles.backButtonText}>← Back</Text>
+    </Pressable>
 
-                <View style={styles.eventActionRow}>
-                  <Pressable style={styles.eventActionButton}>
-                    <Ionicons name="bookmark-outline" size={22} color="#222" />
-                    <Text style={styles.eventActionText}>Saved</Text>
-                  </Pressable>
+    <Text style={styles.eventTitle}>{selectedEvent.title}</Text>
 
-                  <Pressable style={styles.eventActionButton}>
-                    <Ionicons name="arrow-redo-outline" size={22} color="#222" />
-                    <Text style={styles.eventActionText}>Navigate</Text>
-                  </Pressable>
-                </View>
+    <View style={styles.eventActionRow}>
+      <Pressable style={styles.eventActionButton}>
+        <Ionicons name="bookmark-outline" size={22} color="#222" />
+        <Text style={styles.eventActionText}>Saved</Text>
+      </Pressable>
 
-                <Text style={styles.eventMeta}>{selectedEvent.date}</Text>
-                <Text style={styles.eventMeta}>{selectedEvent.location}</Text>
+      <Pressable style={styles.eventActionButton}>
+        <Ionicons name="arrow-redo-outline" size={22} color="#222" />
+        <Text style={styles.eventActionText}>Navigate</Text>
+      </Pressable>
+    </View>
 
-                <Text style={styles.eventSectionTitle}>Description</Text>
-                <Text style={styles.eventDescription}>
-                  {selectedEvent.description}
-                </Text>
-              </View>
-            ) : (
-              <View>
-                <Text style={styles.sectionTitle}>Nearby</Text>
-                <NearbyChips />
+    <Text style={styles.eventMeta}>{selectedEvent.date}</Text>
+    <Text style={styles.eventMeta}>{selectedEvent.location}</Text>
 
-                <Text style={styles.sectionTitle}>Events</Text>
+    <Text style={styles.eventSectionTitle}>Description</Text>
+    <Text style={styles.eventDescription}>
+      {selectedEvent.description}
+    </Text>
+  </View>
+) : (
+  <View>
+    <Text style={styles.sectionTitle}>Nearby</Text>
+    <NearbyChips />
 
-                {filteredEvents.map((event) => (
-                  <EventCard
-                    key={event.id}
-                    title={event.title}
-                    date={event.date}
-                    club={event.club}
-                    location={event.location}
-                    type={event.type}
-                    onPress={() =>
-                      setSelectedEvent({
-                        title: event.title,
-                        date: event.date,
-                        location: event.location,
-                        description: event.description,
-                      })
-                    }
-                  />
-                ))}
+    <Text style={styles.sectionTitle}>Events</Text>
 
-                {filteredEvents.length === 0 && (
-                  <Text style={styles.emptytext}>No matching events found.</Text>
-                )}
+    {filteredEvents.map((event) => (
+      <EventCard
+        key={event.id}
+        title={event.title}
+        date={event.date}
+        club={event.club}
+        location={event.location}
+        type={event.type}
+        onPress={() =>
+          setSelectedEvent({
+            title: event.title,
+            date: event.date,
+            location: event.location,
+            description: event.description,
+          })
+        }
+      />
+    ))}
 
-                <Text style={styles.radiusText}>
-                  Floor: L{activeFloor} • Radius: {cameraRadius.toFixed(1)}
-                </Text>
-              </View>
-            )}
+    {filteredEvents.length === 0 && (
+      <Text style={styles.emptytext}>No matching events found.</Text>
+    )}
+
+    <Text style={styles.radiusText}>
+      Floor: L{activeFloor} • Radius: {cameraRadius.toFixed(1)}
+    </Text>
+  </View>
+)}
           </BottomSheetScrollView>
         </BottomSheet>
       </View>
@@ -955,6 +1002,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     zIndex: 1,
   },
+
   eventTitle: {
     fontSize: 22,
     fontWeight: "700",
