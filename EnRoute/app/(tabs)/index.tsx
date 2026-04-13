@@ -51,7 +51,7 @@ const FLOOR_MODELS = {
 } as const;
 
 type FloorNumber = keyof typeof FLOOR_MODELS;
-type SheetView = "default" | "detail" | "directions";
+type SheetView = "default" | "detail" | "directions" | "profile";
 
 type GestureState = {
   deltaRotate: { x: number; y: number };
@@ -250,18 +250,6 @@ export default function HomeScreen() {
   const [cameraRadius, setCameraRadius] = useState(FLOOR_CONFIG[1].snapRadius);
   const [isReady, setIsReady] = useState(false);
 
-  const [location, setLocation] = useState<Location.LocationObject | null>(null);
-  const [mapSize, setMapSize] = useState({ width: 1, height: 1 });
-  const [search, setSearch] = useState("");
-
-  const [sheetMode, setSheetMode] = useState<"events" | "profile">("events");
-
-  const openProfile = () => {
-  setSheetMode("profile");
-  bottomSheetRef.current?.snapToIndex(1);
-};
-
-  const [pins, setPins] = useState<Pin[]>([]);
   const sceneRef = useRef<THREE.Object3D[] | null>(null);
 
   const [location, setLocation] = useState<Location.LocationObject | null>({
@@ -566,6 +554,15 @@ export default function HomeScreen() {
       [selectedNode, dbReady, getRoute, getFromNodeId]
   );
 
+  const handleProfilePress = useCallback(() => {
+  console.log("Profile pressed");
+
+  // TEMP: just open sheet for now
+  setSheetView("profile");
+  bottomSheetRef.current?.snapToIndex(1);
+  setSheetIndex(1);
+}, []);
+
   const cameraPanResponder = useMemo(
       () =>
           PanResponder.create({
@@ -709,277 +706,6 @@ export default function HomeScreen() {
   }
 
   return (
-    <GestureHandlerRootView style={styles.container}>
-      <View
-        style={styles.container}
-        onLayout={(e) => {
-          const { width, height } = e.nativeEvent.layout;
-          setMapSize({ width, height });
-        }}
-      >
-        <Canvas
-          style={styles.canvasAbsolute}
-          camera={{ position: [0, 0, 0], fov: 45 }}
-        >
-          <ambientLight intensity={1.2} />
-          <directionalLight position={[3, 5, 2]} intensity={1} />
-          <directionalLight position={[-3, 5, -2]} intensity={0.9} />
-          <directionalLight position={[0, 4, 4]} intensity={0.7} />
-          <directionalLight position={[0, -5, 0]} intensity={0.7} />
-
-          <Suspense fallback={null}>
-            <Building activeFloor={activeFloor} />
-
-            <group scale={[0.1, 0.1, 0.1]}>
-              <RoomHitboxes
-                activeFloor={activeFloor}
-                selectedRoom={selectedRoom}
-                setSelectedRoom={setSelectedRoom}
-              />
-            </group>
-          </Suspense>
-
-          <PinLayer pinMode={pinMode} setPinMode={setPinMode} />
-
-        {pins.map((p, i) => (
-  <mesh key={i} position={[p.x, p.y, p.z]}>
-    <sphereGeometry args={[0.05, 16, 16]} />
-    <meshStandardMaterial color="red" />
-  </mesh>
-))}
-
-          <CameraController
-            gestureRef={gestureRef}
-            onRadiusChange={handleRadiusChange}
-            lerpRadiusRef={lerpRadiusRef}
-            maxRadius={FLOOR_CONFIG[activeFloor].switchRadius}
-            cameraRef={cameraRef}
-          />
-        </Canvas>
-
-        {!isSheetOpen && !pinMode && (
-          <View
-            style={styles.mapGestureLayer}
-            pointerEvents="box-none"
-            {...cameraPanResponder.panHandlers}
-          />
-        )}
-    {sheetIndex === -1 && (
-        <Pressable
-        onPress={() => setPinMode((prev) => !prev)}
-        style={{
-          position: "absolute",
-          bottom: 140,
-          right: 20,
-          backgroundColor: pinMode ? "red" : "blue",
-          padding: 12,
-          borderRadius: 24,
-          zIndex: 100,
-        }}
-      >
-        <Text style={{ color: "white", fontWeight: "bold" }}>
-          {pinMode ? "Placing..." : "Add Pin"}
-        </Text>
-        
-      </Pressable>
-       )}
-
-        {sheetIndex === -1 && (
-          <FloorSwitcher
-            activeFloor={activeFloor}
-            onFloorChange={(floor) => {
-              const nextFloor = floor as FloorNumber;
-              activeFloorRef.current = nextFloor;
-              setActiveFloor(nextFloor);
-              lerpRadiusRef.current = FLOOR_CONFIG[nextFloor].snapRadius;
-            }}
-          />
-        )}
-
-        {pinMode && (
-          <View style={styles.pinOverlay} {...pinPanResponder.panHandlers} />
-        )}
-
-       
-
-        {location && (
-          <Text style={styles.gpsText}>
-            {location.coords.latitude.toFixed(15)},{" "}
-            {location.coords.longitude.toFixed(15)},{" "}
-            {location.coords.altitude?.toFixed(15) ?? "N/A"}
-          </Text>
-        )}
-
-
-        {selectedRoom && (
-          <Text style={styles.selectedRoomText}>
-            Selected Room: {selectedRoom}
-          </Text>
-        )}
-
-        {location &&
-          (() => {
-            const pos = normalizeLocation(
-              location.coords.latitude,
-              location.coords.longitude
-            );
-
-            return (
-              <View
-                style={[
-                  styles.userDot,
-                  {
-                    left: pos.x * mapSize.width - 6,
-                    top: pos.y * mapSize.height - 6,
-                  },
-                ]}
-              />
-            );
-          })()}
-
-          {showCollapsedPill && (
-            <View style={styles.collapsedSearchWrap} pointerEvents="box-none">
-            
-              <Pressable onPress={openSheet}>
-                <View style={styles.collapsedHandle} />
-              </Pressable>
-              <SearchBarRow
-                search={search}
-                setSearch={setSearch}
-                onPressExpand={() => {
-                  setSheetMode("events");
-                  bottomSheetRef.current?.snapToIndex(1);
-                }}
-                onPressProfile={openProfile}
-              />
-
-            </View>
-          )}
-        
-
-
-        <BottomSheet
-          ref={bottomSheetRef}
-          index={-1}
-          snapPoints={snapPoints}
-          enableDynamicSizing={false}
-          enablePanDownToClose
-          onChange={handleSheetChange}
-          backgroundStyle={styles.bottomSheetBackground}
-          handleIndicatorStyle={styles.handleIndicator}
-        >
-          <BottomSheetScrollView
-            contentContainerStyle={styles.sheetContentContainer}
-            showsVerticalScrollIndicator={false}
-          >
-          <SearchBarRow
-            search={search}
-            setSearch={setSearch}
-            onPressExpand={() => {
-              setSheetMode("events");
-              bottomSheetRef.current?.snapToIndex(1);
-            }}
-            onPressProfile={openProfile}
-          />
-
-           {sheetMode === "profile" ? (
-  <View style={{ padding: 20 }}>
-       <Text style={{ fontSize: 22, fontWeight: "700" }}>
-      Your Saved Pins
-    </Text>
-    <Text style={{ fontSize: 22, fontWeight: "700" }}>
-      Your Saved Events
-    </Text>
-
-    {events.slice(0, 2).map((event) => (
-      <EventCard
-        key={event.id}
-        title={event.title}
-        date={event.date}
-        club={event.club}
-        location={event.location}
-        type={event.type}
-        onPress={() =>
-          setSelectedEvent({
-            title: event.title,
-            date: event.date,
-            location: event.location,
-            description: event.description,
-          })
-        }
-      />
-    ))}
-  </View>
-) : selectedEvent ? (
-  <View>
-    <Pressable
-      onPress={() => setSelectedEvent(null)}
-      style={styles.backButton}
-    >
-      <Text style={styles.backButtonText}>← Back</Text>
-    </Pressable>
-
-    <Text style={styles.eventTitle}>{selectedEvent.title}</Text>
-
-    <View style={styles.eventActionRow}>
-      <Pressable style={styles.eventActionButton}>
-        <Ionicons name="bookmark-outline" size={22} color="#222" />
-        <Text style={styles.eventActionText}>Saved</Text>
-      </Pressable>
-
-      <Pressable style={styles.eventActionButton}>
-        <Ionicons name="arrow-redo-outline" size={22} color="#222" />
-        <Text style={styles.eventActionText}>Navigate</Text>
-      </Pressable>
-    </View>
-
-    <Text style={styles.eventMeta}>{selectedEvent.date}</Text>
-    <Text style={styles.eventMeta}>{selectedEvent.location}</Text>
-
-    <Text style={styles.eventSectionTitle}>Description</Text>
-    <Text style={styles.eventDescription}>
-      {selectedEvent.description}
-    </Text>
-  </View>
-) : (
-  <View>
-    <Text style={styles.sectionTitle}>Nearby</Text>
-    <NearbyChips />
-
-    <Text style={styles.sectionTitle}>Events</Text>
-
-    {filteredEvents.map((event) => (
-      <EventCard
-        key={event.id}
-        title={event.title}
-        date={event.date}
-        club={event.club}
-        location={event.location}
-        type={event.type}
-        onPress={() =>
-          setSelectedEvent({
-            title: event.title,
-            date: event.date,
-            location: event.location,
-            description: event.description,
-          })
-        }
-      />
-    ))}
-
-    {filteredEvents.length === 0 && (
-      <Text style={styles.emptytext}>No matching events found.</Text>
-    )}
-
-    <Text style={styles.radiusText}>
-      Floor: L{activeFloor} • Radius: {cameraRadius.toFixed(1)}
-    </Text>
-  </View>
-)}
-          </BottomSheetScrollView>
-        </BottomSheet>
-      </View>
-    </GestureHandlerRootView>
       <GestureHandlerRootView style={styles.container}>
         <View
             style={styles.container}
@@ -1079,7 +805,7 @@ export default function HomeScreen() {
           {showCollapsedPill && (
               <Pressable style={styles.collapsedSearchWrap} onPress={openSheet}>
                 <View style={styles.collapsedHandle} />
-                <SearchBarRow search={search} setSearch={setSearch} onPressExpand={openSheet} />
+                <SearchBarRow search={search} setSearch={setSearch} onPressExpand={openSheet} onPressProfile={handleProfilePress}/>
               </Pressable>
           )}
 
@@ -1123,6 +849,43 @@ export default function HomeScreen() {
                       onBack={() => setSheetView("detail")}
                   />
               )}
+            {/* PROFILE */}
+            {sheetView === "profile" && (
+              <View style={{ paddingHorizontal: 20 }}>
+                <Text style={{ fontSize: 22, fontWeight: "700", marginBottom: 12 }}>
+                  Profile
+                </Text>
+
+                <Pressable
+                  onPress={() => setSheetView("default")}
+                  style={{ marginBottom: 16 }}
+                >
+                  <Text style={{ color: "#3498DB", fontWeight: "600" }}>
+                    ← Back
+                  </Text>
+                </Pressable>
+
+                <Text style={{ fontSize: 16, marginBottom: 10 }}>
+                  Saved Pins
+                </Text>
+
+                <Text style={{ fontSize: 16, marginBottom: 10 }}>
+                  Saved Events
+                </Text>
+
+                {events.map((event) => (
+                  <EventCard
+                    key={event.id}
+                    title={event.title}
+                    date={event.date}
+                    club={event.club}
+                    location={event.location}
+                    type={event.type}
+                    onPress={() => {}}
+                  />
+                ))}
+              </View>
+            )}
 
               {/* DEFAULT — search + events */}
               {sheetView === "default" && (
@@ -1131,6 +894,8 @@ export default function HomeScreen() {
                         search={search}
                         setSearch={setSearch}
                         onPressExpand={() => bottomSheetRef.current?.snapToIndex(1)}
+                        onPressProfile={handleProfilePress}
+                       
                     />
 
                     {selectedEvent ? (
@@ -1262,51 +1027,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 1,
-  },
-
-  eventTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#222",
-    marginBottom: 8,
-    paddingHorizontal: 20,
-  },
-  eventMeta: {
-    fontSize: 14,
-    color: "#666",
-    marginBottom: 4,
-    paddingHorizontal: 20,
-  },
-  eventSectionTitle: {
-    marginTop: 18,
-    marginBottom: 8,
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#222",
-    paddingHorizontal: 20,
-  },
-  eventDescription: {
-    fontSize: 15,
-    color: "#333",
-    lineHeight: 22,
-    paddingHorizontal: 20,
-  },
-  backButton: {
-    marginBottom: 16,
-    alignSelf: "flex-start",
-    paddingHorizontal: 20,
-  },
-  backButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#3498DB",
-  },
-  eventActionRow: {
-    flexDirection: "row",
-    gap: 14,
-    marginTop: 14,
-    marginBottom: 18,
-    paddingHorizontal: 20,
   },
   eventTitle: { fontSize: 22, fontWeight: "700", color: "#222", marginBottom: 8, paddingHorizontal: 20 },
   eventMeta: { fontSize: 14, color: "#666", marginBottom: 4, paddingHorizontal: 20 },
