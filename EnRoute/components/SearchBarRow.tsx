@@ -1,42 +1,51 @@
 import { StyleSheet, TextInput, View, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import ProfileButton from "./profile";
 
 type SearchBarRowProps = {
   search: string;
   setSearch: (value: string) => void;
   onPressExpand: () => void;
+  onPressProfile: () => void;
 };
 
 export default function SearchBarRow({
   search,
   setSearch,
   onPressExpand,
+  onPressProfile,
 }: SearchBarRowProps) {
   return (
-    <Pressable onPress={onPressExpand}>
-    <View style={styles.searchRow}>
-      <View style={styles.searchInputContainer}>
-        <Ionicons
-          name="search"
-          size={18}
-          color="#ffffff"
-          style={styles.searchIcon}
-        />
-        <TextInput
-          style={styles.searchBar}
-          placeholder="Search"
-          value={search}
-          onChangeText={setSearch}
-          placeholderTextColor="#f2f2f2"
-          onFocus = {onPressExpand}
-        />
-      </View>
 
-      <View style={styles.profileButton}>
-        <Ionicons name="person" size={20} color="#1A365D" />
-      </View>
-    </View>
-    </Pressable>
+<View style={styles.searchRow}>
+  
+  <Pressable
+    style={styles.searchInputContainer}
+    onPress={onPressExpand}
+  >
+    <Ionicons
+      name="search"
+      size={18}
+      color="#ffffff"
+      style={styles.searchIcon}
+    />
+
+    <TextInput
+      style={styles.searchBar}
+      placeholder="Search"
+      value={search}
+      onChangeText={setSearch}
+      placeholderTextColor="#f2f2f2"
+      onFocus={onPressExpand}
+      numberOfLines={1}
+    />
+  </Pressable>
+
+  <View style={{ marginLeft: 10 }}>
+    <ProfileButton onPress={onPressProfile} />
+  </View>
+
+</View>
   );
 }
 
@@ -65,14 +74,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     color: "white",
     fontSize: 16,
-  },
-  profileButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: "#d3d4bc",
-    justifyContent: "center",
-    alignItems: "center",
-    marginLeft: 10,
+    minWidth: 0,
   },
 });
