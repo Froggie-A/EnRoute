@@ -4,6 +4,7 @@ import * as THREE from "three";
 export type RoomBox = {
   id: string;
   name: string;
+  navNodeId: string;
   position: [number, number, number];
   size: [number, number, number];
 };
@@ -14,62 +15,101 @@ type Props = {
   setSelectedRoom: (id: string | null) => void;
 };
 
+
 const ROOM_DATA: Record<1 | 2 | 3, RoomBox[]> = {
   1: [
-    { id: "room-101", name: "Room 101", position: [0, 0, 0], size: [4, 2, 4] },
-    { id: "room-102", name: "Room 102", position: [6, 0, 0], size: [4, 2, 4] },
+    {
+      id: "room-1221",
+      name: "Room 1221",
+      navNodeId: "room_1221_a",
+      position: [56, 0, -16],
+      size: [15, 2, 8],
+    },
+    {
+      id: "room-1253",
+      name: "Room 1253",
+      navNodeId: "room_1253_a",
+      position: [5, 0, -23],
+      size: [10, 2, 12],
+    },
+    {
+      id: "room-1263",
+      name: "Room 1263",
+      navNodeId: "room_1263_a",
+      position: [-30, 0, -23],
+      size: [10, 2, 12],
+    },
+    {
+      id: "bathroom0",
+      name: "Bathroom",
+      navNodeId: "bathroom_3",
+      position: [-1, 0, 2],
+      size: [5, 2, 10],
+    },
   ],
-  2: [
-    { id: "room-201", name: "Room 201", position: [0, 0, 0], size: [4, 2, 4] },
-  ],
-  3: [
-    { id: "room-301", name: "Room 301", position: [0, 0, 0], size: [4, 2, 4] },
-  ],
+  2: [],
+  3: [],
 };
 
+export function getRoomById(
+    activeFloor: 1 | 2 | 3,
+    roomId: string
+): RoomBox | null {
+  const rooms = ROOM_DATA[activeFloor] ?? [];
+  return rooms.find((room) => room.id === roomId) ?? null;
+}
+
+export function getNavNodeId(
+    hitboxId: string,
+    floor: 1 | 2 | 3
+): string | null {
+  const room = (ROOM_DATA[floor] ?? []).find((r) => r.id === hitboxId);
+  return room?.navNodeId ?? null;
+}
+
 export default function RoomHitboxes({
-  activeFloor,
-  selectedRoom,
-  setSelectedRoom,
-}: Props) {
+                                       activeFloor,
+                                       selectedRoom,
+                                       setSelectedRoom,
+                                     }: Props) {
   const rooms = ROOM_DATA[activeFloor] ?? [];
 
   return (
-    <group>
-      {rooms.map((room) => {
-        const isSelected = selectedRoom === room.id;
+      <group>
+        {rooms.map((room) => {
+          const isSelected = selectedRoom === room.id;
 
-        return (
-          <mesh
-            key={room.id}
-            position={room.position}
-            raycast={THREE.Mesh.prototype.raycast}
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              setSelectedRoom(isSelected ? null : room.id);
-              console.log("clicked:", room.name);
-            }}
-          >
-            <boxGeometry args={room.size} />
-            <meshStandardMaterial
-              color={isSelected ? "lime" : "gray"}
-              transparent
-              opacity={0.35}
-            />
-          </mesh>
-        );
-      })}
-    </group>
+          return (
+              <mesh
+                  key={room.id}
+                  position={room.position}
+                  raycast={THREE.Mesh.prototype.raycast}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    setSelectedRoom(isSelected ? null : room.id);
+                    console.log("clicked:", room.name, "->", room.navNodeId);
+                  }}
+              >
+                <boxGeometry args={room.size} />
+                <meshStandardMaterial
+                    color={isSelected ? "#2196F3" : "gray"}
+                    transparent
+                    opacity={0.4}
+                />
+              </mesh>
+          );
+        })}
+      </group>
   );
 }
 
 export function getRoomAtScreenPoint(
-  x: number,
-  y: number,
-  activeFloor: 1 | 2 | 3,
-  camera: THREE.Camera,
-  screenWidth: number,
-  screenHeight: number
+    x: number,
+    y: number,
+    activeFloor: 1 | 2 | 3,
+    camera: THREE.Camera,
+    screenWidth: number,
+    screenHeight: number
 ) {
   const groupScale = 0.1;
   const rooms = ROOM_DATA[activeFloor] ?? [];
@@ -99,35 +139,29 @@ export function getRoomAtScreenPoint(
       new THREE.Vector3(cx + hx, cy + hy, cz + hz),
     ];
 
-    let minX = Infinity;
-    let maxX = -Infinity;
-    let minY = Infinity;
-    let maxY = -Infinity;
+    let minX = Infinity, maxX = -Infinity;
+    let minY = Infinity, maxY = -Infinity;
     let avgDepth = 0;
 
     for (const corner of corners) {
       const projected = corner.clone().project(camera);
-
       const screenX = ((projected.x + 1) / 2) * screenWidth;
       const screenY = ((1 - projected.y) / 2) * screenHeight;
-
       minX = Math.min(minX, screenX);
       maxX = Math.max(maxX, screenX);
       minY = Math.min(minY, screenY);
       maxY = Math.max(maxY, screenY);
-
       avgDepth += projected.z;
     }
 
     avgDepth /= corners.length;
 
     const padding = 12;
-
     const inside =
-      x >= minX - padding &&
-      x <= maxX + padding &&
-      y >= minY - padding &&
-      y <= maxY + padding;
+        x >= minX - padding &&
+        x <= maxX + padding &&
+        y >= minY - padding &&
+        y <= maxY + padding;
 
     if (inside) {
       if (!bestMatch || avgDepth < bestMatch.depth) {
