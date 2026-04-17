@@ -5,20 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="e8e5f865-2cd0-40ce-ad04-7a2055986f47" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/EnRoute/components/NavOverlay.tsx" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/EnRoute/components/testpath.tsx" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/EnRoute/components/testpathLabel.tsx" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/EnRoute/hooks/use-test-route.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/EnRoute/utils/routeToWaypoints.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/EnRoute/app/(tabs)/index.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/EnRoute/app/(tabs)/index.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/EnRoute/components/Directions.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/EnRoute/components/Directions.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/EnRoute/components/UserLocationMarker.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/EnRoute/components/UserLocationMarker.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/EnRoute/components/roomDetail.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/EnRoute/components/roomDetail.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/EnRoute/components/roomHitbox.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/EnRoute/components/roomHitbox.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/EnRoute/hooks/use-route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/EnRoute/hooks/use-route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/EnRoute/navigation/db.ts" beforeDir="false" afterPath="$PROJECT_DIR$/EnRoute/navigation/db.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/EnRoute/navigation/seed-edges.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/EnRoute/navigation/seed-nodes.ts" beforeDir="false" afterPath="$PROJECT_DIR$/EnRoute/navigation/seed-nodes.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/EnRoute/components/testpath.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/EnRoute/components/testpath.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/EnRoute/components/testpathLabel.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/EnRoute/components/testpathLabel.tsx" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -85,7 +75,7 @@
       <option name="presentableId" value="Default" />
       <updated>1776287338110</updated>
       <workItem from="1776287339498" duration="22634000" />
-      <workItem from="1776354997922" duration="30882000" />
+      <workItem from="1776354997922" duration="35354000" />
     </task>
     <servers />
   </component>

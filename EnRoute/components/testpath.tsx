@@ -9,7 +9,7 @@
 // Everything else (ribbon geometry, start puck, end dot, label projector)
 // is unchanged from Checkpoint 2.
 
-import React, { useMemo } from "react";
+import React, { useMemo , useEffect} from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber/native";
 
@@ -97,6 +97,10 @@ function EndDot({ pos }: { pos: [number, number, number] }) {
 function EndLabelProjector({ endPos }: { endPos: [number, number, number] }) {
     const { camera, size } = useThree();
     const worldPos = useMemo(() => new THREE.Vector3(...endPos), [endPos]);
+
+    useEffect(() => {
+        return () => { endLabelPosRef.current = null; };
+    }, []);
 
     useFrame(() => {
         const ndc = worldPos.clone().project(camera);

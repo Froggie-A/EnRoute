@@ -47,9 +47,10 @@ import { useTestRoute } from "@/hooks/use-test-route";
 import { routeToWaypoints } from "@/utils/routeToWaypoints";
 
 
-import { getNode } from "@/navigation/db";
+import { getNode, NavNode } from "@/navigation/db";
+import { normalizeLocationToBuilding } from "@/utils/buildingLocation";
+
 import { useRoute } from "@/hooks/use-route";
-import type { NavNode } from "@/navigation/db";
 import type { RouteResult } from "@/navigation/pathfinding";
 
 const FLOOR_MODELS = {
@@ -86,13 +87,17 @@ const BUILDING_MAX_LAT = 30.408520;
 const BUILDING_MIN_LON = -91.180786;
 const BUILDING_MAX_LON = -91.179059;
 
-const NAV_WIDTH = 750;
-const NAV_HEIGHT = 780;
+const NODE_MIN_X = -53;
+const NODE_MAX_X =  48;
+const NODE_MIN_Y = -40;
+const NODE_MAX_Y =  15;
 
-function gpsToNavCoords(lat: number, lon: number): { x: number; y: number } {
-  const x = ((lon - BUILDING_MIN_LON) / (BUILDING_MAX_LON - BUILDING_MIN_LON)) * NAV_WIDTH;
-  const y = ((BUILDING_MAX_LAT - lat) / (BUILDING_MAX_LAT - BUILDING_MIN_LAT)) * NAV_HEIGHT;
-  return { x, y };
+function gpsToNodeCoords(lat: number, lon: number): { x: number; y: number } {
+  const norm = normalizeLocationToBuilding(lat, lon);
+  return {
+    x: NODE_MIN_X + norm.x * (NODE_MAX_X - NODE_MIN_X),
+    y: NODE_MIN_Y + norm.y * (NODE_MAX_Y - NODE_MIN_Y),
+  };
 }
 
 const MODEL_MIN_X = -12;
@@ -148,10 +153,6 @@ function Building({ activeFloor }: { activeFloor: FloorNumber }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Seed → pre-scale scene XZ (same transform as RoutePathLayer)
-// Used here to compute route bounding box for camera zoom
-// ---------------------------------------------------------------------------
 const Axx =  0.087403;
 const Axy = -0.171983;
 const Bx  =  30.3512;
@@ -181,12 +182,10 @@ function routeBoundsWorld(route: RouteResult) {
   return { center: new THREE.Vector3(cx, 0, cz), radius };
 }
 
-// ---------------------------------------------------------------------------
-// Camera controller — 1-finger orbit, 2-finger pan, pinch toward midpoint
-// ---------------------------------------------------------------------------
+
 function CameraController({
                             gestureRef, onRadiusChange, lerpRadiusRef, lerpTargetRef,
-                            maxRadius, cameraRef, targetRef, mapSizeRef,
+                            maxRadius, cameraRef, targetRef, mapSizeRef, navHeadingRef,
                           }: {
   gestureRef: React.MutableRefObject<GestureState>;
   onRadiusChange: (radius: number) => void;
@@ -196,6 +195,7 @@ function CameraController({
   cameraRef: React.MutableRefObject<THREE.Camera | null>;
   targetRef: React.MutableRefObject<THREE.Vector3>;
   mapSizeRef: React.MutableRefObject<{ width: number; height: number }>;
+  navHeadingRef: React.MutableRefObject<number | null>;
 }) {
   const { camera } = useThree();
   const spherical = useRef(new THREE.Spherical(FLOOR_CONFIG[1].snapRadius, Math.PI / 4, 0));
@@ -215,13 +215,27 @@ function CameraController({
       if (Math.abs(spherical.current.radius - lerpRadiusRef.current) < 0.05) lerpRadiusRef.current = null;
     }
     const g = gestureRef.current;
+    //compass like
+    if (navHeadingRef.current !== null) {
+
+      const targetTheta = -(navHeadingRef.current * Math.PI) / 180;
+      const targetPhi = Math.PI / 3.5;
+      spherical.current.theta = THREE.MathUtils.lerp(
+          spherical.current.theta, targetTheta, 1 - Math.pow(0.002, delta)
+      );
+      spherical.current.phi = THREE.MathUtils.lerp(
+          spherical.current.phi, targetPhi, 1 - Math.pow(0.01, delta)
+      );
+      g.deltaRotate.x = 0; g.deltaRotate.y = 0;
+    } else {
+      spherical.current.theta -= g.deltaRotate.x * 0.0035;
+      spherical.current.phi = Math.max(0.2, Math.min(Math.PI - 0.2, spherical.current.phi - g.deltaRotate.y * 0.0035));
+    }
     const offset  = new THREE.Vector3().setFromSpherical(spherical.current);
     const right   = new THREE.Vector3().crossVectors(offset, new THREE.Vector3(0, 1, 0)).normalize();
     const forward = new THREE.Vector3().crossVectors(right,  new THREE.Vector3(0, 1, 0)).normalize();
-    spherical.current.theta -= g.deltaRotate.x * 0.0035;
-    spherical.current.phi = Math.max(0.2, Math.min(Math.PI - 0.2, spherical.current.phi - g.deltaRotate.y * 0.0035));
-    targetRef.current.addScaledVector(right,  -g.deltaPan.x * 0.01);
-    targetRef.current.addScaledVector(forward, g.deltaPan.y * 0.01);
+    targetRef.current.addScaledVector(right,  -g.deltaPan.x * 0.016);
+    targetRef.current.addScaledVector(forward, g.deltaPan.y * 0.016);
     if (g.deltaZoom !== 0 && lerpRadiusRef.current === null) {
       const prev = spherical.current.radius;
       const next = Math.max(0.1, Math.min(maxRadiusRef.current * 1.2, prev * (1 - g.deltaZoom * 0.0045)));
@@ -296,11 +310,16 @@ function zoomToWaypoints(
 function zoomToNavStart(
     waypoints: [number, number, number][],
     lerpRadiusRef: React.MutableRefObject<number | null>,
-    lerpTargetRef: React.MutableRefObject<THREE.Vector3 | null>
+    lerpTargetRef: React.MutableRefObject<THREE.Vector3 | null>,
+    headingDeg = 0
 ) {
   if (waypoints.length === 0) return;
   const [x, , z] = waypoints[0];
-  lerpTargetRef.current = new THREE.Vector3(x, 0, z + 0.8);
+
+  const headingRad = (headingDeg * Math.PI) / 180;
+  const fwdX = Math.sin(headingRad) * 2.2;
+  const fwdZ = -Math.cos(headingRad) * 2.2;
+  lerpTargetRef.current = new THREE.Vector3(x + fwdX, 0, z + fwdZ);
   lerpRadiusRef.current = 4.5;
 }
 
@@ -356,6 +375,7 @@ export default function HomeScreen() {
 
   const lerpRadiusRef = useRef<number | null>(null);
   const lerpTargetRef = useRef<THREE.Vector3 | null>(null);
+  const navHeadingRef = useRef<number | null>(null);
   const activeFloorRef = useRef<FloorNumber>(1);
   const cameraRef = useRef<THREE.Camera | null>(null);
   const bottomSheetRef = useRef<BottomSheet>(null);
@@ -434,10 +454,6 @@ export default function HomeScreen() {
     return { x: pt.x, y: PIN_Y, z: pt.z, floor: activeFloorRef.current };
   }, [mapSize.width, mapSize.height]);
 
-  useEffect(() => {
-    if (selectedRoom) focusRoom(selectedRoom, activeFloor);
-  }, [selectedRoom, activeFloor, focusRoom]);
-
   const pinPanResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => pinMode,
     onMoveShouldSetPanResponder: () => pinMode,
@@ -496,19 +512,14 @@ export default function HomeScreen() {
     sheetIndexRef.current = 0;
     setTimeout(() => bottomSheetRef.current?.snapToIndex(0), 50);
 
-    if (navId) {
-      const result = getTestRoute("entrance0", navId);
-      const waypoints = routeToWaypoints(result);
-      setPathWaypoints(waypoints);
-      zoomToWaypoints(waypoints, lerpRadiusRef, lerpTargetRef, 0.50);
-    } else {
-      setPathWaypoints([]);
-    }
+    focusRoom(hitboxId, activeFloorRef.current);
+    setPathWaypoints([]);
+
   }, [getTestRoute]);
 
   const getFromNodeId = useCallback((): string => {
     if (!location) return START_NODE_ID;
-    const { x, y } = gpsToNavCoords(location.coords.latitude, location.coords.longitude);
+    const { x, y } = gpsToNodeCoords(location.coords.latitude, location.coords.longitude);
     const nearest = snapToNode(x, y, activeFloorRef.current);
     if (nearest) { console.log("[from node]", nearest.id, nearest.label); return nearest.id; }
     return START_NODE_ID;
@@ -516,15 +527,21 @@ export default function HomeScreen() {
 
   const handleNavigate = useCallback((accessible = false) => {
     if (!selectedNode) return;
-    const result = getTestRoute("entrance0", selectedNode.id);
+    const fromId = getFromNodeId();
+    const result = getTestRoute(fromId, selectedNode.id);
+
+    // hardcoded start node
+    //const result = getTestRoute("entrance0", selectedNode.id);
+    const waypoints = routeToWaypoints(result);
     setActiveRoute(result);
+    setPathWaypoints(waypoints);
     setSheetView("directions");
-    bottomSheetRef.current?.snapToIndex(1);
-    setSheetIndex(1);
-    sheetIndexRef.current = 1;
-    if (pathWaypoints.length >= 2)
-      zoomToWaypoints(pathWaypoints, lerpRadiusRef, lerpTargetRef, 0.50);
-  }, [selectedNode, getTestRoute, pathWaypoints]);
+    bottomSheetRef.current?.snapToIndex(0);
+    setSheetIndex(0);
+    sheetIndexRef.current = 0;
+    if (waypoints.length >= 2)
+      zoomToWaypoints(waypoints, lerpRadiusRef, lerpTargetRef, 0.50);
+  }, [selectedNode, getTestRoute]);
 
   const handleAvoidStairsChange = useCallback((val: boolean) => {
     if (!selectedNode || !dbReady) return;
@@ -539,10 +556,12 @@ export default function HomeScreen() {
     setSheetIndex(-1); sheetIndexRef.current = -1;
     setShowCollapsedPill(false);
     setIsNavigating(true);
-    zoomToNavStart(pathWaypoints, lerpRadiusRef, lerpTargetRef);
+    zoomToNavStart(pathWaypoints, lerpRadiusRef, lerpTargetRef, navHeadingRef.current ?? 0);
+    navHeadingRef.current = navHeadingRef.current ?? 0;
   }, [activeRoute, pathWaypoints]);
 
   const handleEndRoute = useCallback(() => {
+    navHeadingRef.current = null;
     setIsNavigating(false);
     setActiveRoute(null);
     setSelectedRoom(null);
@@ -643,7 +662,12 @@ export default function HomeScreen() {
       setLocation(cur);
       sub = await Location.watchPositionAsync(
           { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 250, distanceInterval: 0 },
-          (loc) => setLocation(loc)
+          (loc) => {
+            setLocation(loc);
+            if (loc.coords.heading != null && loc.coords.heading >= 0) {
+              navHeadingRef.current = loc.coords.heading;
+            }
+          }
       );
     })();
     return () => { sub?.remove(); };
@@ -664,9 +688,10 @@ export default function HomeScreen() {
   const handleSheetChange = useCallback((index: number) => {
     setSheetIndex(index); sheetIndexRef.current = index;
     if (index >= 0) setShowCollapsedPill(false);
-    if (index === -1 && !isNavigating && sheetView === "default") {
+    if (index === -1 && !isNavigating) {
       setSelectedRoom(null); setSelectedNode(null);
       setActiveRoute(null); setPathWaypoints([]);
+      setSheetView("default");
       setTimeout(() => setShowCollapsedPill(true), 1);
     }
   }, [isNavigating, sheetView]);
@@ -741,9 +766,9 @@ export default function HomeScreen() {
                 cameraRef={cameraRef}
                 targetRef={cameraTargetRef}
                 mapSizeRef={mapSizeRef}
+                navHeadingRef={navHeadingRef}
             />
           </Canvas>
-          <TestPathLabel />
 
           {/* Gesture capture layer */}
           {!pinMode && (
@@ -801,6 +826,8 @@ export default function HomeScreen() {
               />
           )}
 
+          <TestPathLabel label={selectedNode?.label} isNavigating={isNavigating} />
+
           {!isNavigating && (
               <BottomSheet
                   ref={bottomSheetRef}
@@ -832,9 +859,9 @@ export default function HomeScreen() {
                           onConfirm={handleConfirmRoute}
                           onBack={() => {
                             setSheetView("detail");
+                            setPathWaypoints([]);
                             bottomSheetRef.current?.snapToIndex(0);
-                            if (pathWaypoints.length >= 2)
-                              zoomToWaypoints(pathWaypoints, lerpRadiusRef, lerpTargetRef, 0.50);
+                            if (selectedNode) focusRoom(selectedRoom, activeFloor);
                           }}
                       />
                   )}

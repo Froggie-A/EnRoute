@@ -16,12 +16,17 @@ import { Animated, StyleSheet, View, Text } from "react-native";
 import { endLabelPosRef } from "./testpath";
 
 // Label dimensions — used to center the pill over the anchor point
-const PILL_W  = 120;
+const PILL_W  = 140;
 const PILL_H  = 36;
 // How far above the floor dot the pill floats (in screen pixels)
 const LIFT_PX = 60;
 
-export default function TestPathLabel() {
+type LabelProps = {
+    label?: string;
+    isNavigating?: boolean;
+};
+
+export default function TestPathLabel({ label, isNavigating = false }: LabelProps) {
     const animX = useRef(new Animated.Value(-999)).current;
     const animY = useRef(new Animated.Value(-999)).current;
     const visible = useRef(new Animated.Value(0)).current;
@@ -31,7 +36,7 @@ export default function TestPathLabel() {
 
         function tick() {
             const pos = endLabelPosRef.current;
-            if (pos) {
+            if (pos && !isNavigating) {
                 // Center pill horizontally over the dot, lift it upward
                 animX.setValue(pos.x - PILL_W / 2);
                 animY.setValue(pos.y - PILL_H - LIFT_PX);
@@ -62,7 +67,7 @@ export default function TestPathLabel() {
             ]}
         >
             {/* Pill label */}
-            <Text style={styles.label}>Endpoint</Text>
+            <Text style={styles.label} numberOfLines={1}>{label ?? "Endpoint"}</Text>
 
             {/* Downward notch / triangle pointing to the floor dot */}
             <View style={styles.notch} />
@@ -87,7 +92,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.35,
         shadowRadius: 4,
         elevation: 6,
-        zIndex: 50,
+        zIndex: 5,
     },
     label: {
         color: "white",
