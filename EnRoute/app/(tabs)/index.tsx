@@ -14,6 +14,7 @@ import {
   Pressable,
   PanResponder,
   ActivityIndicator,
+  Animated,
 } from "react-native";
 import { Canvas, useThree, useFrame } from "@react-three/fiber/native";
 import { useGLTF } from "@react-three/drei/native";
@@ -23,6 +24,7 @@ import * as THREE from "three";
 import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
+import { ScrollView } from "react-native";
 
 import { FloorSwitcher } from "@/components/floorSwitcher";
 import SearchBarRow from "@/components/SearchBarRow";
@@ -50,17 +52,22 @@ import { routeToWaypoints } from "@/utils/routeToWaypoints";
 import { getNode, NavNode } from "@/navigation/db";
 import { normalizeLocationToBuilding } from "@/utils/buildingLocation";
 
+
+import { getNode } from "@/navigation/db";
 import { useRoute } from "@/hooks/use-route";
 import type { RouteResult } from "@/navigation/pathfinding";
 
+
 const FLOOR_MODELS = {
-  1: require("../../assets/models/newfloorplan.glb"),
+  1: require("../../assets/models/1stFloorModel.glb"),
   2: require("../../assets/models/2ndFloorModel.glb"),
   3: require("../../assets/models/3rdFloorModel.glb"),
 } as const;
 
+
 type FloorNumber = keyof typeof FLOOR_MODELS;
 type SheetView = "default" | "detail" | "directions" | "profile";
+
 
 type GestureState = {
   deltaRotate: { x: number; y: number };
@@ -69,21 +76,30 @@ type GestureState = {
   pinchMidpoint: { x: number; y: number } | null;
 };
 
+
 const FLOOR_CONFIG: Record<
-    FloorNumber,
-    { switchRadius: number; snapRadius: number; zoomInRadius: number }
+  FloorNumber,
+  { switchRadius: number; snapRadius: number; zoomInRadius: number }
 > = {
   1: { switchRadius: 50, snapRadius: 10, zoomInRadius: 5 },
   2: { switchRadius: 120, snapRadius: 10, zoomInRadius: 5 },
   3: { switchRadius: 45, snapRadius: 10, zoomInRadius: 5 },
 };
 
+
 const SNAP_FRACTIONS = [0.5, 0.75, 0.9];
+
+
+const COLLAPSED_HEIGHT = 84;
+const MID_HEIGHT = 420;
+const EXPANDED_HEIGHT_FRACTION = 0.82;
+const REVEAL_THRESHOLD = 210;
+
 
 const HARDCODED_LAT = 30.40775;
 const HARDCODED_LON = -91.17995;
 const BUILDING_MIN_LAT = 30.406977;
-const BUILDING_MAX_LAT = 30.408520;
+const BUILDING_MAX_LAT = 30.40852;
 const BUILDING_MIN_LON = -91.180786;
 const BUILDING_MAX_LON = -91.179059;
 
@@ -105,17 +121,22 @@ const MODEL_MAX_X = 12;
 const MODEL_MIN_Z = -18;
 const MODEL_MAX_Z = 18;
 
+
 function gpsToModelCoords(lat: number, lon: number): { x: number; z: number } {
-  const normX = (lon - BUILDING_MIN_LON) / (BUILDING_MAX_LON - BUILDING_MIN_LON);
-  const normZ = (BUILDING_MAX_LAT - lat) / (BUILDING_MAX_LAT - BUILDING_MIN_LAT);
+  const normX =
+    (lon - BUILDING_MIN_LON) / (BUILDING_MAX_LON - BUILDING_MIN_LON);
+  const normZ =
+    (BUILDING_MAX_LAT - lat) / (BUILDING_MAX_LAT - BUILDING_MIN_LAT);
   const x = MODEL_MIN_X + normX * (MODEL_MAX_X - MODEL_MIN_X);
   const z = MODEL_MIN_Z + normZ * (MODEL_MAX_Z - MODEL_MIN_Z);
   return { x, z };
 }
 
+
 function FloorModel({ source }: { source: number }) {
   const asset = Asset.fromModule(source);
   const { scene } = useGLTF(asset.uri);
+
 
   const clonedScene = useMemo(() => {
     const clone = scene.clone(true);
@@ -126,12 +147,13 @@ function FloorModel({ source }: { source: number }) {
     return clone;
   }, [scene]);
 
+
   useEffect(() => {
     clonedScene.traverse((child: any) => {
       if (child.isMesh && child.material) {
         const materials = Array.isArray(child.material)
-            ? child.material
-            : [child.material];
+          ? child.material
+          : [child.material];
         materials.forEach((mat: any) => {
           mat.transparent = false;
           mat.opacity = 1;
@@ -142,8 +164,10 @@ function FloorModel({ source }: { source: number }) {
     });
   }, [clonedScene]);
 
+
   return <primitive object={clonedScene} />;
 }
+
 
 function Building({ activeFloor }: { activeFloor: FloorNumber }) {
   return (
@@ -340,7 +364,9 @@ export default function HomeScreen() {
   const [cameraRadius, setCameraRadius] = useState(FLOOR_CONFIG[1].snapRadius);
   const [isReady, setIsReady] = useState(false);
 
+
   const sceneRef = useRef<THREE.Object3D[] | null>(null);
+
 
   const [location, setLocation] = useState<Location.LocationObject | null>({
     coords: {
@@ -364,8 +390,10 @@ export default function HomeScreen() {
   const [pins, setPins] = useState<Pin[]>([]);
   const [previewPin, setPreviewPin] = useState<Pin | null>(null);
 
+
   const raycasterRef = useRef(new THREE.Raycaster());
   const pointerRef = useRef(new THREE.Vector2());
+
 
   const [selectedNode, setSelectedNode] = useState<NavNode | null>(null);
   const [sheetView, setSheetView] = useState<SheetView>("default");
@@ -373,16 +401,26 @@ export default function HomeScreen() {
   const [pathWaypoints, setPathWaypoints] = useState<[number, number, number][]>([]);
   const [isNavigating, setIsNavigating] = useState(false);
 
+
   const [selectedEvent, setSelectedEvent] = useState<{
     title: string; date: string; location: string; description: string;
   } | null>(null);
 
+
   const [sheetIndex, setSheetIndex] = useState(-1);
   const [showCollapsedPill, setShowCollapsedPill] = useState(true);
+
+
+  const [panelExpanded, setPanelExpanded] = useState(false);
+  const [panelLevel, setPanelLevel] = useState<"collapsed" | "mid" | "full">("collapsed");
+  const panelHeightAnim = useRef(new Animated.Value(COLLAPSED_HEIGHT)).current;
+  const dragStartHeightRef = useRef(COLLAPSED_HEIGHT);
+
 
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const touchRoomRef = useRef<string | null>(null);
   const touchMovedRef = useRef(false);
+
 
   const lerpRadiusRef = useRef<number | null>(null);
   const lerpTargetRef = useRef<THREE.Vector3 | null>(null);
@@ -401,6 +439,7 @@ export default function HomeScreen() {
   const lastTapTimeRef = useRef<number>(0);
   const lastTapRoomRef = useRef<string | null>(null);
 
+
   const gestureRef = useRef<GestureState>({
     deltaRotate: { x: 0, y: 0 },
     deltaZoom: 0,
@@ -408,16 +447,94 @@ export default function HomeScreen() {
     pinchMidpoint: null,
   });
 
+
   const prevTouches = useRef<{ x: number; y: number }[]>([]);
   const snapPoints = useMemo(() => ["50%", "75%", "90%"], []);
   const { getRoute, dbReady, snapToNode } = useRoute();
   const getTestRoute = useTestRoute();
+
 
   const sheetTopY = useMemo(() => {
     if (sheetIndex < 0) return mapSize.height;
     const frac = SNAP_FRACTIONS[sheetIndex] ?? 0.5;
     return mapSize.height * (1 - frac);
   }, [sheetIndex, mapSize.height]);
+
+
+  const expandedPanelHeight = useMemo(() => {
+    const rawHeight = mapSize.height * EXPANDED_HEIGHT_FRACTION;
+    return Math.max(MID_HEIGHT + 1, rawHeight);
+  }, [mapSize.height]);
+
+  const snapPanelTo = useCallback(
+    (toValue: number) => {
+      let level: "collapsed" | "mid" | "full" = "collapsed";
+
+      if (toValue === MID_HEIGHT) level = "mid";
+      if (toValue === expandedPanelHeight) level = "full";
+
+      setPanelLevel(level);
+      setPanelExpanded(level !== "collapsed");
+
+      Animated.spring(panelHeightAnim, {
+        toValue,
+        useNativeDriver: false,
+        damping: 24,
+        stiffness: 180,
+        mass: 0.9,
+      }).start();
+    },
+    [panelHeightAnim, expandedPanelHeight]
+  );
+
+  const contentOpacity = panelHeightAnim.interpolate({
+    inputRange: [COLLAPSED_HEIGHT, MID_HEIGHT],
+    outputRange: [0, 1],
+    extrapolate: "clamp",
+  });
+
+
+  const contentTranslateY = panelHeightAnim.interpolate({
+    inputRange: [COLLAPSED_HEIGHT, MID_HEIGHT],
+    outputRange: [20, 0],
+    extrapolate: "clamp",
+  });
+
+
+  const panelLeft = panelHeightAnim.interpolate({
+    inputRange: [COLLAPSED_HEIGHT, MID_HEIGHT],
+    outputRange: [14, 0],
+    extrapolate: "clamp",
+  });
+
+
+  const panelRight = panelHeightAnim.interpolate({
+    inputRange: [COLLAPSED_HEIGHT, MID_HEIGHT],
+    outputRange: [14, 0],
+    extrapolate: "clamp",
+  });
+
+
+  const panelBottom = panelHeightAnim.interpolate({
+    inputRange: [COLLAPSED_HEIGHT, MID_HEIGHT],
+    outputRange: [35, 0],
+    extrapolate: "clamp",
+  });
+
+
+  const panelRadius = panelHeightAnim.interpolate({
+    inputRange: [COLLAPSED_HEIGHT, MID_HEIGHT],
+    outputRange: [100, 26],
+    extrapolate: "clamp",
+  });
+
+
+  const panelBackgroundColor = panelHeightAnim.interpolate({
+    inputRange: [COLLAPSED_HEIGHT, MID_HEIGHT],
+    outputRange: ["rgba(189,189,189,0.75)", "rgba(235, 235, 218, 1)"],
+    extrapolate: "clamp",
+  });
+
 
   const events = [
     { id: "1", title: "Resume Help", date: "Feb 28 • 11 AM - 7 PM", club: "Student Government", location: "PFT 3147", type: "book-outline" as const, description: "Resume review event details here." },
@@ -426,6 +543,7 @@ export default function HomeScreen() {
     { id: "4", title: "Physics Tutoring", date: "Mar 4 • 4 PM - 8 PM", club: "Society of Physics Students", location: "PFT 2612", type: "book-outline" as const, description: "Physics tutoring details here." },
     { id: "5", title: "Free Lunch Event", date: "Mar 6 • 11 AM - 2 PM", club: "Google Developer Student Club", location: "PFT 1145", type: "chatbubble-outline" as const, description: "Free lunch event details here." },
   ];
+
 
   const filteredEvents = events.filter((event) => {
     const query = search.trim().toLowerCase();
@@ -437,6 +555,7 @@ export default function HomeScreen() {
   useEffect(() => { mapSizeRef.current = mapSize; }, [mapSize]);
   useEffect(() => { sheetTopYRef.current = sheetTopY; }, [sheetTopY]);
 
+
   useEffect(() => {
     if (!location || hasCenteredOnUser.current) return;
     hasCenteredOnUser.current = true;
@@ -445,7 +564,9 @@ export default function HomeScreen() {
     lerpRadiusRef.current = FLOOR_CONFIG[1].snapRadius;
   }, [location]);
 
+
   const PIN_Y = -0.05;
+
 
   const focusRoom = useCallback((roomId: string | null, floor: FloorNumber) => {
     if (!roomId) return;
@@ -489,6 +610,7 @@ export default function HomeScreen() {
     },
     onPanResponderTerminate: () => { previewPinRef.current = null; setPreviewPin(null); },
   }), [pinMode, getPinPointFromTouch]);
+
 
   const handleRadiusChange = useCallback((radius: number) => {
     setCameraRadius(radius);
@@ -591,6 +713,13 @@ export default function HomeScreen() {
     setTimeout(() => setShowCollapsedPill(true), 300);
   }, []);
 
+
+  const openSheet = useCallback(() => {
+    setSheetView("default");
+    expandFullyPanel();
+  }, [expandFullyPanel]);
+
+
   const handleProfilePress = useCallback(() => {
     setSheetView("profile");
     bottomSheetRef.current?.snapToIndex(1);
@@ -672,6 +801,7 @@ export default function HomeScreen() {
     },
   }), [isNavigating, handleRoomSelect]);
 
+
   useEffect(() => {
     let sub: Location.LocationSubscription | null = null;
     (async () => {
@@ -723,6 +853,8 @@ export default function HomeScreen() {
       } catch (e) { console.log("Error preloading:", e); }
       finally { setIsReady(true); }
     }
+
+
     preloadAll();
   }, []);
 
@@ -737,26 +869,51 @@ export default function HomeScreen() {
     }
   }, [isNavigating, sheetView]);
 
-  const openSheet = useCallback(() => {
-    setSheetView("default");
-    setShowCollapsedPill(false);
-    bottomSheetRef.current?.snapToIndex(1);
-    setSheetIndex(1);
-    sheetIndexRef.current = 1;
-  }, []);
+  const handleSheetChange = useCallback(
+    (index: number) => {
+      setSheetIndex(index);
+      sheetIndexRef.current = index;
+
+
+      if (index === -1) {
+        setSelectedRoom(null);
+        setSelectedNode(null);
+        setActiveRoute(null);
+
+
+        if (!panelExpanded) {
+          setSheetView("default");
+          setTimeout(() => setShowCollapsedPill(true), 1);
+        }
+      } else {
+        setShowCollapsedPill(false);
+      }
+    },
+    [panelExpanded]
+  );
+
 
   if (!isReady) {
-    return <View style={styles.loaderWrap}><ActivityIndicator size="large" /></View>;
+    return (
+      <View style={styles.loaderWrap}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
   }
 
+
   return (
-      <GestureHandlerRootView style={styles.container}>
-        <View
-            style={styles.container}
-            onLayout={(e) => {
-              const { width, height } = e.nativeEvent.layout;
-              setMapSize({ width, height });
-            }}
+    <GestureHandlerRootView style={styles.container}>
+      <View
+        style={styles.container}
+        onLayout={(e) => {
+          const { width, height } = e.nativeEvent.layout;
+          setMapSize({ width, height });
+        }}
+      >
+        <Canvas
+          style={styles.canvasAbsolute}
+          camera={{ position: [0, 0, 0], fov: 45 }}
         >
           <Canvas style={styles.canvasAbsolute} camera={{ position: [0, 0, 0], fov: 45 }}>
             <ambientLight intensity={1.2} />
@@ -916,6 +1073,7 @@ export default function HomeScreen() {
       </GestureHandlerRootView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: { flex: 1 },

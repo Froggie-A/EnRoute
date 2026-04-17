@@ -41,7 +41,7 @@ export default function SearchBarRow({
     />
   </Pressable>
 
-  <View style={{ marginLeft: 10 }}>
+  <View style={{ marginLeft: 0}}>
     <ProfileButton onPress={onPressProfile} />
   </View>
 
@@ -58,11 +58,12 @@ const styles = StyleSheet.create({
   },
   searchInputContainer: {
     flex: 1,
+    minHeight: 42,
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "rgba(120, 116, 116, 0.75)",
-    borderRadius: 100,
-    paddingHorizontal: 12,
+    borderRadius: 999,
+    paddingHorizontal: 14,
     borderWidth: 1,
     borderColor: "#ddd",
   },
@@ -71,7 +72,8 @@ const styles = StyleSheet.create({
   },
   searchBar: {
     flex: 1,
-    paddingVertical: 12,
+    minHeight: 20,
+    paddingVertical: 10,
     color: "white",
     fontSize: 16,
     minWidth: 0,
