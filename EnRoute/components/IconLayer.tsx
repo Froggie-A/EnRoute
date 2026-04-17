@@ -7,6 +7,7 @@ type IconPin = {
   x: number;
   y: number;
   z: number;
+  floor: 1 | 2 | 3;
   type:
     | "studyroom"
     | "emergency"
@@ -19,15 +20,15 @@ type IconPin = {
 };
 
 const ICON_DATA: IconPin[] = [
-  { x: 10, y: 5, z: 0, type: "studyroom" },
-  { x: 5, y: 0.5, z: 0, type: "emergency" },
-  { x: 10, y: 0.5, z: 0, type: "restroom" },
-  { x: 0, y: 0.5, z: 0, type: "restroom" },
-  { x: 15, y: 0.5, z: 0, type: "vending" },
-  { x: 20, y: 0.5, z: 0, type: "elevator" },
-  { x: 25, y: 0.5, z: 0, type: "fountain" },
-  { x: -10, y: 0.5, z: 0, type: "fire" },
-  { x: 30, y: 0.5, z: 0, type: "defib" },
+  { x: 10, y: 0.1, z: 0, floor: 1, type: "studyroom" },
+  { x: 5, y: 0.1, z: 0, floor: 1, type: "emergency" },
+  { x: 10, y: 0.1, z: 0, floor: 1, type: "restroom" },
+  { x: 0, y: 0.1, z: 0, floor: 1, type: "restroom" },
+  { x: 15, y: 0.1, z: 0, floor: 1, type: "vending" },
+  { x: 20, y: 0.1, z: 0, floor: 1, type: "elevator" },
+  { x: 25, y: 0.1, z: 0, floor: 1, type: "fountain" },
+  { x: -10, y: 0.1, z: 0, floor: 1, type: "fire" },
+  { x: 30, y: 0.1, z: 0, floor: 1, type: "defib" },
 ];
 
 const studyroomIcon = Asset.fromModule(
@@ -87,7 +88,7 @@ export default function IconLayer() {
         <sprite
           key={i}
           position={[icon.x, icon.y + 0.2, icon.z]}
-          scale={[1.1, 1.1, 1.1]}
+          scale={[0.3, 0.3, 0.3]}
         >
           <spriteMaterial map={textures[icon.type]} transparent />
         </sprite>
