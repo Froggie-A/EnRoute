@@ -7,6 +7,7 @@ type IconPin = {
   x: number;
   y: number;
   z: number;
+  floor: 1 | 2 | 3;
   type:
     | "studyroom"
     | "emergency"
@@ -15,19 +16,74 @@ type IconPin = {
     | "elevator"
     | "fountain"
     | "fire"
-    | "defib";
+    | "defib"
+    | "bottle";
 };
 
 const ICON_DATA: IconPin[] = [
-  { x: 10, y: 5, z: 0, type: "studyroom" },
-  { x: 5, y: 0.5, z: 0, type: "emergency" },
-  { x: 10, y: 0.5, z: 0, type: "restroom" },
-  { x: 0, y: 0.5, z: 0, type: "restroom" },
-  { x: 15, y: 0.5, z: 0, type: "vending" },
-  { x: 20, y: 0.5, z: 0, type: "elevator" },
-  { x: 25, y: 0.5, z: 0, type: "fountain" },
-  { x: -10, y: 0.5, z: 0, type: "fire" },
-  { x: 30, y: 0.5, z: 0, type: "defib" },
+  { x: -1.5, y: 0.15, z: 0.5, floor: 1, type: "studyroom" },
+  { x: -1.5, y: 0.15, z: 2.3, floor: 1, type: "studyroom" },
+  { x: -1.7, y: 0.15, z: 1.4, floor: 1, type: "studyroom" },
+  { x: -4.35, y: 0.15, z: -5.553, floor: 1, type: "studyroom" },
+  { x: 5, y: 0.15, z: 0, floor: 1, type: "emergency" },
+  { x: 5, y: 0.15, z: 0, floor: 1, type: "emergency" },
+  { x: 5, y: 0.15, z: 0, floor: 1, type: "emergency" },
+  { x: 5, y: 0.15, z: 0, floor: 1, type: "emergency" },
+  { x: 5, y: 0.15, z: 0, floor: 1, type: "emergency" },
+  { x: 5, y: 0.15, z: 0, floor: 1, type: "emergency" },
+  { x: 5, y: 0.15, z: 0, floor: 1, type: "emergency" },
+  { x: 5, y: 0.15, z: 0, floor: 1, type: "emergency" },
+  { x: 5, y: 0.15, z: 0, floor: 1, type: "emergency" },
+  { x: 5, y: 0.15, z: 0, floor: 1, type: "emergency" },
+  { x: 5, y: 0.15, z: 0, floor: 1, type: "emergency" },
+  { x: 5, y: 0.15, z: 0, floor: 1, type: "emergency" },
+  { x: 5, y: 0.15, z: 0, floor: 1, type: "emergency" },
+  { x: 5, y: 0.15, z: 0, floor: 1, type: "emergency" },
+  { x: 5, y: 0.15, z: 0, floor: 1, type: "emergency" },
+  { x: 5, y: 0.15, z: 0, floor: 1, type: "emergency" },
+  { x: -0.07, y: 0.15, z: 2.85, floor: 1, type: "restroom" },
+  { x: -0.07, y: 0.15, z: 0.04, floor: 1, type: "restroom" },
+  { x: 0, y: 0.15, z: 0, floor: 1, type: "restroom" },
+  { x: 0, y: 0.15, z: 0, floor: 1, type: "restroom" },
+  { x: 0, y: 0.15, z: 0, floor: 1, type: "restroom" },
+  { x: 0, y: 0.15, z: 0, floor: 1, type: "restroom" },
+  { x: 15, y: 0.15, z: 0, floor: 1, type: "vending" },
+  { x: 15, y: 0.15, z: 0, floor: 1, type: "vending" },
+  { x: 20, y: 0.15, z: 0, floor: 1, type: "elevator" },
+  { x: 20, y: 0.15, z: 0, floor: 1, type: "elevator" },
+  { x: 20, y: 0.15, z: 0, floor: 1, type: "elevator" },
+  { x: 20, y: 0.15, z: 0, floor: 1, type: "elevator" },
+  { x: 25, y: 0.15, z: 0, floor: 1, type: "fountain" },
+  { x: 25, y: 0.15, z: 0, floor: 1, type: "fountain" },
+  { x: 25, y: 0.15, z: 0, floor: 1, type: "fountain" },
+  { x: 25, y: 0.15, z: 0, floor: 1, type: "fountain" },
+  { x: 25, y: 0.15, z: 0, floor: 1, type: "fountain" },
+  { x: 25, y: 0.15, z: 0, floor: 1, type: "fountain" },
+  { x: 25, y: 0.15, z: 0, floor: 1, type: "fountain" },
+  { x: -10, y: 0.15, z: 0, floor: 1, type: "fire" },
+  { x: -10, y: 0.15, z: 0, floor: 1, type: "fire" },
+  { x: -10, y: 0.15, z: 0, floor: 1, type: "fire" },
+  { x: -10, y: 0.15, z: 0, floor: 1, type: "fire" },
+  { x: -10, y: 0.15, z: 0, floor: 1, type: "fire" },
+  { x: -10, y: 0.15, z: 0, floor: 1, type: "fire" },
+  { x: -10, y: 0.15, z: 0, floor: 1, type: "fire" },
+  { x: -10, y: 0.15, z: 0, floor: 1, type: "fire" },
+  { x: -10, y: 0.15, z: 0, floor: 1, type: "fire" },
+  { x: -10, y: 0.15, z: 0, floor: 1, type: "fire" },
+  { x: -10, y: 0.15, z: 0, floor: 1, type: "fire" },
+  { x: -10, y: 0.15, z: 0, floor: 1, type: "fire" },
+  { x: -10, y: 0.15, z: 0, floor: 1, type: "fire" },
+  { x: -10, y: 0.15, z: 0, floor: 1, type: "fire" },
+  { x: -10, y: 0.15, z: 0, floor: 1, type: "fire" },
+  { x: -10, y: 0.15, z: 0, floor: 1, type: "fire" },
+  { x: -10, y: 0.15, z: 0, floor: 1, type: "fire" },
+  { x: -10, y: 0.15, z: 0, floor: 1, type: "fire" },
+  { x: -10, y: 0.15, z: 0, floor: 1, type: "fire" },
+  { x: -10, y: 0.15, z: 0, floor: 1, type: "fire" },
+  { x: -10, y: 0.15, z: 0, floor: 1, type: "fire" },
+  { x: 30, y: 0.15, z: 0, floor: 1, type: "defib" },
+  { x: 10, y: 0.15, z: 0, floor: 1, type: "bottle" },
+  { x: 10, y: 0.15, z: 0, floor: 1, type: "bottle" },
 ];
 
 const studyroomIcon = Asset.fromModule(
@@ -54,8 +110,12 @@ const fireIcon = Asset.fromModule(
 const defibIcon = Asset.fromModule(
   require("../assets/images/first-aid-icon.png")
 ).uri;
+const bottleIcon = Asset.fromModule(
+  require("../assets/images/bottle-fill-icon.png")
+).uri;
 
-export default function IconLayer() {
+
+export default function IconLayer({ activeFloor }: { activeFloor: 1 | 2 | 3 }) {
   const loaded = useTexture([
     studyroomIcon,
     emergencyIcon,
@@ -65,7 +125,12 @@ export default function IconLayer() {
     fountainIcon,
     fireIcon,
     defibIcon,
+    bottleIcon,
   ]) as THREE.Texture[];
+
+  const visibleIcons = ICON_DATA.filter(
+    (icon) => icon.floor === activeFloor
+  );
 
   const textures: Record<IconPin["type"], THREE.Texture> = useMemo(
     () => ({
@@ -77,17 +142,18 @@ export default function IconLayer() {
       fountain: loaded[5],
       fire: loaded[6],
       defib: loaded[7],
+      bottle: loaded[8],
     }),
     [loaded]
   );
 
   return (
     <>
-      {ICON_DATA.map((icon, i) => (
+      {visibleIcons.map((icon, i) => (
         <sprite
           key={i}
           position={[icon.x, icon.y + 0.2, icon.z]}
-          scale={[1.1, 1.1, 1.1]}
+          scale={[0.3, 0.3, 0.3]}
         >
           <spriteMaterial map={textures[icon.type]} transparent />
         </sprite>

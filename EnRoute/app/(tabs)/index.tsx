@@ -952,7 +952,7 @@ export default function HomeScreen() {
                   previewPinRef={previewPinRef}
                   activeFloor={activeFloor}
               />
-              <IconLayer />
+              <IconLayer activeFloor={activeFloor} />
             </Suspense>
 
             <CameraController
