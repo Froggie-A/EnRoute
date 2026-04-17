@@ -164,8 +164,7 @@ function seedToXZ(sx: number, sy: number) {
   return { x: Axx * sx + Axy * sy + Bx, z: Azx * sx + Azy * sy + Bz };
 }
 
-// Compute world-space center + camera radius to fit all route nodes.
-// Route coords are in pre-scale space → multiply by 0.1 for world.
+
 function routeBoundsWorld(route: RouteResult) {
   const pts = route.steps.map((s) => seedToXZ(s.node.x, s.node.y));
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
@@ -177,7 +176,6 @@ function routeBoundsWorld(route: RouteResult) {
   const cx = ((minX + maxX) / 2) * scale;
   const cz = ((minZ + maxZ) / 2) * scale;
   const span = Math.max((maxX - minX), (maxZ - minZ)) * scale;
-  // Clamp: short routes get at least radius 6 so we don't zoom in too tight
   const radius = Math.max(span * 0.8 + 1.5, 6);
   return { center: new THREE.Vector3(cx, 0, cz), radius };
 }
@@ -185,7 +183,8 @@ function routeBoundsWorld(route: RouteResult) {
 
 function CameraController({
                             gestureRef, onRadiusChange, lerpRadiusRef, lerpTargetRef,
-                            maxRadius, cameraRef, targetRef, mapSizeRef, navHeadingRef,
+                            maxRadius, cameraRef, targetRef, mapSizeRef,
+                            lerpThetaRef, lerpPhiRef,
                           }: {
   gestureRef: React.MutableRefObject<GestureState>;
   onRadiusChange: (radius: number) => void;
@@ -195,7 +194,8 @@ function CameraController({
   cameraRef: React.MutableRefObject<THREE.Camera | null>;
   targetRef: React.MutableRefObject<THREE.Vector3>;
   mapSizeRef: React.MutableRefObject<{ width: number; height: number }>;
-  navHeadingRef: React.MutableRefObject<number | null>;
+  lerpThetaRef: React.MutableRefObject<number | null>;
+  lerpPhiRef: React.MutableRefObject<number | null>;
 }) {
   const { camera } = useThree();
   const spherical = useRef(new THREE.Spherical(FLOOR_CONFIG[1].snapRadius, Math.PI / 4, 0));
@@ -214,26 +214,28 @@ function CameraController({
       gestureRef.current.deltaZoom = 0;
       if (Math.abs(spherical.current.radius - lerpRadiusRef.current) < 0.05) lerpRadiusRef.current = null;
     }
-    const g = gestureRef.current;
-    //compass like
-    if (navHeadingRef.current !== null) {
-
-      const targetTheta = -(navHeadingRef.current * Math.PI) / 180;
-      const targetPhi = Math.PI / 3.5;
+    if (lerpThetaRef.current !== null) {
       spherical.current.theta = THREE.MathUtils.lerp(
-          spherical.current.theta, targetTheta, 1 - Math.pow(0.002, delta)
+          spherical.current.theta, lerpThetaRef.current, 1 - Math.pow(0.001, delta)
       );
-      spherical.current.phi = THREE.MathUtils.lerp(
-          spherical.current.phi, targetPhi, 1 - Math.pow(0.01, delta)
-      );
-      g.deltaRotate.x = 0; g.deltaRotate.y = 0;
-    } else {
-      spherical.current.theta -= g.deltaRotate.x * 0.0035;
-      spherical.current.phi = Math.max(0.2, Math.min(Math.PI - 0.2, spherical.current.phi - g.deltaRotate.y * 0.0035));
+      if (Math.abs(spherical.current.theta - lerpThetaRef.current) < 0.005)
+        lerpThetaRef.current = null;
     }
+    // Lerp phi (tilt) into nav perspective angle
+    if (lerpPhiRef.current !== null) {
+      spherical.current.phi = THREE.MathUtils.lerp(
+          spherical.current.phi, lerpPhiRef.current, 1 - Math.pow(0.001, delta)
+      );
+      if (Math.abs(spherical.current.phi - lerpPhiRef.current) < 0.005)
+        lerpPhiRef.current = null;
+    }
+    const g = gestureRef.current;
     const offset  = new THREE.Vector3().setFromSpherical(spherical.current);
     const right   = new THREE.Vector3().crossVectors(offset, new THREE.Vector3(0, 1, 0)).normalize();
     const forward = new THREE.Vector3().crossVectors(right,  new THREE.Vector3(0, 1, 0)).normalize();
+    spherical.current.theta -= g.deltaRotate.x * 0.0035;
+    spherical.current.phi = Math.max(0.2, Math.min(Math.PI - 0.2, spherical.current.phi - g.deltaRotate.y * 0.0035));
+
     targetRef.current.addScaledVector(right,  -g.deltaPan.x * 0.016);
     targetRef.current.addScaledVector(forward, g.deltaPan.y * 0.016);
     if (g.deltaZoom !== 0 && lerpRadiusRef.current === null) {
@@ -273,9 +275,7 @@ function SceneCapture({ sceneRef }: { sceneRef: React.MutableRefObject<THREE.Obj
   return null;
 }
 
-// ---------------------------------------------------------------------------
-// Helper to zoom camera to show the full route
-// ---------------------------------------------------------------------------
+
 function zoomToRoute(
     route: RouteResult,
     lerpRadiusRef: React.MutableRefObject<number | null>,
@@ -309,18 +309,29 @@ function zoomToWaypoints(
 
 function zoomToNavStart(
     waypoints: [number, number, number][],
-    lerpRadiusRef: React.MutableRefObject<number | null>,
-    lerpTargetRef: React.MutableRefObject<THREE.Vector3 | null>,
-    headingDeg = 0
+    lerpRadiusRef:  React.MutableRefObject<number | null>,
+    lerpTargetRef:  React.MutableRefObject<THREE.Vector3 | null>,
+    lerpThetaRef:   React.MutableRefObject<number | null>,
+    lerpPhiRef:     React.MutableRefObject<number | null>,
 ) {
-  if (waypoints.length === 0) return;
-  const [x, , z] = waypoints[0];
+  if (waypoints.length < 2) return;
+  const [x0, , z0] = waypoints[0];
+  const [x1, , z1] = waypoints[1];
 
-  const headingRad = (headingDeg * Math.PI) / 180;
-  const fwdX = Math.sin(headingRad) * 2.2;
-  const fwdZ = -Math.cos(headingRad) * 2.2;
-  lerpTargetRef.current = new THREE.Vector3(x + fwdX, 0, z + fwdZ);
+
+  const dx = x1 - x0;
+  const dz = z1 - z0;
+  const routeTheta = Math.atan2(dx, dz);
+  const camTheta   = routeTheta + Math.PI;
+
+  const dist = Math.sqrt(dx * dx + dz * dz) || 1;
+  const nx = dx / dist;
+  const nz = dz / dist;
+  lerpTargetRef.current = new THREE.Vector3(x0 + nx * 1.8, 0, z0 + nz * 1.8);
   lerpRadiusRef.current = 4.5;
+
+  lerpThetaRef.current = camTheta;
+  lerpPhiRef.current   = Math.PI / 2.6;
 }
 
 export default function HomeScreen() {
@@ -376,6 +387,9 @@ export default function HomeScreen() {
   const lerpRadiusRef = useRef<number | null>(null);
   const lerpTargetRef = useRef<THREE.Vector3 | null>(null);
   const navHeadingRef = useRef<number | null>(null);
+  const lerpThetaRef  = useRef<number | null>(null);
+  const lerpPhiRef    = useRef<number | null>(null);
+
   const activeFloorRef = useRef<FloorNumber>(1);
   const cameraRef = useRef<THREE.Camera | null>(null);
   const bottomSheetRef = useRef<BottomSheet>(null);
@@ -556,8 +570,8 @@ export default function HomeScreen() {
     setSheetIndex(-1); sheetIndexRef.current = -1;
     setShowCollapsedPill(false);
     setIsNavigating(true);
-    zoomToNavStart(pathWaypoints, lerpRadiusRef, lerpTargetRef, navHeadingRef.current ?? 0);
-    navHeadingRef.current = navHeadingRef.current ?? 0;
+    zoomToNavStart(pathWaypoints, lerpRadiusRef, lerpTargetRef, lerpThetaRef, lerpPhiRef);
+
   }, [activeRoute, pathWaypoints]);
 
   const handleEndRoute = useCallback(() => {
@@ -766,8 +780,10 @@ export default function HomeScreen() {
                 cameraRef={cameraRef}
                 targetRef={cameraTargetRef}
                 mapSizeRef={mapSizeRef}
-                navHeadingRef={navHeadingRef}
+                lerpThetaRef={lerpThetaRef}
+                lerpPhiRef={lerpPhiRef}
             />
+
           </Canvas>
 
           {/* Gesture capture layer */}
