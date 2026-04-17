@@ -1,29 +1,20 @@
+// components/roomDetail.tsx
+// Room detail bottom sheet — matches the Figma design:
+//   - Large room number + building name
+//   - Walk icon button with estimated time (tapping starts navigation)
+//   - Ratings row + Availability row
+//   - Room photo placeholder
+
 import React from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, Text, StyleSheet, Pressable, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { NavNode } from "@/navigation/db";
 
 type Props = {
     node: NavNode;
+    estimatedMinutes?: number;   // connect to real route time later
     onNavigate: () => void;
     onDismiss: () => void;
-};
-
-const TYPE_LABELS: Record<string, string> = {
-    classroom: "Classroom",
-    lab: "Lab",
-    bathroom: "Restroom",
-    vending: "Vending",
-    study_spot: "Study Spot",
-    water_fountain: "Water Fountain",
-    aed: "AED",
-    fire_exit: "Fire Exit",
-    fire_extinguisher: "Fire Extinguisher",
-    entrance: "Entrance",
-    exit: "Exit",
-    elevator: "Elevator",
-    stairs: "Stairs",
-    hallway: "Hallway",
 };
 
 function roomNumber(label: string): string {
@@ -31,159 +22,127 @@ function roomNumber(label: string): string {
     return match ? match[0] : label;
 }
 
-export default function RoomDetailSheet({ node, onNavigate, onDismiss }: Props) {
+export default function RoomDetailSheet({ node, estimatedMinutes = 3, onNavigate, onDismiss }: Props) {
     return (
         <View style={styles.container}>
-            {/* Header */}
-            <View style={styles.headerRow}>
-                <Pressable onPress={onDismiss} style={styles.iconBtn}>
-                    <Ionicons name="bookmark-outline" size={20} color="#555" />
-                </Pressable>
+            {/* Room number + building */}
+            <Text style={styles.roomNumber}>{roomNumber(node.label)}</Text>
+            <Text style={styles.buildingName}>PFT Hall</Text>
 
-                <View style={styles.titleBlock}>
-                    <Text style={styles.roomNumber}>{roomNumber(node.label)}</Text>
-                    <Text style={styles.buildingName}>PFT Hall</Text>
-                </View>
-
-                <View style={{ width: 38 }} />
-            </View>
-
-            {/* Navigate button */}
+            {/* Walk / Navigate button */}
             <Pressable style={styles.navigateBtn} onPress={onNavigate}>
-                <Ionicons name="walk" size={26} color="#1A365D" />
-                <Text style={styles.navigateBtnText}>Navigate</Text>
+                <Ionicons name="walk" size={28} color="#1A365D" />
+                <Text style={styles.navigateTime}>{estimatedMinutes} min</Text>
             </Pressable>
 
-            {/* Meta row */}
+            {/* Ratings + Availability row */}
             <View style={styles.metaRow}>
                 <View style={styles.metaBlock}>
-                    <Text style={styles.metaHeader}>TYPE</Text>
-                    <Text style={styles.metaValue}>
-                        {TYPE_LABELS[node.type] ?? node.type}
-                    </Text>
+                    <Text style={styles.metaLabel}>RATINGS</Text>
+                    <View style={styles.metaValue}>
+                        <Ionicons name="star" size={18} color="#F5A623" />
+                        <Text style={styles.metaText}>4.0</Text>
+                    </View>
                 </View>
+
                 <View style={styles.metaDivider} />
+
                 <View style={styles.metaBlock}>
-                    <Text style={styles.metaHeader}>FLOOR</Text>
-                    <Text style={styles.metaValue}>{node.floor}</Text>
-                </View>
-                <View style={styles.metaDivider} />
-                <View style={styles.metaBlock}>
-                    <Text style={styles.metaHeader}>ACCESSIBLE</Text>
-                    <Text style={styles.metaValue}>{node.accessible ? "Yes" : "No"}</Text>
+                    <Text style={styles.metaLabel}>AVAILABILITY</Text>
+                    <View style={styles.metaValue}>
+                        <Ionicons name="people" size={22} color="#1A365D" />
+                    </View>
                 </View>
             </View>
 
-            {/* Photo placeholder */}
+            {/* Room photo */}
             <View style={styles.photoPlaceholder}>
                 <Ionicons name="image-outline" size={36} color="#bbb" />
                 <Text style={styles.photoPlaceholderText}>No photo available</Text>
             </View>
-
-            {/* Debug id */}
-            <Text style={styles.debugId}>{node.id}</Text>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
-        paddingHorizontal: 20,
-        paddingTop: 8,
-        paddingBottom: 24,
-    },
-    headerRow: {
-        flexDirection: "row",
+        paddingHorizontal: 24,
+        paddingTop: 4,
+        paddingBottom: 28,
         alignItems: "center",
-        justifyContent: "space-between",
-        marginBottom: 20,
-    },
-    iconBtn: {
-        width: 38,
-        height: 38,
-        borderRadius: 10,
-        backgroundColor: "#f0f0e8",
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    titleBlock: {
-        alignItems: "center",
+        gap: 14,
     },
     roomNumber: {
-        fontSize: 28,
+        fontSize: 42,
         fontWeight: "800",
         color: "#111",
-        letterSpacing: -0.5,
+        letterSpacing: -1,
+        marginTop: 4,
     },
     buildingName: {
-        fontSize: 13,
+        fontSize: 14,
         color: "#888",
-        marginTop: 2,
+        marginTop: -10,
     },
     navigateBtn: {
+        width: "90%",
         backgroundColor: "#d6eaf8",
-        borderRadius: 14,
+        borderRadius: 18,
         paddingVertical: 14,
         alignItems: "center",
         justifyContent: "center",
-        flexDirection: "row",
-        gap: 8,
-        marginBottom: 20,
+        gap: 2,
     },
-    navigateBtnText: {
+    navigateTime: {
         fontSize: 15,
         fontWeight: "700",
         color: "#1A365D",
+        marginTop: 2,
     },
     metaRow: {
+        width: "90%",
         flexDirection: "row",
-        backgroundColor: "#f0f0e8",
-        borderRadius: 14,
-        paddingVertical: 14,
-        paddingHorizontal: 12,
-        marginBottom: 16,
         alignItems: "center",
+        justifyContent: "space-around",
+        paddingVertical: 4,
     },
     metaBlock: {
         flex: 1,
         alignItems: "center",
-        gap: 4,
+        gap: 8,
     },
     metaDivider: {
         width: 1,
-        height: 32,
+        height: 40,
         backgroundColor: "rgba(0,0,0,0.1)",
     },
-    metaHeader: {
-        fontSize: 10,
+    metaLabel: {
+        fontSize: 11,
         fontWeight: "700",
         color: "#aaa",
         letterSpacing: 0.8,
     },
     metaValue: {
-        fontSize: 13,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+    },
+    metaText: {
+        fontSize: 16,
         fontWeight: "600",
         color: "#333",
-        textTransform: "capitalize",
-        textAlign: "center",
     },
     photoPlaceholder: {
-        height: 140,
-        borderRadius: 14,
-        backgroundColor: "#f0f0e8",
+        width: "90%",
+        height: 150,
+        borderRadius: 16,
+        backgroundColor: "#e8e8d8",
         alignItems: "center",
         justifyContent: "center",
         gap: 8,
-        marginBottom: 12,
     },
     photoPlaceholderText: {
         fontSize: 13,
         color: "#bbb",
-    },
-    debugId: {
-        fontSize: 10,
-        color: "#ccc",
-        textAlign: "center",
-        fontFamily: "monospace",
     },
 });

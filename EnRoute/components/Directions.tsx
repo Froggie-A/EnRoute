@@ -4,8 +4,20 @@ import { Ionicons } from "@expo/vector-icons";
 import type { NavNode } from "@/navigation/db";
 import type { RouteResult, RouteStep } from "@/navigation/pathfinding";
 
-// Hardcoded start node
-export const START_NODE_ID = "entrance_0";
+// ─────────────────────────────────────────────────────────────────────────────
+// START NODE — change this to control where navigation starts from.
+//
+// When you are physically inside the building and GPS is working, the app
+// uses snapToNode() to find the nearest graph node to your real GPS location.
+// This constant is the FALLBACK used when GPS is unavailable or outside bounds.
+//
+// To test a specific starting room, change this to any node ID, e.g.:
+//   "hallwayC_12"   — center of building (hallway near rooms 1246/1258)
+//   "entrance_0"    — main entrance (east side)
+//   "entrance_5"    — side entrance C (west side)
+//   "hallway_1.16"  — hallway outside room 1253
+// ─────────────────────────────────────────────────────────────────────────────
+export const START_NODE_ID = "entrance0";  // matches seed-nodes-test.ts
 
 type Props = {
     destination: NavNode;
@@ -39,30 +51,21 @@ function formatFeet(ft: number): string {
     return `${ft} ft`;
 }
 
-// Merge consecutive steps that have the same instruction into one,
-// summing their distance and time.
 function mergeSteps(steps: RouteStep[]): MergedStep[] {
     if (steps.length === 0) return [];
-
     const merged: MergedStep[] = [];
-
     for (let i = 0; i < steps.length; i++) {
         const step = steps[i];
         const last = merged[merged.length - 1];
-
-        // Two steps can merge if they have the same instruction text,
-        // are not floor transitions, and are not the final arrival step.
         const canMerge =
             last &&
             last.instruction === step.instruction &&
             !last.isFloorTransition &&
             !step.isFloorTransition &&
             !last.isLast;
-
         if (canMerge) {
             last.distanceFt += step.distanceFt;
             last.walkSeconds += step.walkSeconds;
-            // If this is the last step we're merging into, mark it
             last.isLast = i === steps.length - 1;
         } else {
             merged.push({
@@ -74,7 +77,6 @@ function mergeSteps(steps: RouteStep[]): MergedStep[] {
             });
         }
     }
-
     return merged;
 }
 
@@ -125,11 +127,9 @@ export default function DirectionsSheet({
                     <Text style={styles.routeLabel}>My location</Text>
                     <Ionicons name="reorder-three" size={18} color="#aaa" />
                 </View>
-
                 <View style={styles.routeConnector}>
                     <View style={styles.routeLine} />
                 </View>
-
                 <View style={styles.routeRow}>
                     <View style={styles.destDot} />
                     <Text style={styles.routeLabel} numberOfLines={1}>
@@ -170,7 +170,6 @@ export default function DirectionsSheet({
                                 : "No stairs"}
                         </Text>
                     </View>
-
                     <Pressable style={styles.goBtn} onPress={onConfirm}>
                         <Ionicons name="arrow-forward" size={22} color="#fff" />
                     </Pressable>
@@ -182,25 +181,19 @@ export default function DirectionsSheet({
                 </View>
             )}
 
-            {/* Merged step list */}
+            {/* Step list */}
             {mergedSteps.length > 1 && (
                 <View style={styles.stepsContainer}>
                     <Text style={styles.stepsHeader}>STEP BY STEP</Text>
                     {mergedSteps.map((step, i) => (
                         <View key={i} style={styles.stepRow}>
                             <View style={styles.stepIconWrap}>
-                                <Ionicons
-                                    name={stepIcon(step)}
-                                    size={14}
-                                    color="#1A365D"
-                                />
+                                <Ionicons name={stepIcon(step)} size={14} color="#1A365D" />
                             </View>
                             <View style={styles.stepText}>
                                 <Text style={styles.stepInstruction}>{step.instruction}</Text>
                                 {step.distanceFt > 0 && (
-                                    <Text style={styles.stepDistance}>
-                                        {formatFeet(step.distanceFt)}
-                                    </Text>
+                                    <Text style={styles.stepDistance}>{formatFeet(step.distanceFt)}</Text>
                                 )}
                             </View>
                         </View>
@@ -225,155 +218,62 @@ const styles = StyleSheet.create({
         marginBottom: 4,
     },
     backBtn: {
-        width: 36,
-        height: 36,
-        borderRadius: 10,
+        width: 36, height: 36, borderRadius: 10,
         backgroundColor: "#f0f0e8",
-        alignItems: "center",
-        justifyContent: "center",
+        alignItems: "center", justifyContent: "center",
     },
-    title: {
-        fontSize: 20,
-        fontWeight: "800",
-        color: "#111",
-    },
+    title: { fontSize: 20, fontWeight: "800", color: "#111" },
     routeCard: {
-        backgroundColor: "#d6eaf8",
-        borderRadius: 14,
-        paddingVertical: 12,
-        paddingHorizontal: 14,
+        backgroundColor: "#d6eaf8", borderRadius: 14,
+        paddingVertical: 12, paddingHorizontal: 14,
     },
-    routeRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 10,
-    },
+    routeRow: { flexDirection: "row", alignItems: "center", gap: 10 },
     originDot: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        backgroundColor: "#fff",
-        alignItems: "center",
-        justifyContent: "center",
+        width: 24, height: 24, borderRadius: 12,
+        backgroundColor: "#fff", alignItems: "center", justifyContent: "center",
     },
-    destDot: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        backgroundColor: "#1A365D",
-    },
-    routeLabel: {
-        flex: 1,
-        fontSize: 15,
-        fontWeight: "600",
-        color: "#1A365D",
-    },
-    routeConnector: {
-        paddingLeft: 11,
-        paddingVertical: 4,
-    },
-    routeLine: {
-        width: 2,
-        height: 14,
-        backgroundColor: "rgba(26,54,93,0.25)",
-        borderRadius: 1,
-    },
+    destDot: { width: 24, height: 24, borderRadius: 12, backgroundColor: "#1A365D" },
+    routeLabel: { flex: 1, fontSize: 15, fontWeight: "600", color: "#1A365D" },
+    routeConnector: { paddingLeft: 11, paddingVertical: 4 },
+    routeLine: { width: 2, height: 14, backgroundColor: "rgba(26,54,93,0.25)", borderRadius: 1 },
     toggleCard: {
-        backgroundColor: "#1A365D",
-        borderRadius: 14,
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
+        backgroundColor: "#1A365D", borderRadius: 14,
+        paddingHorizontal: 16, paddingVertical: 14,
+        flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     },
-    toggleLabel: {
-        color: "#fff",
-        fontSize: 13,
-        fontWeight: "700",
-        letterSpacing: 0.8,
-    },
+    toggleLabel: { color: "#fff", fontSize: 13, fontWeight: "700", letterSpacing: 0.8 },
     summaryCard: {
-        backgroundColor: "#d6eaf8",
-        borderRadius: 14,
-        padding: 16,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
+        backgroundColor: "#d6eaf8", borderRadius: 14,
+        padding: 16, flexDirection: "row",
+        alignItems: "center", justifyContent: "space-between",
     },
-    summaryLeft: {
-        gap: 3,
-    },
-    summaryTime: {
-        fontSize: 32,
-        fontWeight: "800",
-        color: "#1A365D",
-        lineHeight: 36,
-    },
-    summaryMeta: {
-        fontSize: 13,
-        color: "#555",
-    },
+    summaryLeft: { gap: 3 },
+    summaryTime: { fontSize: 32, fontWeight: "800", color: "#1A365D", lineHeight: 36 },
+    summaryMeta: { fontSize: 13, color: "#555" },
     goBtn: {
-        width: 52,
-        height: 52,
-        borderRadius: 26,
+        width: 52, height: 52, borderRadius: 26,
         backgroundColor: "#27ae60",
-        alignItems: "center",
-        justifyContent: "center",
+        alignItems: "center", justifyContent: "center",
     },
     noRouteCard: {
-        backgroundColor: "#fdecea",
-        borderRadius: 14,
-        padding: 16,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 8,
+        backgroundColor: "#fdecea", borderRadius: 14,
+        padding: 16, flexDirection: "row", alignItems: "center", gap: 8,
     },
-    noRouteText: {
-        fontSize: 15,
-        color: "#e74c3c",
-        fontWeight: "600",
-    },
+    noRouteText: { fontSize: 15, color: "#e74c3c", fontWeight: "600" },
     stepsContainer: {
-        backgroundColor: "#f0f0e8",
-        borderRadius: 14,
-        padding: 14,
-        gap: 10,
+        backgroundColor: "#f0f0e8", borderRadius: 14, padding: 14, gap: 10,
     },
     stepsHeader: {
-        fontSize: 10,
-        fontWeight: "700",
-        color: "#aaa",
-        letterSpacing: 0.8,
-        marginBottom: 2,
+        fontSize: 10, fontWeight: "700", color: "#aaa",
+        letterSpacing: 0.8, marginBottom: 2,
     },
-    stepRow: {
-        flexDirection: "row",
-        alignItems: "flex-start",
-        gap: 10,
-    },
+    stepRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
     stepIconWrap: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
+        width: 24, height: 24, borderRadius: 12,
         backgroundColor: "#d6eaf8",
-        alignItems: "center",
-        justifyContent: "center",
-        marginTop: 1,
+        alignItems: "center", justifyContent: "center", marginTop: 1,
     },
-    stepText: {
-        flex: 1,
-        gap: 2,
-    },
-    stepInstruction: {
-        fontSize: 13,
-        fontWeight: "500",
-        color: "#222",
-        lineHeight: 18,
-    },
-    stepDistance: {
-        fontSize: 11,
-        color: "#888",
-    },
+    stepText: { flex: 1, gap: 2 },
+    stepInstruction: { fontSize: 13, fontWeight: "500", color: "#222", lineHeight: 18 },
+    stepDistance: { fontSize: 11, color: "#888" },
 });
