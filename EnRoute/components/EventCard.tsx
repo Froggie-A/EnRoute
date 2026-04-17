@@ -32,7 +32,6 @@ export default function EventCard({
         {date} • {club} • {location}
       </Text>
 
-      <Text style={styles.addText}>View</Text>
     </View>
   </Pressable>
   );
@@ -43,7 +42,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(253, 254, 238, 1)",
     boxShadow: '0px 4px 4px 2px rgba(0, 0, 0, 0.1)',
     borderRadius: 18,
-    padding: 16,
+    padding: 22,
     marginBottom: 12,
     marginLeft: 12,
     marginRight: 12,
@@ -65,10 +64,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#666",
     marginBottom: 8,
-  },
-  addText: {
-    color: "#3498DB",
-    fontWeight: "700",
-    alignSelf: "flex-end",
   },
 });
