@@ -1,324 +1,129 @@
- // navigation/seed-nodes.ts
- // All navigable nodes for PFT (floor 1).
- //   x = east-west position  (x = 0 is east)
- //   y = north-south position (y = 0 is north)
- //   z = height above ground  (floor 1 = 0, floor 2 = 4, floor 3 = 8)
- //   1 unit ≈ 1 foot
+// navigation/seed-nodes-test.ts
+//
+// ─── INSTANT HOT-RELOAD TEST GRAPH ───────────────────────────────────────────
+// Edit coordinates here and Ctrl+S — Metro reloads in ~1 second.
+// No DB wipe, no seed version bump, no restart needed.
+//
+// COORDINATE SYSTEM:
+//   x, y  =  pre-scale model coords (same numbers as roomHitbox.tsx position[0], position[2])
+//   Positive X = right,  Negative X = left
+//   Negative Y = toward front of building (rooms along top edge)
+//   Positive Y = toward back
+//
+// HOW TO TUNE A NODE:
+//   Change its x or y, save, tap the room → path updates instantly.
+// ─────────────────────────────────────────────────────────────────────────────
 
-import type { NavNode } from './db';
+import type { NavNode, NavEdge } from './db';
 
-export const SEED_NODES: NavNode[] = [
+type RawEdge = Omit<NavEdge, 'cost'>;
 
-    // FLOOR 1 - ENTRANCES
-    { id: 'entrance_0',  label: 'Main Entrance',     type: 'entrance', floor: 1, x: 590, y: 116, z: 0, accessible: true  },
-    { id: 'entrance_1',  label: 'Panera Entrance A',  type: 'entrance', floor: 1, x: 301, y: 16,  z: 0, accessible: true  },
-    { id: 'entrance_2',  label: 'Panera Entrance B',  type: 'entrance', floor: 1, x: 282, y: 16,  z: 0, accessible: true  },
-    { id: 'entrance_3',  label: 'Side Entrance A',    type: 'entrance', floor: 1, x: 34,  y: 140, z: 0, accessible: true  },
-    { id: 'entrance_4',  label: 'Side Entrance B',    type: 'entrance', floor: 1, x: 42,  y: 268, z: 0, accessible: true  },
-    { id: 'entrance_5',  label: 'Side Entrance C',    type: 'entrance', floor: 1, x: 13,  y: 443, z: 0, accessible: true  },
-    { id: 'entrance_6',  label: 'Side Entrance D',    type: 'entrance', floor: 1, x: 30,  y: 646, z: 0, accessible: true  },
-    { id: 'entrance_7',  label: 'Lot Entrance A',     type: 'entrance', floor: 1, x: 172, y: 757, z: 0, accessible: true  },
-    { id: 'entrance_8',  label: 'Lot Entrance B',     type: 'entrance', floor: 1, x: 292, y: 757, z: 0, accessible: true  },
-    { id: 'entrance_9',  label: 'Lot Entrance C',     type: 'entrance', floor: 1, x: 411, y: 757, z: 0, accessible: true  },
-    { id: 'entrance_10', label: 'Lot Entrance D',     type: 'entrance', floor: 1, x: 587, y: 778, z: 0, accessible: true  },
-    { id: 'entrance_11', label: 'Side Entrance E',    type: 'entrance', floor: 1, x: 746, y: 636, z: 0, accessible: true  },
-    { id: 'entrance_12', label: 'Side Entrance F',    type: 'entrance', floor: 1, x: 745, y: 451, z: 0, accessible: true  },
+// ─── NODES ────────────────────────────────────────────────────────────────────
 
-    // FLOOR 1 - CLASSROOMS
-    { id: 'room_1221_a', label: 'Classroom 1221 - A',            type: 'classroom', floor: 1, x: 504, y: 107, z: 0, accessible: true },
-    { id: 'room_1221_b', label: 'Classroom 1221 - B',            type: 'classroom', floor: 1, x: 463, y: 107, z: 0, accessible: true },
-    { id: 'room_1225_a', label: 'Classroom 1225 - A',            type: 'classroom', floor: 1, x: 448, y: 107, z: 0, accessible: true },
-    { id: 'room_1225_b', label: 'Classroom 1225 - B',            type: 'classroom', floor: 1, x: 408, y: 107, z: 0, accessible: true },
-    { id: 'room_1218_a', label: 'Classroom 1218 - A',            type: 'classroom', floor: 1, x: 504, y: 147, z: 0, accessible: true },
-    { id: 'room_1218_b', label: 'Classroom 1218 - B',            type: 'classroom', floor: 1, x: 540, y: 198, z: 0, accessible: true },
-    { id: 'room_1216_a', label: 'Classroom 1216 - A',            type: 'classroom', floor: 1, x: 540, y: 210, z: 0, accessible: true },
-    { id: 'room_1212_a', label: 'Classroom 1212 - A',            type: 'classroom', floor: 1, x: 535, y: 264, z: 0, accessible: true },
-    { id: 'room_1212_b', label: 'Classroom 1212 - B',            type: 'classroom', floor: 1, x: 535, y: 342, z: 0, accessible: true },
-    { id: 'room_1253_a', label: 'Classroom 1253 - A',            type: 'classroom', floor: 1, x: 560, y: 432, z: 0, accessible: true },
-    { id: 'room_1253_b', label: 'Classroom 1253 - B',            type: 'classroom', floor: 1, x: 494, y: 432, z: 0, accessible: true },
-    { id: 'room_1206_a', label: 'Classroom 1206 - A',            type: 'classroom', floor: 1, x: 570, y: 512, z: 0, accessible: true },
-    { id: 'room_1206_b', label: 'Classroom 1206 - B',            type: 'classroom', floor: 1, x: 570, y: 562, z: 0, accessible: true },
-    { id: 'room_1263_a', label: 'Classroom 1263 - A',            type: 'classroom', floor: 1, x: 559, y: 635, z: 0, accessible: true },
-    { id: 'room_1263_b', label: 'Classroom 1263 - B',            type: 'classroom', floor: 1, x: 472, y: 635, z: 0, accessible: true },
-    { id: 'room_1202_a', label: 'Classroom 1202 - A',            type: 'classroom', floor: 1, x: 567, y: 666, z: 0, accessible: true },
-    { id: 'room_1202_b', label: 'Classroom 1202 - B',            type: 'classroom', floor: 1, x: 452, y: 658, z: 0, accessible: true },
-    { id: 'room_1200_a', label: 'Classroom 1200 - A',            type: 'classroom', floor: 1, x: 567, y: 731, z: 0, accessible: true },
-    { id: 'room_1200_b', label: 'Classroom 1200 - B',            type: 'classroom', floor: 1, x: 423, y: 729, z: 0, accessible: true },
-    { id: 'room_1232_a', label: 'Classroom 1232 - A',            type: 'classroom', floor: 1, x: 420, y: 153, z: 0, accessible: true },
-    { id: 'room_1232_b', label: 'Classroom 1232 - B',            type: 'classroom', floor: 1, x: 420, y: 198, z: 0, accessible: true },
-    { id: 'room_1236_a', label: 'Classroom 1236 - A',            type: 'classroom', floor: 1, x: 420, y: 211, z: 0, accessible: true },
-    { id: 'room_1236_b', label: 'Classroom 1236 - B',            type: 'classroom', floor: 1, x: 420, y: 252, z: 0, accessible: true },
-    { id: 'room_1240_a', label: 'Classroom 1240 - A',            type: 'classroom', floor: 1, x: 420, y: 263, z: 0, accessible: true },
-    { id: 'room_1240_b', label: 'Classroom 1240 - B',            type: 'classroom', floor: 1, x: 420, y: 309, z: 0, accessible: true },
-    { id: 'room_1244_a', label: 'Classroom 1244 - A',            type: 'classroom', floor: 1, x: 420, y: 348, z: 0, accessible: true },
-    { id: 'room_1246_a', label: 'Classroom 1246 - A',            type: 'classroom', floor: 1, x: 420, y: 359, z: 0, accessible: true },
-    { id: 'room_1246_b', label: 'Classroom 1246 - B',            type: 'classroom', floor: 1, x: 477, y: 432, z: 0, accessible: true },
-    { id: 'room_1256_a', label: 'Classroom 1256 - A',            type: 'classroom', floor: 1, x: 518, y: 451, z: 0, accessible: true },
-    { id: 'room_1256_b', label: 'Classroom 1256 - B',            type: 'classroom', floor: 1, x: 438, y: 451, z: 0, accessible: true },
-    { id: 'room_1258_a', label: 'Classroom 1258 - A',            type: 'classroom', floor: 1, x: 420, y: 510, z: 0, accessible: true },
-    { id: 'room_1258_b', label: 'Classroom 1258 - B',            type: 'classroom', floor: 1, x: 420, y: 563, z: 0, accessible: true },
-    { id: 'room_1262_a', label: 'Classroom 1262 - A',            type: 'classroom', floor: 1, x: 420, y: 574, z: 0, accessible: true },
-    { id: 'room_1233_a', label: 'CM Surveying Studio 1233',      type: 'classroom', floor: 1, x: 401, y: 173, z: 0, accessible: true },
-    { id: 'room_1245_a', label: 'Classroom 1245 - A',            type: 'classroom', floor: 1, x: 401, y: 387, z: 0, accessible: true },
-    { id: 'room_1245_b', label: 'Classroom 1245 - B',            type: 'classroom', floor: 1, x: 312, y: 387, z: 0, accessible: true },
-    { id: 'room_1360_a', label: 'System Integration Classroom 1360', type: 'classroom', floor: 1, x: 182, y: 173, z: 0, accessible: true },
-    { id: 'room_1100_a', label: 'Auditorium 1100 - A',           type: 'classroom', floor: 1, x: 628, y: 704, z: 0, accessible: true },
-    { id: 'room_1100_b', label: 'Auditorium 1100 - B',           type: 'classroom', floor: 1, x: 728, y: 704, z: 0, accessible: true },
-    { id: 'lab_1124_b', label: 'Computer Lab 1124 - B (room)',   type: 'classroom', floor: 1, x: 713, y: 622, z: 0, accessible: true },
+export const TEST_NODES: NavNode[] = [
 
-    // FLOOR 1 - LABS
-    { id: 'lab_1154_a',  label: 'Sustainable Living Lab 1154 - A',           type: 'lab', floor: 1, x: 610, y: 176, z: 0, accessible: true },
-    { id: 'lab_1154_b',  label: 'Sustainable Living Lab 1154 - B',           type: 'lab', floor: 1, x: 610, y: 234, z: 0, accessible: true },
-    { id: 'lab_1154_c',  label: 'Sustainable Living Lab 1154 - C',           type: 'lab', floor: 1, x: 647, y: 164, z: 0, accessible: true },
-    { id: 'lab_1147_a',  label: 'Chem Eng Processing Labs 1147 - A',         type: 'lab', floor: 1, x: 688, y: 158, z: 0, accessible: true },
-    { id: 'lab_1139_a',  label: 'Chem Eng Research Lab 1139 - A',            type: 'lab', floor: 1, x: 610, y: 250, z: 0, accessible: true },
-    { id: 'lab_1133_a',  label: 'Chem Eng Research Lab 1133 - A',            type: 'lab', floor: 1, x: 610, y: 310, z: 0, accessible: true },
-    { id: 'lab_1133_b',  label: 'Chem Eng Research Lab 1133 - B',            type: 'lab', floor: 1, x: 688, y: 308, z: 0, accessible: true },
-    { id: 'lab_1131_a',  label: 'Chem Eng Research Lab 1131 - A',            type: 'lab', floor: 1, x: 610, y: 326, z: 0, accessible: true },
-    { id: 'lab_1131_b',  label: 'Chem Eng Research Lab 1131 - B',            type: 'lab', floor: 1, x: 688, y: 328, z: 0, accessible: true },
-    { id: 'lab_1146_a',  label: 'Chem Eng Research Lab 1146 - A',            type: 'lab', floor: 1, x: 705, y: 138, z: 0, accessible: true },
-    { id: 'lab_1146_b',  label: 'Chem Eng Research Lab 1146 - B',            type: 'lab', floor: 1, x: 705, y: 193, z: 0, accessible: true },
-    { id: 'lab_1144_a',  label: 'Chem Eng Processing Lab 1144 - A',          type: 'lab', floor: 1, x: 705, y: 214, z: 0, accessible: true },
-    { id: 'lab_1138_a',  label: 'Chem Eng Processing Lab 1138 - A',          type: 'lab', floor: 1, x: 705, y: 270, z: 0, accessible: true },
-    { id: 'lab_1130_a',  label: 'Chem Eng Research Lab 1130 - A',            type: 'lab', floor: 1, x: 705, y: 290, z: 0, accessible: true },
-    { id: 'lab_1130_b',  label: 'Chem Eng Research Lab 1130 - B',            type: 'lab', floor: 1, x: 705, y: 346, z: 0, accessible: true },
-    { id: 'lab_1126_a',  label: 'Chem Eng Seminar 1126 - A',                 type: 'lab', floor: 1, x: 705, y: 363, z: 0, accessible: true },
-    { id: 'lab_1126_b',  label: 'Chem Eng Seminar 1126 - B',                 type: 'lab', floor: 1, x: 705, y: 426, z: 0, accessible: true },
-    { id: 'lab_1114_a',  label: 'Unit Operations Lab 1114 - A',               type: 'lab', floor: 1, x: 609, y: 501, z: 0, accessible: true },
-    { id: 'lab_1114_b',  label: 'Unit Operations Lab 1114 - B',               type: 'lab', floor: 1, x: 609, y: 596, z: 0, accessible: true },
-    { id: 'lab_1118_a',  label: 'Junior Analytical Lab 1118 - A',             type: 'lab', floor: 1, x: 624, y: 450, z: 0, accessible: true },
-    { id: 'lab_1120_a',  label: 'Chem Eng High Bay 1120 - A',                 type: 'lab', floor: 1, x: 664, y: 450, z: 0, accessible: true },
-    { id: 'lab_1122_a',  label: 'Undergrad Analytical Lab 1122 - A',          type: 'lab', floor: 1, x: 677, y: 450, z: 0, accessible: true },
-    { id: 'lab_1124_a',  label: 'Computer Lab 1124 - A',                      type: 'lab', floor: 1, x: 709, y: 468, z: 0, accessible: true },
-    { id: 'lab_1112_a',  label: 'Chem Eng Control Room 1112 - A',             type: 'lab', floor: 1, x: 609, y: 628, z: 0, accessible: true },
-    { id: 'lab_1112_b',  label: 'Chem Eng Control Room 1112 - B',             type: 'lab', floor: 1, x: 696, y: 636, z: 0, accessible: true },
-    { id: 'lab_1108_a',  label: 'Chem Eng Control Room 1108 - A',             type: 'lab', floor: 1, x: 663, y: 655, z: 0, accessible: true },
-    { id: 'lab_1237_a',  label: 'Chem Eng Grad Computer Lab 1237 - A',        type: 'lab', floor: 1, x: 401, y: 243, z: 0, accessible: true },
-    { id: 'lab_1354_a',  label: 'Human Factors Lab 1354 - A',                 type: 'lab', floor: 1, x: 182, y: 293, z: 0, accessible: true },
-    { id: 'lab_1350_a',  label: 'Campus Computer Lab 1350 - A',               type: 'lab', floor: 1, x: 271, y: 387, z: 0, accessible: true },
-    { id: 'lab_1350_b',  label: 'Campus Computer Lab 1350 - B',               type: 'lab', floor: 1, x: 181, y: 387, z: 0, accessible: true },
-    { id: 'lab_1300_a',  label: 'Robotics Lab 1300 - A',                      type: 'lab', floor: 1, x: 258, y: 655, z: 0, accessible: true },
-    { id: 'lab_1300_b',  label: 'Robotics Lab 1300 - B',                      type: 'lab', floor: 1, x: 281, y: 723, z: 0, accessible: true },
-    { id: 'lab_1100_a',  label: 'EE Micro Grid + Relay 1100 - A',             type: 'lab', floor: 1, x: 182, y: 685, z: 0, accessible: true },
-    { id: 'lab_1367_a',  label: 'Cheme Machine Shop 1367 - A',                type: 'lab', floor: 1, x: 120, y: 129, z: 0, accessible: true },
-    { id: 'lab_1364_a',  label: 'Shared Briefing 1364 - A',                   type: 'lab', floor: 1, x: 132, y: 148, z: 0, accessible: true },
-    { id: 'lab_1366_a',  label: 'Mech Thermal Lab 1366 - A',                  type: 'lab', floor: 1, x: 110, y: 148, z: 0, accessible: true },
-    { id: 'lab_1368_a',  label: 'Mech Thermal Lab Machine Design 1368 - A',   type: 'lab', floor: 1, x: 80,  y: 148, z: 0, accessible: true },
-    { id: 'lab_1355_a',  label: 'Thermal Science Lab 1355 - A',               type: 'lab', floor: 1, x: 147, y: 259, z: 0, accessible: true },
-    { id: 'lab_1357_a',  label: 'Thermal System Lab 1357 - A',                type: 'lab', floor: 1, x: 75,  y: 259, z: 0, accessible: true },
-    { id: 'lab_1356_a',  label: 'Materials Lab 1356 - A',                     type: 'lab', floor: 1, x: 147, y: 277, z: 0, accessible: true },
-    { id: 'lab_1358_a',  label: 'Instrumentation Lab 1358 - A',               type: 'lab', floor: 1, x: 89,  y: 277, z: 0, accessible: true },
-    { id: 'lab_1327_a',  label: 'CM Building Science Research Lab 1327 - A',  type: 'lab', floor: 1, x: 132, y: 433, z: 0, accessible: true },
-    { id: 'lab_1329_a',  label: 'Rock Mechanics 1329 - A',                    type: 'lab', floor: 1, x: 94,  y: 433, z: 0, accessible: true },
-    { id: 'lab_1331_a',  label: 'Enhanced Oil Recovery 1331 - A',             type: 'lab', floor: 1, x: 51,  y: 433, z: 0, accessible: true },
-    { id: 'lab_1330_a',  label: 'CM Lab 1330 - A',                            type: 'lab', floor: 1, x: 74,  y: 452, z: 0, accessible: true },
-    { id: 'lab_1325_a',  label: 'Concrete Lab 1325 - A',                      type: 'lab', floor: 1, x: 80,  y: 560, z: 0, accessible: true },
-    { id: 'lab_1324_a',  label: 'Germano Computer Lab 1324 - A',              type: 'lab', floor: 1, x: 99,  y: 579, z: 0, accessible: true },
-    { id: 'lab_1323_a',  label: 'Strength and Materials Lab 1323 - A',        type: 'lab', floor: 1, x: 80,  y: 594, z: 0, accessible: true },
-    { id: 'lab_1322_a',  label: 'Strength and Materials Lab 1322 - A',        type: 'lab', floor: 1, x: 99,  y: 594, z: 0, accessible: true },
-    { id: 'lab_1321_a',  label: 'Asphalt Lab 1321 - A',                       type: 'lab', floor: 1, x: 80,  y: 667, z: 0, accessible: true },
-    { id: 'lab_1317_a',  label: 'Geotech Lab 1317 - A',                       type: 'lab', floor: 1, x: 80,  y: 735, z: 0, accessible: true },
+    // Entrances
+    { id: 'entrance0',    label: 'Entrance',            type: 'entrance',  floor: 1, x:  48,    y: -32,   z: 0, accessible: true },
 
-    // FLOOR 1 - STAIRS
-    { id: 'stairs_0', label: 'Entrance Stairs',           type: 'stairs', floor: 1, x: 622, y: 119, z: 0, accessible: false },
-    { id: 'stairs_1', label: 'Side Stairs - A',           type: 'stairs', floor: 1, x: 66,  y: 100, z: 0, accessible: false },
-    { id: 'stairs_2', label: 'Side Stairs - B',           type: 'stairs', floor: 1, x: 13,  y: 460, z: 0, accessible: false },
-    { id: 'stairs_3', label: 'Lot Stairs - A',            type: 'stairs', floor: 1, x: 156, y: 742, z: 0, accessible: false },
-    { id: 'stairs_4', label: 'Lot Stairs - B',            type: 'stairs', floor: 1, x: 430, y: 742, z: 0, accessible: false },
-    { id: 'stairs_5', label: 'Side Stairs - C',           type: 'stairs', floor: 1, x: 731, y: 746, z: 0, accessible: false },
-    { id: 'stairs_6', label: 'Cambre Atrium Stairs',      type: 'stairs', floor: 1, x: 577, y: 628, z: 0, accessible: false },
-    { id: 'stairs_7', label: 'Capstone Gallery Stairs - A', type: 'stairs', floor: 1, x: 310, y: 537, z: 0, accessible: false },
-    { id: 'stairs_8', label: 'Capstone Gallery Stairs - B', type: 'stairs', floor: 1, x: 274, y: 537, z: 0, accessible: false },
-    { id: 'stairs_9', label: 'The Commons Stairs',        type: 'stairs', floor: 1, x: 328, y: 284, z: 0, accessible: false },
+    // Rooms — x,y should put the node at the room door / center of the room
+    { id: 'room_1221_a',  label: 'Classroom 1221 - A',  type: 'classroom', floor: 1, x:  48,    y: -19,   z: 0, accessible: true },
+    { id: 'room_1221_b',  label: 'Classroom 1221 - B',  type: 'classroom', floor: 1, x:  48,    y: -13.5, z: 0, accessible: true },
 
-    // FLOOR 1 - ELEVATORS
-    { id: 'elevator_0', label: 'The Commons Elevator',  type: 'elevator', floor: 1, x: 328, y: 284, z: 0, accessible: true },
-    { id: 'elevator_1', label: 'Cambre Atrium Elevator', type: 'elevator', floor: 1, x: 639, y: 426, z: 0, accessible: true },
-    { id: 'elevator_2', label: 'Panera Elevator',        type: 'elevator', floor: 1, x: 164, y: 122, z: 0, accessible: true },
+    { id: 'room_1225_a',  label: 'Classroom 1225 - A',  type: 'classroom', floor: 1, x:  48,    y: -10.5, z: 0, accessible: true },
+    { id: 'room_1225_b',  label: 'Classroom 1225 - B',  type: 'classroom', floor: 1, x:  48,    y: -5,    z: 0, accessible: true },
 
-    // FLOOR 1 - BATHROOMS
-    { id: 'bathroom_0', label: 'Bathroom A', type: 'bathroom', floor: 1, x: 382, y: 129, z: 0, accessible: true },
-    { id: 'bathroom_1', label: 'Bathroom B', type: 'bathroom', floor: 1, x: 202, y: 127, z: 0, accessible: true },
-    { id: 'bathroom_2', label: 'Bathroom C', type: 'bathroom', floor: 1, x: 184, y: 414, z: 0, accessible: true },
-    { id: 'bathroom_3', label: 'Bathroom D', type: 'bathroom', floor: 1, x: 398, y: 415, z: 0, accessible: true },
-    { id: 'bathroom_4', label: 'Bathroom E', type: 'bathroom', floor: 1, x: 664, y: 432, z: 0, accessible: true },
-    { id: 'bathroom_5', label: 'Bathroom F', type: 'bathroom', floor: 1, x: 613, y: 676, z: 0, accessible: true },
+    { id: 'room_1253_a',  label: 'Classroom 1253 - A',  type: 'classroom', floor: 1, x:  -1,    y: -28,   z: 0, accessible: true },
+    { id: 'room_1253_b',  label: 'Classroom 1253 - B',  type: 'classroom', floor: 1, x:  -1,    y: -17.5, z: 0, accessible: true },
 
-    // FLOOR 1 - WATER FOUNTAINS
-    { id: 'fountain_0', label: 'Fountain A', type: 'water_fountain', floor: 1, x: 382, y: 123, z: 0, accessible: true },
-    { id: 'fountain_1', label: 'Fountain B', type: 'water_fountain', floor: 1, x: 664, y: 426, z: 0, accessible: true },
-    { id: 'fountain_2', label: 'Fountain C', type: 'water_fountain', floor: 1, x: 621, y: 676, z: 0, accessible: true },
+    { id: 'room_1263_a',  label: 'Classroom 1263 - A',  type: 'classroom', floor: 1, x:  -36,   y: -27,   z: 0, accessible: true },
+    { id: 'room_1263_b',  label: 'Classroom 1263 - B',  type: 'classroom', floor: 1, x:  -36,   y: -16,   z: 0, accessible: true },
 
-    // FLOOR 1 - VENDING
-    { id: 'vending_0', label: 'Vending A', type: 'vending', floor: 1, x: 624, y: 426, z: 0, accessible: true },
+    { id: 'room_1202_a',  label: 'Classroom 1202 - A',  type: 'classroom', floor: 1, x:  -41,   y: -30,   z: 0, accessible: true },
+    { id: 'room_1200_a',  label: 'Classroom 1200 - A',  type: 'classroom', floor: 1, x:  -53,   y: -30,   z: 0, accessible: true },
 
-    // FLOOR 1 - HALLWAYS: VERTICAL ROW 0
-    { id: 'hallway_0.10', label: 'Vertical Hallway 0.10', type: 'hallway', floor: 1, x: 697, y: 138, z: 0, accessible: true },
-    { id: 'hallway_0.11', label: 'Vertical Hallway 0.11', type: 'hallway', floor: 1, x: 647, y: 138, z: 0, accessible: true },
-    { id: 'hallway_0.12', label: 'Vertical Hallway 0.12', type: 'hallway', floor: 1, x: 611, y: 138, z: 0, accessible: true },
-    { id: 'hallway_0.13', label: 'Vertical Hallway 0.13', type: 'hallway', floor: 1, x: 590, y: 129, z: 0, accessible: true },
-    { id: 'hallway_0.14', label: 'Vertical Hallway 0.14', type: 'hallway', floor: 1, x: 544, y: 128, z: 0, accessible: true },
-    { id: 'hallway_0.15', label: 'Vertical Hallway 0.15', type: 'hallway', floor: 1, x: 504, y: 127, z: 0, accessible: true },
-    { id: 'hallway_0.16', label: 'Vertical Hallway 0.16', type: 'hallway', floor: 1, x: 463, y: 127, z: 0, accessible: true },
-    { id: 'hallway_0.17', label: 'Vertical Hallway 0.17', type: 'hallway', floor: 1, x: 448, y: 127, z: 0, accessible: true },
-    { id: 'hallway_0.18', label: 'Vertical Hallway 0.18', type: 'hallway', floor: 1, x: 411, y: 135, z: 0, accessible: true },
-    { id: 'hallway_0.19', label: 'Vertical Hallway 0.19', type: 'hallway', floor: 1, x: 382, y: 140, z: 0, accessible: true },
-    { id: 'hallway_0.20', label: 'Vertical Hallway 0.20', type: 'hallway', floor: 1, x: 354, y: 140, z: 0, accessible: true },
-    { id: 'hallway_0.21', label: 'Vertical Hallway 0.21', type: 'hallway', floor: 1, x: 289, y: 140, z: 0, accessible: true },
-    { id: 'hallway_0.22', label: 'Vertical Hallway 0.22', type: 'hallway', floor: 1, x: 232, y: 140, z: 0, accessible: true },
-    { id: 'hallway_0.23', label: 'Vertical Hallway 0.23', type: 'hallway', floor: 1, x: 202, y: 140, z: 0, accessible: true },
-    { id: 'hallway_0.24', label: 'Vertical Hallway 0.24', type: 'hallway', floor: 1, x: 173, y: 140, z: 0, accessible: true },
-    { id: 'hallway_0.25', label: 'Vertical Hallway 0.25', type: 'hallway', floor: 1, x: 120, y: 140, z: 0, accessible: true },
-    { id: 'hallway_0.26', label: 'Vertical Hallway 0.26', type: 'hallway', floor: 1, x: 110, y: 140, z: 0, accessible: true },
-    { id: 'hallway_0.27', label: 'Vertical Hallway 0.27', type: 'hallway', floor: 1, x: 80,  y: 140, z: 0, accessible: true },
-    { id: 'hallway_0.28', label: 'Vertical Hallway 0.28', type: 'hallway', floor: 1, x: 66,  y: 140, z: 0, accessible: true },
-    { id: 'hallway_0.30', label: 'Vertical Hallway 0.30', type: 'hallway', floor: 1, x: 132, y: 140, z: 0, accessible: true },
+    // Bathrooms — positions match roomHitbox.tsx
+    { id: 'bathroom_3',   label: 'Bathroom',              type: 'bathroom',  floor: 1, x:  -1,    y:   2,   z: 0, accessible: true },
+    { id: 'bathroom_5',   label: 'Bathroom',              type: 'bathroom',  floor: 1, x:  -42,   y: -40,   z: 0, accessible: true },
+    { id: 'bathroom_0',   label: 'Bathroom',              type: 'bathroom',  floor: 1, x:  -30,   y:  15,   z: 0, accessible: true },
 
-    // FLOOR 1 - HALLWAYS: VERTICAL ROW 1
-    { id: 'hallway_1.0',  label: 'Vertical Hallway 1.0',  type: 'hallway', floor: 1, x: 709, y: 442, z: 0, accessible: true },
-    { id: 'hallway_1.10', label: 'Vertical Hallway 1.10', type: 'hallway', floor: 1, x: 697, y: 442, z: 0, accessible: true },
-    { id: 'hallway_1.11', label: 'Vertical Hallway 1.11', type: 'hallway', floor: 1, x: 677, y: 442, z: 0, accessible: true },
-    { id: 'hallway_1.12', label: 'Vertical Hallway 1.12', type: 'hallway', floor: 1, x: 664, y: 442, z: 0, accessible: true },
-    { id: 'hallway_1.13', label: 'Vertical Hallway 1.13', type: 'hallway', floor: 1, x: 639, y: 442, z: 0, accessible: true },
-    { id: 'hallway_1.14', label: 'Vertical Hallway 1.14', type: 'hallway', floor: 1, x: 624, y: 442, z: 0, accessible: true },
-    { id: 'hallway_1.15', label: 'Vertical Hallway 1.15', type: 'hallway', floor: 1, x: 587, y: 442, z: 0, accessible: true },
-    { id: 'hallway_1.16', label: 'Vertical Hallway 1.16', type: 'hallway', floor: 1, x: 560, y: 442, z: 0, accessible: true },
-    { id: 'hallway_1.17', label: 'Vertical Hallway 1.17', type: 'hallway', floor: 1, x: 518, y: 442, z: 0, accessible: true },
-    { id: 'hallway_1.18', label: 'Vertical Hallway 1.18', type: 'hallway', floor: 1, x: 494, y: 442, z: 0, accessible: true },
-    { id: 'hallway_1.19', label: 'Vertical Hallway 1.19', type: 'hallway', floor: 1, x: 477, y: 442, z: 0, accessible: true },
-    { id: 'hallway_1.20', label: 'Vertical Hallway 1.20', type: 'hallway', floor: 1, x: 438, y: 442, z: 0, accessible: true },
-    { id: 'hallway_1.21', label: 'Vertical Hallway 1.21', type: 'hallway', floor: 1, x: 411, y: 444, z: 0, accessible: true },
-    { id: 'hallway_1.22', label: 'Vertical Hallway 1.22', type: 'hallway', floor: 1, x: 340, y: 444, z: 0, accessible: true },
-    { id: 'hallway_1.23', label: 'Vertical Hallway 1.23', type: 'hallway', floor: 1, x: 320, y: 444, z: 0, accessible: true },
-    { id: 'hallway_1.24', label: 'Vertical Hallway 1.24', type: 'hallway', floor: 1, x: 289, y: 444, z: 0, accessible: true },
-    { id: 'hallway_1.25', label: 'Vertical Hallway 1.25', type: 'hallway', floor: 1, x: 263, y: 444, z: 0, accessible: true },
-    { id: 'hallway_1.26', label: 'Vertical Hallway 1.26', type: 'hallway', floor: 1, x: 243, y: 444, z: 0, accessible: true },
-    { id: 'hallway_1.27', label: 'Vertical Hallway 1.27', type: 'hallway', floor: 1, x: 172, y: 443, z: 0, accessible: true },
-    { id: 'hallway_1.28', label: 'Vertical Hallway 1.28', type: 'hallway', floor: 1, x: 132, y: 443, z: 0, accessible: true },
-    { id: 'hallway_1.29', label: 'Vertical Hallway 1.29', type: 'hallway', floor: 1, x: 94,  y: 443, z: 0, accessible: true },
-    { id: 'hallway_1.30', label: 'Vertical Hallway 1.30', type: 'hallway', floor: 1, x: 90,  y: 443, z: 0, accessible: true },
-    { id: 'hallway_1.31', label: 'Vertical Hallway 1.31', type: 'hallway', floor: 1, x: 74,  y: 443, z: 0, accessible: true },
-    { id: 'hallway_1.32', label: 'Vertical Hallway 1.32', type: 'hallway', floor: 1, x: 51,  y: 443, z: 0, accessible: true },
-    { id: 'hallway_1.33', label: 'Vertical Hallway 1.33', type: 'hallway', floor: 1, x: 30,  y: 443, z: 0, accessible: true },
+    // Hallway nodes — intersections and turns along the actual corridors
+    { id: 'hallway1',     label: 'Hallway 1',            type: 'hallway',   floor: 1, x:  44,    y: -32,   z: 0, accessible: true },
+    { id: 'hallway2',     label: 'Hallway 2',            type: 'hallway',   floor: 1, x:  44,    y: -19,   z: 0, accessible: true },
+    { id: 'hallway3',     label: 'Hallway 3',            type: 'hallway',   floor: 1, x:  44,    y: -13.5, z: 0, accessible: true },
+    { id: 'hallway4',     label: 'Hallway 4',            type: 'hallway',   floor: 1, x:  44,    y: -10.5, z: 0, accessible: true },
+    { id: 'hallway5',     label: 'Hallway 5',            type: 'hallway',   floor: 1, x:  44,    y: -5,    z: 0, accessible: true },
 
-    // FLOOR 1 - HALLWAYS: VERTICAL ROW 2
-    { id: 'hallway_2.0',  label: 'Vertical Hallway 2.0',  type: 'hallway', floor: 1, x: 735, y: 639, z: 0, accessible: true },
-    { id: 'hallway_2.10', label: 'Vertical Hallway 2.10', type: 'hallway', floor: 1, x: 713, y: 646, z: 0, accessible: true },
-    { id: 'hallway_2.11', label: 'Vertical Hallway 2.11', type: 'hallway', floor: 1, x: 696, y: 646, z: 0, accessible: true },
-    { id: 'hallway_2.12', label: 'Vertical Hallway 2.12', type: 'hallway', floor: 1, x: 663, y: 646, z: 0, accessible: true },
-    { id: 'hallway_2.13', label: 'Vertical Hallway 2.13', type: 'hallway', floor: 1, x: 587, y: 646, z: 0, accessible: true },
-    { id: 'hallway_2.14', label: 'Vertical Hallway 2.14', type: 'hallway', floor: 1, x: 577, y: 646, z: 0, accessible: true },
-    { id: 'hallway_2.15', label: 'Vertical Hallway 2.15', type: 'hallway', floor: 1, x: 559, y: 646, z: 0, accessible: true },
-    { id: 'hallway_2.16', label: 'Vertical Hallway 2.16', type: 'hallway', floor: 1, x: 472, y: 646, z: 0, accessible: true },
-    { id: 'hallway_2.17', label: 'Vertical Hallway 2.17', type: 'hallway', floor: 1, x: 452, y: 646, z: 0, accessible: true },
-    { id: 'hallway_2.18', label: 'Vertical Hallway 2.18', type: 'hallway', floor: 1, x: 411, y: 646, z: 0, accessible: true },
-    { id: 'hallway_2.19', label: 'Vertical Hallway 2.19', type: 'hallway', floor: 1, x: 344, y: 645, z: 0, accessible: true },
-    { id: 'hallway_2.20', label: 'Vertical Hallway 2.20', type: 'hallway', floor: 1, x: 292, y: 645, z: 0, accessible: true },
-    { id: 'hallway_2.21', label: 'Vertical Hallway 2.21', type: 'hallway', floor: 1, x: 258, y: 645, z: 0, accessible: true },
-    { id: 'hallway_2.22', label: 'Vertical Hallway 2.22', type: 'hallway', floor: 1, x: 172, y: 646, z: 0, accessible: true },
-    { id: 'hallway_2.23', label: 'Vertical Hallway 2.23', type: 'hallway', floor: 1, x: 90,  y: 646, z: 0, accessible: true },
+    { id: 'hallway6',     label: 'Hallway 6',            type: 'hallway',   floor: 1, x:  -5,    y: -32,   z: 0, accessible: true },
+    { id: 'hallway7',     label: 'Hallway 7',            type: 'hallway',   floor: 1, x:  -5,    y: -28,   z: 0, accessible: true },
+    { id: 'hallway8',     label: 'Hallway 8',            type: 'hallway',   floor: 1, x:  -5,    y: -17.5, z: 0, accessible: true },
 
-    // FLOOR 1 - HALLWAYS: VERTICAL ROW 3
-    { id: 'hallway_3.0',  label: 'Vertical Hallway 3.0',  type: 'hallway', floor: 1, x: 172, y: 268, z: 0, accessible: true },
-    { id: 'hallway_3.10', label: 'Vertical Hallway 3.10', type: 'hallway', floor: 1, x: 147, y: 268, z: 0, accessible: true },
-    { id: 'hallway_3.11', label: 'Vertical Hallway 3.11', type: 'hallway', floor: 1, x: 89,  y: 268, z: 0, accessible: true },
-    { id: 'hallway_3.12', label: 'Vertical Hallway 3.12', type: 'hallway', floor: 1, x: 75,  y: 268, z: 0, accessible: true },
+    { id: 'hallway9',     label: 'Hallway 9',            type: 'hallway',   floor: 1, x:  -38,   y: -32,   z: 0, accessible: true },
+    { id: 'hallway10',    label: 'Hallway 10',           type: 'hallway',   floor: 1, x:  -38,   y: -27,   z: 0, accessible: true },
+    { id: 'hallway11',    label: 'Hallway 11',           type: 'hallway',   floor: 1, x:  -38,   y: -16,   z: 0, accessible: true },
 
-    // FLOOR 1 - HALLWAY A (COLUMN)
-    { id: 'hallwayA_1',  label: 'Hallway A_1',  type: 'hallway', floor: 1, x: 697, y: 158, z: 0, accessible: true },
-    { id: 'hallwayA_2',  label: 'Hallway A_2',  type: 'hallway', floor: 1, x: 697, y: 193, z: 0, accessible: true },
-    { id: 'hallwayA_3',  label: 'Hallway A_3',  type: 'hallway', floor: 1, x: 697, y: 214, z: 0, accessible: true },
-    { id: 'hallwayA_4',  label: 'Hallway A_4',  type: 'hallway', floor: 1, x: 697, y: 270, z: 0, accessible: true },
-    { id: 'hallwayA_5',  label: 'Hallway A_5',  type: 'hallway', floor: 1, x: 697, y: 290, z: 0, accessible: true },
-    { id: 'hallwayA_6',  label: 'Hallway A_6',  type: 'hallway', floor: 1, x: 697, y: 308, z: 0, accessible: true },
-    { id: 'hallwayA_7',  label: 'Hallway A_7',  type: 'hallway', floor: 1, x: 697, y: 328, z: 0, accessible: true },
-    { id: 'hallwayA_8',  label: 'Hallway A_8',  type: 'hallway', floor: 1, x: 697, y: 346, z: 0, accessible: true },
-    { id: 'hallwayA_9',  label: 'Hallway A_9',  type: 'hallway', floor: 1, x: 697, y: 363, z: 0, accessible: true },
-    { id: 'hallwayA_11', label: 'Hallway A_11', type: 'hallway', floor: 1, x: 697, y: 426, z: 0, accessible: true },
-    { id: 'hallwayA_12', label: 'Hallway A_12', type: 'hallway', floor: 1, x: 735, y: 704, z: 0, accessible: true },
-    { id: 'hallwayA_13', label: 'Hallway A_13', type: 'hallway', floor: 1, x: 731, y: 718, z: 0, accessible: true },
-
-    // FLOOR 1 - HALLWAY B (COLUMN)
-    { id: 'hallwayB_1',  label: 'Hallway B_1',  type: 'hallway', floor: 1, x: 577, y: 176, z: 0, accessible: true },
-    { id: 'hallwayB_2',  label: 'Hallway B_2',  type: 'hallway', floor: 1, x: 577, y: 198, z: 0, accessible: true },
-    { id: 'hallwayB_3',  label: 'Hallway B_3',  type: 'hallway', floor: 1, x: 577, y: 210, z: 0, accessible: true },
-    { id: 'hallwayB_4',  label: 'Hallway B_4',  type: 'hallway', floor: 1, x: 577, y: 234, z: 0, accessible: true },
-    { id: 'hallwayB_5',  label: 'Hallway B_5',  type: 'hallway', floor: 1, x: 577, y: 250, z: 0, accessible: true },
-    { id: 'hallwayB_6',  label: 'Hallway B_6',  type: 'hallway', floor: 1, x: 577, y: 264, z: 0, accessible: true },
-    { id: 'hallwayB_7',  label: 'Hallway B_7',  type: 'hallway', floor: 1, x: 697, y: 310, z: 0, accessible: true },
-    { id: 'hallwayB_8',  label: 'Hallway B_8',  type: 'hallway', floor: 1, x: 697, y: 326, z: 0, accessible: true },
-    { id: 'hallwayB_9',  label: 'Hallway B_9',  type: 'hallway', floor: 1, x: 697, y: 342, z: 0, accessible: true },
-    { id: 'hallwayB_11', label: 'Hallway B_11', type: 'hallway', floor: 1, x: 587, y: 458, z: 0, accessible: true },
-    { id: 'hallwayB_12', label: 'Hallway B_12', type: 'hallway', floor: 1, x: 587, y: 494, z: 0, accessible: true },
-    { id: 'hallwayB_13', label: 'Hallway B_13', type: 'hallway', floor: 1, x: 587, y: 512, z: 0, accessible: true },
-    { id: 'hallwayB_14', label: 'Hallway B_14', type: 'hallway', floor: 1, x: 587, y: 562, z: 0, accessible: true },
-    { id: 'hallwayB_15', label: 'Hallway B_15', type: 'hallway', floor: 1, x: 587, y: 596, z: 0, accessible: true },
-    { id: 'hallwayB_16', label: 'Hallway B_16', type: 'hallway', floor: 1, x: 587, y: 628, z: 0, accessible: true },
-    { id: 'hallwayB_17', label: 'Hallway B_17', type: 'hallway', floor: 1, x: 587, y: 666, z: 0, accessible: true },
-    { id: 'hallwayB_18', label: 'Hallway B_18', type: 'hallway', floor: 1, x: 587, y: 676, z: 0, accessible: true },
-    { id: 'hallwayB_19', label: 'Hallway B_19', type: 'hallway', floor: 1, x: 587, y: 704, z: 0, accessible: true },
-    { id: 'hallwayB_20', label: 'Hallway B_20', type: 'hallway', floor: 1, x: 587, y: 731, z: 0, accessible: true },
-
-    // FLOOR 1 - HALLWAY C (COLUMN)
-    { id: 'hallwayC_1',  label: 'Hallway C_1',  type: 'hallway', floor: 1, x: 411, y: 153, z: 0, accessible: true },
-    { id: 'hallwayC_2',  label: 'Hallway C_2',  type: 'hallway', floor: 1, x: 411, y: 173, z: 0, accessible: true },
-    { id: 'hallwayC_3',  label: 'Hallway C_3',  type: 'hallway', floor: 1, x: 411, y: 198, z: 0, accessible: true },
-    { id: 'hallwayC_4',  label: 'Hallway C_4',  type: 'hallway', floor: 1, x: 411, y: 211, z: 0, accessible: true },
-    { id: 'hallwayC_5',  label: 'Hallway C_5',  type: 'hallway', floor: 1, x: 411, y: 243, z: 0, accessible: true },
-    { id: 'hallwayC_6',  label: 'Hallway C_6',  type: 'hallway', floor: 1, x: 411, y: 252, z: 0, accessible: true },
-    { id: 'hallwayC_7',  label: 'Hallway C_7',  type: 'hallway', floor: 1, x: 411, y: 263, z: 0, accessible: true },
-    { id: 'hallwayC_8',  label: 'Hallway C_8',  type: 'hallway', floor: 1, x: 411, y: 309, z: 0, accessible: true },
-    { id: 'hallwayC_9',  label: 'Hallway C_9',  type: 'hallway', floor: 1, x: 411, y: 348, z: 0, accessible: true },
-    { id: 'hallwayC_11', label: 'Hallway C_11', type: 'hallway', floor: 1, x: 411, y: 359, z: 0, accessible: true },
-    { id: 'hallwayC_12', label: 'Hallway C_12', type: 'hallway', floor: 1, x: 411, y: 387, z: 0, accessible: true },
-    { id: 'hallwayC_13', label: 'Hallway C_13', type: 'hallway', floor: 1, x: 411, y: 415, z: 0, accessible: true },
-    { id: 'hallwayC_14', label: 'Hallway C_14', type: 'hallway', floor: 1, x: 411, y: 510, z: 0, accessible: true },
-    { id: 'hallwayC_15', label: 'Hallway C_15', type: 'hallway', floor: 1, x: 411, y: 563, z: 0, accessible: true },
-    { id: 'hallwayC_16', label: 'Hallway C_16', type: 'hallway', floor: 1, x: 411, y: 574, z: 0, accessible: true },
-    { id: 'hallwayC_17', label: 'Hallway C_17', type: 'hallway', floor: 1, x: 411, y: 583, z: 0, accessible: true },
-    { id: 'hallwayC_18', label: 'Hallway C_18', type: 'hallway', floor: 1, x: 411, y: 729, z: 0, accessible: true },
-    { id: 'hallwayC_19', label: 'Hallway C_19', type: 'hallway', floor: 1, x: 411, y: 742, z: 0, accessible: true },
-
-    // FLOOR 1 - HALLWAY D (COLUMN)
-    { id: 'hallwayD_1',  label: 'Hallway D_1',  type: 'hallway', floor: 1, x: 289, y: 42,  z: 0, accessible: true },
-    { id: 'hallwayD_2',  label: 'Hallway D_2',  type: 'hallway', floor: 1, x: 289, y: 119, z: 0, accessible: true },
-    { id: 'hallwayD_3',  label: 'Hallway D_3',  type: 'hallway', floor: 1, x: 289, y: 263, z: 0, accessible: true },
-    { id: 'hallwayD_4',  label: 'Hallway D_4',  type: 'hallway', floor: 1, x: 328, y: 263, z: 0, accessible: true },
-    { id: 'hallwayD_5',  label: 'Hallway D_5',  type: 'hallway', floor: 1, x: 289, y: 290, z: 0, accessible: true },
-    { id: 'hallwayD_6',  label: 'Hallway D_6',  type: 'hallway', floor: 1, x: 289, y: 387, z: 0, accessible: true },
-    { id: 'hallwayD_7',  label: 'Hallway D_7',  type: 'hallway', floor: 1, x: 289, y: 414, z: 0, accessible: true },
-    { id: 'hallwayD_8',  label: 'Hallway D_8',  type: 'hallway', floor: 1, x: 320, y: 470, z: 0, accessible: true },
-    { id: 'hallwayD_9',  label: 'Hallway D_9',  type: 'hallway', floor: 1, x: 320, y: 550, z: 0, accessible: true },
-    { id: 'hallwayD_11', label: 'Hallway D_11', type: 'hallway', floor: 1, x: 320, y: 573, z: 0, accessible: true },
-    { id: 'hallwayD_12', label: 'Hallway D_12', type: 'hallway', floor: 1, x: 320, y: 613, z: 0, accessible: true },
-    { id: 'hallwayD_13', label: 'Hallway D_13', type: 'hallway', floor: 1, x: 310, y: 550, z: 0, accessible: true },
-    { id: 'hallwayD_14', label: 'Hallway D_14', type: 'hallway', floor: 1, x: 292, y: 550, z: 0, accessible: true },
-    { id: 'hallwayD_15', label: 'Hallway D_15', type: 'hallway', floor: 1, x: 292, y: 613, z: 0, accessible: true },
-    { id: 'hallwayD_16', label: 'Hallway D_16', type: 'hallway', floor: 1, x: 292, y: 723, z: 0, accessible: true },
-    { id: 'hallwayD_17', label: 'Hallway D_17', type: 'hallway', floor: 1, x: 263, y: 470, z: 0, accessible: true },
-    { id: 'hallwayD_18', label: 'Hallway D_18', type: 'hallway', floor: 1, x: 263, y: 550, z: 0, accessible: true },
-    { id: 'hallwayD_19', label: 'Hallway D_19', type: 'hallway', floor: 1, x: 274, y: 550, z: 0, accessible: true },
-    { id: 'hallwayD_20', label: 'Hallway D_20', type: 'hallway', floor: 1, x: 263, y: 573, z: 0, accessible: true },
-    { id: 'hallwayD_21', label: 'Hallway D_21', type: 'hallway', floor: 1, x: 263, y: 613, z: 0, accessible: true },
-
-    // FLOOR 1 - HALLWAY E (COLUMN)
-    { id: 'hallwayE_1',  label: 'Hallway E_1',  type: 'hallway', floor: 1, x: 173, y: 122, z: 0, accessible: true },
-    { id: 'hallwayE_2',  label: 'Hallway E_2',  type: 'hallway', floor: 1, x: 172, y: 173, z: 0, accessible: true },
-    { id: 'hallwayE_3',  label: 'Hallway E_3',  type: 'hallway', floor: 1, x: 172, y: 293, z: 0, accessible: true },
-    { id: 'hallwayE_4',  label: 'Hallway E_4',  type: 'hallway', floor: 1, x: 172, y: 387, z: 0, accessible: true },
-    { id: 'hallwayE_5',  label: 'Hallway E_5',  type: 'hallway', floor: 1, x: 172, y: 414, z: 0, accessible: true },
-    { id: 'hallwayE_6',  label: 'Hallway E_6',  type: 'hallway', floor: 1, x: 172, y: 510, z: 0, accessible: true },
-    { id: 'hallwayE_7',  label: 'Hallway E_7',  type: 'hallway', floor: 1, x: 172, y: 584, z: 0, accessible: true },
-    { id: 'hallwayE_8',  label: 'Hallway E_8',  type: 'hallway', floor: 1, x: 172, y: 680, z: 0, accessible: true },
-    { id: 'hallwayE_9',  label: 'Hallway E_9',  type: 'hallway', floor: 1, x: 172, y: 685, z: 0, accessible: true },
-    { id: 'hallwayE_11', label: 'Hallway E_11', type: 'hallway', floor: 1, x: 172, y: 742, z: 0, accessible: true },
-
-    // FLOOR 1 - HALLWAY F (COLUMN)
-    { id: 'hallwayF_1', label: 'Hallway F_1', type: 'hallway', floor: 1, x: 90, y: 560, z: 0, accessible: true },
-    { id: 'hallwayF_2', label: 'Hallway F_2', type: 'hallway', floor: 1, x: 90, y: 579, z: 0, accessible: true },
-    { id: 'hallwayF_3', label: 'Hallway F_3', type: 'hallway', floor: 1, x: 90, y: 594, z: 0, accessible: true },
-    { id: 'hallwayF_4', label: 'Hallway F_4', type: 'hallway', floor: 1, x: 90, y: 667, z: 0, accessible: true },
-    { id: 'hallwayF_5', label: 'Hallway F_5', type: 'hallway', floor: 1, x: 90, y: 733, z: 0, accessible: true },
-    { id: 'hallwayF_6', label: 'Hallway F_6', type: 'hallway', floor: 1, x: 30, y: 460, z: 0, accessible: true },
+    { id: 'hallway12',    label: 'Hallway 12',           type: 'hallway',   floor: 1, x:  -41,   y: -32,   z: 0, accessible: true },
+    { id: 'hallway13',    label: 'Hallway 13',           type: 'hallway',   floor: 1, x:  -53,   y: -32,   z: 0, accessible: true },
 
 ];
+
+// ─── EDGES ────────────────────────────────────────────────────────────────────
+// Costs are computed automatically from node distances.
+// NOTE: two edges in the original had wrong fromNodeId (hallway4/5 instead of
+// hallway7/8) — those are corrected here.
+
+export const TEST_EDGES: RawEdge[] = [
+
+    // Entrance → main hallway spine
+    { id: 'en0_hw1',      fromNodeId: 'entrance0',  toNodeId: 'hallway1',    type: 'door',    accessible: true, bidirectional: true },
+
+    // Right wing (rooms 1221, 1225)
+    { id: 'hw1_hw2',      fromNodeId: 'hallway1',   toNodeId: 'hallway2',    type: 'hallway', accessible: true, bidirectional: true },
+    { id: 'hw2_hw3',      fromNodeId: 'hallway2',   toNodeId: 'hallway3',    type: 'hallway', accessible: true, bidirectional: true },
+    { id: 'hw3_hw4',      fromNodeId: 'hallway3',   toNodeId: 'hallway4',    type: 'hallway', accessible: true, bidirectional: true },
+    { id: 'hw4_hw5',      fromNodeId: 'hallway4',   toNodeId: 'hallway5',    type: 'hallway', accessible: true, bidirectional: true },
+    { id: 'hw2_1221a',    fromNodeId: 'hallway2',   toNodeId: 'room_1221_a', type: 'door',    accessible: true, bidirectional: true },
+    { id: 'hw3_1221b',    fromNodeId: 'hallway3',   toNodeId: 'room_1221_b', type: 'door',    accessible: true, bidirectional: true },
+    { id: 'hw4_1225a',    fromNodeId: 'hallway4',   toNodeId: 'room_1225_a', type: 'door',    accessible: true, bidirectional: true },
+    { id: 'hw5_1225b',    fromNodeId: 'hallway5',   toNodeId: 'room_1225_b', type: 'door',    accessible: true, bidirectional: true },
+
+    // Main spine → middle section (rooms 1253)
+    { id: 'hw1_hw6',      fromNodeId: 'hallway1',   toNodeId: 'hallway6',    type: 'hallway', accessible: true, bidirectional: true },
+    { id: 'hw6_hw7',      fromNodeId: 'hallway6',   toNodeId: 'hallway7',    type: 'hallway', accessible: true, bidirectional: true },
+    { id: 'hw7_hw8',      fromNodeId: 'hallway7',   toNodeId: 'hallway8',    type: 'hallway', accessible: true, bidirectional: true },
+    { id: 'hw7_1253a',    fromNodeId: 'hallway7',   toNodeId: 'room_1253_a', type: 'door',    accessible: true, bidirectional: true },
+    { id: 'hw8_1253b',    fromNodeId: 'hallway8',   toNodeId: 'room_1253_b', type: 'door',    accessible: true, bidirectional: true },
+
+    // Main spine → left section (rooms 1263, 1202, 1200)
+    { id: 'hw6_hw9',      fromNodeId: 'hallway6',   toNodeId: 'hallway9',    type: 'hallway', accessible: true, bidirectional: true },
+    { id: 'hw9_hw10',     fromNodeId: 'hallway9',   toNodeId: 'hallway10',   type: 'hallway', accessible: true, bidirectional: true },
+    { id: 'hw10_hw11',    fromNodeId: 'hallway10',  toNodeId: 'hallway11',   type: 'hallway', accessible: true, bidirectional: true },
+    { id: 'hw10_1263a',   fromNodeId: 'hallway10',  toNodeId: 'room_1263_a', type: 'door',    accessible: true, bidirectional: true },
+    { id: 'hw11_1263b',   fromNodeId: 'hallway11',  toNodeId: 'room_1263_b', type: 'door',    accessible: true, bidirectional: true },
+    { id: 'hw9_hw12',     fromNodeId: 'hallway9',   toNodeId: 'hallway12',   type: 'hallway', accessible: true, bidirectional: true },
+    { id: 'hw12_hw13',    fromNodeId: 'hallway12',  toNodeId: 'hallway13',   type: 'hallway', accessible: true, bidirectional: true },
+    { id: 'hw12_1202a',   fromNodeId: 'hallway12',  toNodeId: 'room_1202_a', type: 'door',    accessible: true, bidirectional: true },
+    { id: 'hw13_1200a',   fromNodeId: 'hallway13',  toNodeId: 'room_1200_a', type: 'door',    accessible: true, bidirectional: true },
+
+];
+// ─── EDGE COST COMPUTATION ────────────────────────────────────────────────────
+// Called by db.ts at seed time and by use-test-route.ts at runtime.
+// Cost = Euclidean distance in model-space units (same as feet at this scale).
+
+export function computeEdgeCosts(nodes: NavNode[]): NavEdge[] {
+    const nodeMap = new Map(nodes.map(n => [n.id, n]));
+    return TEST_EDGES.map(edge => {
+        const from = nodeMap.get(edge.fromNodeId);
+        const to   = nodeMap.get(edge.toNodeId);
+        let cost = 1;
+        if (!from || !to) {
+            console.warn('[seed-nodes-test] missing node for edge:', edge.id);
+        } else if (from.floor !== to.floor) {
+            cost = 30;
+        } else {
+            const dx = to.x - from.x;
+            const dy = to.y - from.y;
+            cost = Math.sqrt(dx * dx + dy * dy);
+        }
+        return { ...edge, cost };
+    });
+}
