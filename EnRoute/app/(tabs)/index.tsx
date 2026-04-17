@@ -387,8 +387,10 @@ export default function HomeScreen() {
   const lerpRadiusRef = useRef<number | null>(null);
   const lerpTargetRef = useRef<THREE.Vector3 | null>(null);
   const navHeadingRef = useRef<number | null>(null);
-  const lerpThetaRef  = useRef<number | null>(null);
-  const lerpPhiRef    = useRef<number | null>(null);
+  const lerpThetaRef       = useRef<number | null>(null);
+  const lerpPhiRef         = useRef<number | null>(null);
+  const destNodeIdRef      = useRef<string | null>(null);
+  const lastRerouteNodeRef = useRef<string | null>(null);
 
   const activeFloorRef = useRef<FloorNumber>(1);
   const cameraRef = useRef<THREE.Camera | null>(null);
@@ -565,17 +567,20 @@ export default function HomeScreen() {
   }, [selectedNode, dbReady, getRoute, getFromNodeId]);
 
   const handleConfirmRoute = useCallback(() => {
-    if (!activeRoute) return;
+    if (!activeRoute || !selectedNode) return;
+    destNodeIdRef.current      = selectedNode.id;
+    lastRerouteNodeRef.current = null;
     bottomSheetRef.current?.close();
     setSheetIndex(-1); sheetIndexRef.current = -1;
     setShowCollapsedPill(false);
     setIsNavigating(true);
     zoomToNavStart(pathWaypoints, lerpRadiusRef, lerpTargetRef, lerpThetaRef, lerpPhiRef);
-
-  }, [activeRoute, pathWaypoints]);
+  }, [activeRoute, selectedNode, pathWaypoints]);
 
   const handleEndRoute = useCallback(() => {
-    navHeadingRef.current = null;
+    navHeadingRef.current      = null;
+    destNodeIdRef.current      = null;
+    lastRerouteNodeRef.current = null;
     setIsNavigating(false);
     setActiveRoute(null);
     setSelectedRoom(null);
@@ -686,6 +691,28 @@ export default function HomeScreen() {
     })();
     return () => { sub?.remove(); };
   }, []);
+
+  // Live reroute: recalculate route + remaining time whenever user moves to a new node
+  useEffect(() => {
+    if (!isNavigating || !location || !destNodeIdRef.current) return;
+    const { x, y } = gpsToNodeCoords(location.coords.latitude, location.coords.longitude);
+    const nearest  = snapToNode(x, y, activeFloorRef.current);
+    if (!nearest) return;
+    // Only recalculate if we've moved to a different node — avoid thrashing
+    if (nearest.id === lastRerouteNodeRef.current) return;
+    lastRerouteNodeRef.current = nearest.id;
+    // If we reached the destination, end navigation
+    if (nearest.id === destNodeIdRef.current) {
+      handleEndRoute();
+      return;
+    }
+    const newRoute = getTestRoute(nearest.id, destNodeIdRef.current);
+    if (newRoute) {
+      setActiveRoute(newRoute);
+      const waypoints = routeToWaypoints(newRoute);
+      setPathWaypoints(waypoints);
+    }
+  }, [location, isNavigating, snapToNode, getTestRoute, handleEndRoute]);
 
   useEffect(() => {
     async function preloadAll() {

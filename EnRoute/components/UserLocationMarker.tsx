@@ -25,9 +25,9 @@ const MODEL_FLOOR_BOUNDS: Record<
         y: number;
     }
 > = {
-    1: { minX: -30, maxX: 12, minZ: -18, maxZ: 18, y: 0.6 },
-    2: { minX: -12, maxX: 12, minZ: -18, maxZ: 18, y: 0.6 },
-    3: { minX: -12, maxX: 12, minZ: -18, maxZ: 18, y: 0.6 },
+    1: { minX: -53, maxX: 48, minZ: -40, maxZ: 15, y: 0.05 },
+    2: { minX: -53, maxX: 48, minZ: -40, maxZ: 15, y: 0.05 },
+    3: { minX: -53, maxX: 48, minZ: -40, maxZ: 15, y: 0.05 },
 };
 
 // Chevron shape for navigation mode
