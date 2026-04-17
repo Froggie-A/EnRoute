@@ -16,7 +16,8 @@ type IconPin = {
     | "elevator"
     | "fountain"
     | "fire"
-    | "defib";
+    | "defib"
+    | "bottle";
 };
 
 const ICON_DATA: IconPin[] = [
@@ -29,6 +30,7 @@ const ICON_DATA: IconPin[] = [
   { x: 25, y: 0.1, z: 0, floor: 1, type: "fountain" },
   { x: -10, y: 0.1, z: 0, floor: 1, type: "fire" },
   { x: 30, y: 0.1, z: 0, floor: 1, type: "defib" },
+  { x: 10, y: 0.1, z: 0, floor: 2, type: "bottle" },
 ];
 
 const studyroomIcon = Asset.fromModule(
@@ -55,8 +57,12 @@ const fireIcon = Asset.fromModule(
 const defibIcon = Asset.fromModule(
   require("../assets/images/first-aid-icon.png")
 ).uri;
+const bottleIcon = Asset.fromModule(
+  require("../assets/images/bottle-fill-icon.png")
+).uri;
 
-export default function IconLayer() {
+
+export default function IconLayer({ activeFloor }: { activeFloor: 1 | 2 | 3 }) {
   const loaded = useTexture([
     studyroomIcon,
     emergencyIcon,
@@ -66,7 +72,12 @@ export default function IconLayer() {
     fountainIcon,
     fireIcon,
     defibIcon,
+    bottleIcon,
   ]) as THREE.Texture[];
+
+  const visibileIcons = ICON_DATA.filter(
+    (icon) => icon.floor === activeFloor
+  );
 
   const textures: Record<IconPin["type"], THREE.Texture> = useMemo(
     () => ({
@@ -78,13 +89,14 @@ export default function IconLayer() {
       fountain: loaded[5],
       fire: loaded[6],
       defib: loaded[7],
+      bottle: loaded[8],
     }),
     [loaded]
   );
 
   return (
     <>
-      {ICON_DATA.map((icon, i) => (
+      {visibileIcons.map((icon, i) => (
         <sprite
           key={i}
           position={[icon.x, icon.y + 0.2, icon.z]}
