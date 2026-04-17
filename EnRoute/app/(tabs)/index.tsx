@@ -52,8 +52,6 @@ import { routeToWaypoints } from "@/utils/routeToWaypoints";
 import { getNode, NavNode } from "@/navigation/db";
 import { normalizeLocationToBuilding } from "@/utils/buildingLocation";
 
-
-import { getNode } from "@/navigation/db";
 import { useRoute } from "@/hooks/use-route";
 import type { RouteResult } from "@/navigation/pathfinding";
 
@@ -869,28 +867,6 @@ export default function HomeScreen() {
     }
   }, [isNavigating, sheetView]);
 
-  const handleSheetChange = useCallback(
-    (index: number) => {
-      setSheetIndex(index);
-      sheetIndexRef.current = index;
-
-
-      if (index === -1) {
-        setSelectedRoom(null);
-        setSelectedNode(null);
-        setActiveRoute(null);
-
-
-        if (!panelExpanded) {
-          setSheetView("default");
-          setTimeout(() => setShowCollapsedPill(true), 1);
-        }
-      } else {
-        setShowCollapsedPill(false);
-      }
-    },
-    [panelExpanded]
-  );
 
 
   if (!isReady) {
@@ -911,10 +887,6 @@ export default function HomeScreen() {
           setMapSize({ width, height });
         }}
       >
-        <Canvas
-          style={styles.canvasAbsolute}
-          camera={{ position: [0, 0, 0], fov: 45 }}
-        >
           <Canvas style={styles.canvasAbsolute} camera={{ position: [0, 0, 0], fov: 45 }}>
             <ambientLight intensity={1.2} />
             <directionalLight position={[3, 5, 2]} intensity={1} />
@@ -968,7 +940,6 @@ export default function HomeScreen() {
                 lerpPhiRef={lerpPhiRef}
             />
 
-          </Canvas>
 
           {/* Gesture capture layer */}
           {!pinMode && (
@@ -1068,7 +1039,7 @@ export default function HomeScreen() {
                 </BottomSheetScrollView>
               </BottomSheet>
           )}
-
+          </Canvas>
         </View>
       </GestureHandlerRootView>
   );
