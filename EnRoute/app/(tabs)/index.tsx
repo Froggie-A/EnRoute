@@ -45,7 +45,7 @@ import type { NavNode } from "@/navigation/db";
 import type { RouteResult } from "@/navigation/pathfinding";
 
 const FLOOR_MODELS = {
-  1: require("../../assets/models/newfloorplan.glb"),
+  1: require("../../assets/models/1stFloorModel.glb"),
   2: require("../../assets/models/2ndFloorModel.glb"),
   3: require("../../assets/models/3rdFloorModel.glb"),
 } as const;
