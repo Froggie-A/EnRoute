@@ -288,7 +288,7 @@ export default function HomeScreen() {
   const cameraTargetRef = useRef(new THREE.Vector3(0, 0, 0));
   const [pins, setPins] = useState<Pin[]>([]);
   const [previewPin, setPreviewPin] = useState<Pin | null>(null);
-
+  const [panelView, setPanelView] = useState<"main" | "profile">("main");
   const raycasterRef = useRef(new THREE.Raycaster());
   const pointerRef = useRef(new THREE.Vector2());
 
@@ -748,11 +748,10 @@ export default function HomeScreen() {
     expandFullyPanel();
   }, [expandFullyPanel]);
 
-  const handleProfilePress = useCallback(() => {
-    setSheetView("profile");
-    expandStretchPanel();
-  }, [expandStretchPanel]);
-
+  const handleProfilePress = () => {
+    setPanelView("profile");
+    openSheet();
+  };
   const cameraPanResponder = useMemo(
     () =>
       PanResponder.create({
@@ -1082,7 +1081,7 @@ export default function HomeScreen() {
                   <View style={styles.stretchHandle} />
                 </View>
 
-              {!selectedEvent && (
+              {!selectedEvent && panelView !== "profile" && (
                 <View style={styles.stretchSearchShell}>
                   <SearchBarRow
                     search={search}
@@ -1148,6 +1147,30 @@ export default function HomeScreen() {
                         />
                       ))}
                     </View>
+                    ) : panelView === "profile" ? (
+                      <View style={styles.profileSavedView}>
+                        <View style={styles.profileHeaderRow}>
+                          <Text style={styles.profileTitle}>Saved Rooms</Text>
+
+                          <Pressable onPress={() => setPanelView("main")}>
+                            <Ionicons name="close" size={34} color="#111" />
+                          </Pressable>
+                        </View>
+
+                        <View style={styles.savedCard}>
+                          <Text style={styles.savedItem}>PFT 1263</Text>
+                          <Text style={styles.savedItem}>PFT 1200</Text>
+                          <Text style={styles.savedItem}>PFT 1225</Text>
+                        </View>
+
+                        <Text style={styles.profileTitle}>Saved Pins</Text>
+
+                        <View style={styles.savedCard}>
+                          <Text style={styles.savedItem}>Study Spot</Text>
+                          <Text style={styles.savedItem}>Bluebook Vending</Text>
+                          <Text style={styles.savedItem}>Group Meetup</Text>
+                        </View>
+                      </View>
                       ) : selectedEvent ? (
                         <View>
                           <View style={styles.detailHeaderRow}>
@@ -1548,5 +1571,47 @@ const styles = StyleSheet.create({
 
   arrow: {
     transform: [{ rotate: "25deg" }],
+  },
+  profileSavedView: {
+    position: "absolute",
+    top: 10,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 20,
+  },
+
+  profileHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
+  },
+
+  profileTitle: {
+    fontSize: 26,
+    fontWeight: "700",
+    color: "#111",
+    marginBottom: 16,
+  },
+
+  savedCard: {
+    backgroundColor: "#FFFDF0",
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 32,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 5,
+  },
+
+  savedItem: {
+    fontSize: 16,
+    color: "#111",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.3)",
   },
 });
