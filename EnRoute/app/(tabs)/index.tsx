@@ -920,7 +920,7 @@ export default function HomeScreen() {
       });
       setLocation(current);
       subscription = await Location.watchPositionAsync(
-          { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 250, distanceInterval: 0 },
+          { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 100, distanceInterval: 0.5 },
           (loc) => {
             setLocation(loc);
             if (loc.coords.heading != null && loc.coords.heading >= 0) {
@@ -928,28 +928,52 @@ export default function HomeScreen() {
             }
           }
       );
+
     })();
     return () => { subscription?.remove(); };
   }, []);
 
   // Live reroute: recalculate route + remaining time whenever user moves to a new node
+  // Live reroute: trim path + update steps as user moves through nodes
   useEffect(() => {
     if (!isNavigating || !location || !destNodeIdRef.current) return;
     const { x, y } = gpsToNodeCoords(location.coords.latitude, location.coords.longitude);
     const nearest = snapToNode(x, y, activeFloorRef.current);
     if (!nearest) return;
+
+    // Recalculate whenever nearest node changes
     if (nearest.id === lastRerouteNodeRef.current) return;
     lastRerouteNodeRef.current = nearest.id;
+
     if (nearest.id === destNodeIdRef.current) {
       handleEndRoute();
       return;
     }
+
     const newRoute = getTestRoute(nearest.id, destNodeIdRef.current);
-    if (newRoute) {
-      setActiveRoute(newRoute);
-      const waypoints = routeToWaypoints(newRoute);
-      setPathWaypoints(waypoints);
+    if (!newRoute) return;
+
+    // Trim the path: remove waypoints behind the user by finding which
+    // waypoint is closest to the current nearest node world position,
+    // then slicing from there forward.
+    const nodeWorldX = nearest.x * 0.1;
+    const nodeWorldZ = nearest.y * 0.1;
+    const newWaypoints = routeToWaypoints(newRoute);
+
+    // Find the waypoint index closest to the current node
+    let closestIdx = 0;
+    let closestDist = Infinity;
+    for (let i = 0; i < newWaypoints.length; i++) {
+      const [wx, , wz] = newWaypoints[i];
+      const d = Math.hypot(wx - nodeWorldX, wz - nodeWorldZ);
+      if (d < closestDist) { closestDist = d; closestIdx = i; }
     }
+
+    // Keep from the closest point forward so the ribbon shrinks behind the user
+    const trimmedWaypoints = newWaypoints.slice(closestIdx) as [number, number, number][];
+
+    setActiveRoute(newRoute);
+    setPathWaypoints(trimmedWaypoints.length >= 2 ? trimmedWaypoints : newWaypoints);
   }, [location, isNavigating, snapToNode, getTestRoute, handleEndRoute]);
 
   // Floor model preload
