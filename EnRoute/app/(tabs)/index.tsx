@@ -1036,6 +1036,7 @@ export default function HomeScreen() {
             }}
           />
         )}
+ 
 
         {sheetIndex === -1 && (
           <FloorSwitcher
@@ -1341,6 +1342,24 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 999,
     backgroundColor: "rgba(56, 54, 54, 0.80)",
+  },
+
+    pinButton: {
+    position: "absolute",
+    bottom: 120,
+    right: 16,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    zIndex: 100,
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
   },
 
   stretchSearchShell: {
