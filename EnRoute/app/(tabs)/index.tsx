@@ -52,6 +52,7 @@ import { routeToWaypoints } from "@/utils/routeToWaypoints";
 import { normalizeLocationToBuilding } from "@/utils/buildingLocation";
 import type { NavNode } from "@/navigation/db";
 import type { RouteResult } from "@/navigation/pathfinding";
+import PlacePinButton from "@/components/placePinButton";
 
 const FLOOR_MODELS = {
   1: require("../../assets/models/1stFloorModel.glb"),
@@ -580,53 +581,89 @@ export default function HomeScreen() {
     lerpRadiusRef.current = zoomRadius;
   }, []);
 
+  const [mode, setMode] = useState<"pin" | "navigate" | null>(null);
+
   const getPinPointFromTouch = useCallback(
-      (pageX: number, pageY: number): Pin | null => {
-        const cam = cameraRef.current;
-        if (!cam || mapSize.width <= 0 || mapSize.height <= 0) return null;
-        const pointer = pointerRef.current;
-        const raycaster = raycasterRef.current;
-        pointer.x = (pageX / mapSize.width) * 2 - 1;
-        pointer.y = -(pageY / mapSize.height) * 2 + 1;
-        raycaster.setFromCamera(pointer, cam);
-        const intersects = raycaster.intersectObjects(
-            (sceneRef.current ?? []).length ? sceneRef.current! : [],
-            true
-        );
-        if (intersects.length === 0) return null;
-        const point = intersects[0].point;
-        return { x: point.x, y: PIN_Y, z: point.z, floor: activeFloorRef.current };
-      },
-      [mapSize.width, mapSize.height]
+    (pageX: number, pageY: number): Pin | null => {
+      const cam = cameraRef.current;
+      if (!cam || mapSize.width <= 0 || mapSize.height <= 0) return null;
+
+      const pointer = pointerRef.current;
+      const raycaster = raycasterRef.current;
+
+      pointer.x = (pageX / mapSize.width) * 2 - 1;
+      pointer.y = -(pageY / mapSize.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, cam);
+
+      const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -PIN_Y);
+      const point = new THREE.Vector3();
+
+      const didHit = raycaster.ray.intersectPlane(floorPlane, point);
+
+      if (!didHit) return null;
+
+      return {
+        x: point.x,
+        y: PIN_Y,
+        z: point.z,
+        floor: activeFloorRef.current,
+      };
+    },
+    [mapSize.width, mapSize.height]
   );
 
   const pinPanResponder = useMemo(
-      () =>
-          PanResponder.create({
-            onStartShouldSetPanResponder: () => pinMode,
-            onMoveShouldSetPanResponder: () => pinMode,
-            onPanResponderGrant: (evt) => {
-              if (!pinMode) return;
-              const point = getPinPointFromTouch(evt.nativeEvent.pageX, evt.nativeEvent.pageY);
-              if (point) { previewPinRef.current = point; setPreviewPin(point); }
-            },
-            onPanResponderMove: (evt) => {
-              if (!pinMode) return;
-              const point = getPinPointFromTouch(evt.nativeEvent.pageX, evt.nativeEvent.pageY);
-              if (point) previewPinRef.current = point;
-            },
-            onPanResponderRelease: () => {
-              if (previewPinRef.current) setPins((prev) => [...prev, previewPinRef.current!]);
-              previewPinRef.current = null;
-              setPreviewPin(null);
-              setPinMode(false);
-            },
-            onPanResponderTerminate: () => {
-              previewPinRef.current = null;
-              setPreviewPin(null);
-            },
-          }),
-      [pinMode, getPinPointFromTouch]
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => pinMode,
+        onMoveShouldSetPanResponder: () => pinMode,
+
+        onPanResponderGrant: (evt) => {
+        if (!pinMode) return;
+
+        const point = getPinPointFromTouch(
+          evt.nativeEvent.pageX,
+          evt.nativeEvent.pageY
+        );
+
+        if (point) {
+          previewPinRef.current = point;
+          setPreviewPin(point);
+        }
+      },
+
+        onPanResponderMove: (evt) => {
+        if (!pinMode) return;
+
+        const point = getPinPointFromTouch(
+          evt.nativeEvent.pageX,
+          evt.nativeEvent.pageY
+        );
+
+        if (point) {
+          previewPinRef.current = point;
+        }
+      },
+
+        onPanResponderRelease: () => {
+        const finalPin = previewPinRef.current;
+
+        if (finalPin) {
+          setPins((prev) => [...prev, finalPin]);
+        }
+
+        previewPinRef.current = null;
+        setPreviewPin(null);
+        setPinMode(false);
+        setMode(null);
+      },
+
+        onPanResponderTerminate: () => {
+          previewPinRef.current = null;
+          setPreviewPin(null);
+        },
+      }),
+    [pinMode, getPinPointFromTouch]
   );
 
   const expandStretchPanel = useCallback(() => {
@@ -1093,40 +1130,89 @@ export default function HomeScreen() {
             />
           </Canvas>
 
-          {!pinMode && (
-              <View
-                  style={[styles.mapGestureLayer, { height: sheetTopY }]}
-                  pointerEvents="auto"
-                  {...cameraPanResponder.panHandlers}
-              />
-          )}
+            <IconLayer activeFloor={activeFloor} />
+          </Suspense>
 
-          {sheetIndex === -1 && !isNavigating && (
-              <Pressable
-                  onPress={() => setPinMode((prev) => !prev)}
-                  style={{
-                    position: "absolute", bottom: 140, right: 20,
-                    backgroundColor: pinMode ? "red" : "blue",
-                    padding: 12, borderRadius: 24, zIndex: 20,
-                  }}
-              >
-                <Text style={{ color: "white", fontWeight: "bold" }}>
-                  {pinMode ? "Placing..." : "Add Pin"}
-                </Text>
-              </Pressable>
-          )}
+          <CameraController
+            gestureRef={gestureRef}
+            onRadiusChange={handleRadiusChange}
+            lerpRadiusRef={lerpRadiusRef}
+            maxRadius={FLOOR_CONFIG[activeFloor].switchRadius}
+            cameraRef={cameraRef}
+            targetRef={cameraTargetRef}
+          />
+        </Canvas>
 
-          {sheetIndex === -1 && !isNavigating && (
-              <FloorSwitcher
-                  activeFloor={activeFloor}
-                  onFloorChange={(floor) => {
-                    const nextFloor = floor as FloorNumber;
-                    activeFloorRef.current = nextFloor;
-                    setActiveFloor(nextFloor);
-                    lerpRadiusRef.current = FLOOR_CONFIG[nextFloor].snapRadius;
-                  }}
-              />
-          )}
+        {!pinMode && (
+          <View
+            style={[styles.mapGestureLayer, { height: sheetTopY }]}
+            pointerEvents="auto"
+            {...cameraPanResponder.panHandlers}
+          />
+        )}
+
+        {sheetIndex === -1 && (
+          <PlacePinButton
+            mode={mode}
+            onSelect={(m) => {
+              setMode(m);
+              setPinMode(m === "pin"); 
+            }}
+          />
+        )}
+ 
+
+        {sheetIndex === -1 && (
+          <FloorSwitcher
+            activeFloor={activeFloor}
+            onFloorChange={(floor) => {
+              const nextFloor = floor as FloorNumber;
+              activeFloorRef.current = nextFloor;
+              setActiveFloor(nextFloor);
+              lerpRadiusRef.current = FLOOR_CONFIG[nextFloor].snapRadius;
+            }}
+          />
+        )}
+
+        {pinMode && (
+          <View style={styles.pinOverlay} {...pinPanResponder.panHandlers} />
+        )}
+
+        {showCollapsedPill && (
+          <Animated.View
+            style={[
+              styles.stretchPanelWrap,
+              {
+                height: panelHeightAnim,
+                left: panelLeft,
+                right: panelRight,
+                bottom: panelBottom,
+              },
+            ]}
+          >
+            <Animated.View
+              style={[
+                styles.stretchPanel,
+                {
+                  borderRadius: panelRadius,
+                  backgroundColor: panelBackgroundColor,
+                },
+              ]}
+            >
+              <View style={styles.dragHeader} {...panelPanResponder.panHandlers}>
+                <View style={styles.stretchHandleArea}>
+                  <View style={styles.stretchHandle} />
+                </View>
+
+                <View style={styles.stretchSearchShell}>
+                  <SearchBarRow
+                    search={search}
+                    setSearch={setSearch}
+                    onPressExpand={openSheet}
+                    onPressProfile={handleProfilePress}
+                  />
+                </View>
+              </View>
 
           {pinMode && (
               <View style={styles.pinOverlay} {...pinPanResponder.panHandlers} />
@@ -1334,6 +1420,38 @@ const styles = StyleSheet.create({
   stretchHandle: { width: 70, height: 4, borderRadius: 999, backgroundColor: "rgba(56, 54, 54, 0.80)" },
   stretchSearchShell: { marginHorizontal: 0, marginBottom: 4, borderRadius: 30, backgroundColor: "transparent", paddingVertical: 0 },
   stretchContentWrap: { flex: 1, paddingBottom: 18 },
+
+    pinButton: {
+    position: "absolute",
+    bottom: 120,
+    right: 16,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    zIndex: 100,
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+  },
+
+  stretchSearchShell: {
+    marginHorizontal: 0,
+    marginBottom: 4,
+    borderRadius: 30,
+    backgroundColor: "transparent",
+    paddingVertical: 0,
+  },
+
+  stretchContentWrap: {
+    flex: 1,
+    paddingBottom: 18,
+  },
+
   bottomSheetBackground: {
     backgroundColor: "rgba(235, 235, 218, 1)",
     borderTopLeftRadius: 26, borderTopRightRadius: 26,
