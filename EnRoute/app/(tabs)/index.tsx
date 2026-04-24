@@ -25,7 +25,6 @@ import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
 import { ScrollView } from "react-native";
-import { useTexture } from "@react-three/drei/native";
 
 import { FloorSwitcher } from "@/components/floorSwitcher";
 import SearchBarRow from "@/components/SearchBarRow";
@@ -460,7 +459,7 @@ export default function HomeScreen() {
   const prevTouches = useRef<{ x: number; y: number }[]>([]);
   const snapPoints = useMemo(() => ["50%", "75%", "90%"], []);
 
-  const { getRoute, dbReady, snapToNode } = useRoute();
+  const { snapToNode } = useRoute();
   const getTestRoute = useTestRoute();
 
   const sheetTopY = useMemo(() => {
@@ -1095,176 +1094,165 @@ export default function HomeScreen() {
     );
   }
 
-  
-
   return (
-      <GestureHandlerRootView style={styles.container}>
-        <View
-            style={styles.container}
-            onLayout={(e) => {
-              const { width, height } = e.nativeEvent.layout;
-              setMapSize({ width, height });
-            }}
-        >
-          <Canvas style={styles.canvasAbsolute} camera={{ position: [0, 0, 0], fov: 45 }}>
+  <GestureHandlerRootView style={styles.container}>
+    <View
+      style={styles.container}
+      onLayout={(e) => {
+        const { width, height } = e.nativeEvent.layout;
+        setMapSize({ width, height });
+      }}
+    >
+      <Canvas style={styles.canvasAbsolute} camera={{ position: [0, 0, 0], fov: 45 }}>
+        <color attach="background" args={["#c9dff0"]} />
 
-            <color attach="background" args={["#c9dff0"]} />  {/* sky blue */}
+        {activeFloor === 1 && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -5, 0]} renderOrder={-1}>
+            <planeGeometry args={[200, 200]} />
+            <meshStandardMaterial color="#7a9e6e" />
+          </mesh>
+        )}
 
-            {activeFloor === 1 && (
-                <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -5, 0]} renderOrder={-1}>
-                  <planeGeometry args={[200, 200]} />
-                  <meshStandardMaterial color="#7a9e6e" />
-                </mesh>
+        <ambientLight intensity={1.2} />
+        <directionalLight position={[3, 5, 2]} intensity={1} />
+        <directionalLight position={[-3, 5, -2]} intensity={0.9} />
+        <directionalLight position={[0, 4, 4]} intensity={0.7} />
+        <directionalLight position={[0, -5, 0]} intensity={0.7} />
+
+        <SceneCapture sceneRef={sceneRef} />
+
+        <Suspense fallback={null}>
+          <Building activeFloor={activeFloor} />
+
+          <group scale={[0.1, 0.1, 0.1]}>
+            <RoomHitboxes
+              activeFloor={activeFloor}
+              selectedRoom={selectedRoom}
+              setSelectedRoom={setSelectedRoom}
+            />
+
+            {location && (
+              <UserLocationMarker
+                latitude={location.coords.latitude}
+                longitude={location.coords.longitude}
+                activeFloor={activeFloor}
+                isNavigating={isNavigating}
+              />
             )}
+          </group>
 
-            <ambientLight intensity={1.2} />
-            <directionalLight position={[3, 5, 2]} intensity={1} />
-            <directionalLight position={[-3, 5, -2]} intensity={0.9} />
-            <directionalLight position={[0, 4, 4]} intensity={0.7} />
-            <directionalLight position={[0, -5, 0]} intensity={0.7} />
-            <SceneCapture sceneRef={sceneRef} />
+          {pathWaypoints.length >= 2 && <TestPath waypoints={pathWaypoints} />}
 
-            <Suspense fallback={null}>
-              <Building activeFloor={activeFloor} />
-
-              <group scale={[0.1, 0.1, 0.1]}>
-                <RoomHitboxes
-                    activeFloor={activeFloor}
-                    selectedRoom={selectedRoom}
-                    setSelectedRoom={setSelectedRoom}
-                />
-                {location && (
-                    <UserLocationMarker
-                        latitude={location.coords.latitude}
-                        longitude={location.coords.longitude}
-                        activeFloor={activeFloor}
-                        isNavigating={isNavigating}
-                    />
-                )}
-              </group>
-
-              {pathWaypoints.length >= 2 && (
-                  <TestPath waypoints={pathWaypoints} />
-              )}
-
-              <PinLayer
-                  pins={pins}
-                  previewPin={previewPin}
-                  previewPinRef={previewPinRef}
-                  activeFloor={activeFloor}
-              />
-
-              <IconLayer activeFloor={activeFloor} />
-            </Suspense>
-
-            <CameraController
-                gestureRef={gestureRef}
-                onRadiusChange={handleRadiusChange}
-                lerpRadiusRef={lerpRadiusRef}
-                lerpTargetRef={lerpTargetRef}
-                maxRadius={FLOOR_CONFIG[activeFloor].switchRadius}
-                cameraRef={cameraRef}
-                targetRef={cameraTargetRef}
-                mapSizeRef={mapSizeRef}
-                lerpThetaRef={lerpThetaRef}
-                lerpPhiRef={lerpPhiRef}
-            />
-          </Canvas>
-
-            <IconLayer activeFloor={activeFloor} />
-          </Suspense>
-
-          <CameraController
-            gestureRef={gestureRef}
-            onRadiusChange={handleRadiusChange}
-            lerpRadiusRef={lerpRadiusRef}
-            maxRadius={FLOOR_CONFIG[activeFloor].switchRadius}
-            cameraRef={cameraRef}
-            targetRef={cameraTargetRef}
-          />
-        </Canvas>
-
-        {!pinMode && (
-          <View
-            style={[styles.mapGestureLayer, { height: sheetTopY }]}
-            pointerEvents="auto"
-            {...cameraPanResponder.panHandlers}
-          />
-        )}
-
-        {sheetIndex === -1 && (
-          <Pressable
-            onPress={() => setPinMode((prev) => !prev)}
-            style={[
-              styles.pinButton
-            ]}
-          >
-            <View style={styles.pinContainer}>
-              <View
-                style={[
-                  styles.pinHead,
-                  { backgroundColor: pinMode ? "#FF5A5F" : "#D94040" },
-                ]}
-              />
-              <View
-                style={[
-                  styles.pinBase,
-                  { backgroundColor: pinMode ? "#FF5A5F" : "#D94040" },
-                ]}
-              />
-            </View>
-
-            <Ionicons
-              name="navigate"
-              size={26}
-              color="#8FD3FF"
-              style={styles.arrow}
-            />
-          </Pressable>
-        )}
- 
-
-        {sheetIndex === -1 && (
-          <FloorSwitcher
+          <PinLayer
+            pins={pins}
+            previewPin={previewPin}
+            previewPinRef={previewPinRef}
             activeFloor={activeFloor}
-            onFloorChange={(floor) => {
-              const nextFloor = floor as FloorNumber;
-              activeFloorRef.current = nextFloor;
-              setActiveFloor(nextFloor);
-              lerpRadiusRef.current = FLOOR_CONFIG[nextFloor].snapRadius;
-            }}
           />
-        )}
 
-        {pinMode && (
-          <View style={styles.pinOverlay} {...pinPanResponder.panHandlers} />
-        )}
+          <IconLayer activeFloor={activeFloor} />
+        </Suspense>
 
-        {showCollapsedPill && (
+        <CameraController
+          gestureRef={gestureRef}
+          onRadiusChange={handleRadiusChange}
+          lerpRadiusRef={lerpRadiusRef}
+          lerpTargetRef={lerpTargetRef}
+          maxRadius={FLOOR_CONFIG[activeFloor].switchRadius}
+          cameraRef={cameraRef}
+          targetRef={cameraTargetRef}
+          mapSizeRef={mapSizeRef}
+          lerpThetaRef={lerpThetaRef}
+          lerpPhiRef={lerpPhiRef}
+        />
+      </Canvas>
+
+      {!pinMode && (
+        <View
+          style={[styles.mapGestureLayer, { height: sheetTopY }]}
+          pointerEvents="auto"
+          {...cameraPanResponder.panHandlers}
+        />
+      )}
+
+      {sheetIndex === -1 && (
+        <Pressable
+          onPress={() => setPinMode((prev) => !prev)}
+          style={styles.pinButton}
+        >
+          <View style={styles.pinContainer}>
+            <View
+              style={[
+                styles.pinHead,
+                { backgroundColor: pinMode ? "#FF5A5F" : "#D94040" },
+              ]}
+            />
+            <View
+              style={[
+                styles.pinBase,
+                { backgroundColor: pinMode ? "#FF5A5F" : "#D94040" },
+              ]}
+            />
+          </View>
+
+          <Ionicons
+            name="navigate"
+            size={26}
+            color="#8FD3FF"
+            style={styles.arrow}
+          />
+        </Pressable>
+      )}
+
+      {sheetIndex === -1 && (
+        <FloorSwitcher
+          activeFloor={activeFloor}
+          onFloorChange={(floor) => {
+            const nextFloor = floor as FloorNumber;
+            activeFloorRef.current = nextFloor;
+            setActiveFloor(nextFloor);
+            lerpRadiusRef.current = FLOOR_CONFIG[nextFloor].snapRadius;
+          }}
+        />
+      )}
+
+      {pinMode && <View style={styles.pinOverlay} {...pinPanResponder.panHandlers} />}
+
+      <TestPathLabel label={selectedNode?.label} isNavigating={isNavigating} />
+
+      {isNavigating && activeRoute && (
+        <NavOverlay
+          route={activeRoute}
+          destinationLabel={selectedNode?.label}
+          onEndRoute={handleEndRoute}
+        />
+      )}
+
+      {!isNavigating && showCollapsedPill && (
+        <Animated.View
+          style={[
+            styles.stretchPanelWrap,
+            {
+              height: panelHeightAnim,
+              left: panelLeft,
+              right: panelRight,
+              bottom: panelBottom,
+            },
+          ]}
+        >
           <Animated.View
             style={[
-              styles.stretchPanelWrap,
+              styles.stretchPanel,
               {
-                height: panelHeightAnim,
-                left: panelLeft,
-                right: panelRight,
-                bottom: panelBottom,
+                borderRadius: panelRadius,
+                backgroundColor: panelBackgroundColor,
               },
             ]}
           >
-            <Animated.View
-              style={[
-                styles.stretchPanel,
-                {
-                  borderRadius: panelRadius,
-                  backgroundColor: panelBackgroundColor,
-                },
-              ]}
-            >
-              <View style={styles.dragHeader} {...panelPanResponder.panHandlers}>
-                <View style={styles.stretchHandleArea}>
-                  <View style={styles.stretchHandle} />
-                </View>
+            <View style={styles.dragHeader} {...panelPanResponder.panHandlers}>
+              <View style={styles.stretchHandleArea}>
+                <View style={styles.stretchHandle} />
+              </View>
 
               {!selectedEvent && panelView !== "profile" && (
                 <View style={styles.stretchSearchShell}>
@@ -1276,210 +1264,192 @@ export default function HomeScreen() {
                   />
                 </View>
               )}
-              </View>
+            </View>
 
-          {pinMode && (
-              <View style={styles.pinOverlay} {...pinPanResponder.panHandlers} />
-          )}
-
-          {/* TestPathLabel must be BEFORE BottomSheet and NavOverlay in tree */}
-          <TestPathLabel label={selectedNode?.label} isNavigating={isNavigating} />
-
-          {isNavigating && activeRoute && (
-              <NavOverlay
-                  route={activeRoute}
-                  destinationLabel={selectedNode?.label}
-                  onEndRoute={handleEndRoute}
-              />
-          )}
-
-          {!isNavigating && showCollapsedPill && (
-              <Animated.View
-                  style={[
-                    styles.stretchPanelWrap,
-                    { height: panelHeightAnim, left: panelLeft, right: panelRight, bottom: panelBottom },
-                  ]}
+            <Animated.View
+              style={[
+                styles.stretchContentWrap,
+                {
+                  opacity: contentOpacity,
+                  transform: [{ translateY: contentTranslateY }],
+                },
+              ]}
+              pointerEvents={panelExpanded ? "auto" : "none"}
+            >
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 40 }}
               >
-                <Animated.View
-                    style={[
-                      styles.stretchPanel,
-                      { borderRadius: panelRadius, backgroundColor: panelBackgroundColor },
-                    ]}
-                >
-                  <View style={styles.dragHeader} {...panelPanResponder.panHandlers}>
-                    <View style={styles.stretchHandleArea}>
-                      <View style={styles.stretchHandle} />
+                {panelView === "profile" ? (
+                  <View style={styles.profileSavedView}>
+                    <View style={styles.profileHeaderRow}>
+                      <Text style={styles.profileTitle}>Saved Rooms</Text>
+
+                      <Pressable onPress={() => setPanelView("main")}>
+                        <Ionicons name="close" size={34} color="#111" />
+                      </Pressable>
                     </View>
-                    ) : panelView === "profile" ? (
-                      <View style={styles.profileSavedView}>
-                        <View style={styles.profileHeaderRow}>
-                          <Text style={styles.profileTitle}>Saved Rooms</Text>
 
-                          <Pressable onPress={() => setPanelView("main")}>
-                            <Ionicons name="close" size={34} color="#111" />
-                          </Pressable>
-                        </View>
+                    <View style={styles.savedCard}>
+                      <Text style={styles.savedItem}>PFT 1263</Text>
+                      <Text style={styles.savedItem}>PFT 1200</Text>
+                      <Text style={styles.savedItem}>PFT 1225</Text>
+                    </View>
 
-                        <View style={styles.savedCard}>
-                          <Text style={styles.savedItem}>PFT 1263</Text>
-                          <Text style={styles.savedItem}>PFT 1200</Text>
-                          <Text style={styles.savedItem}>PFT 1225</Text>
-                        </View>
+                    <Text style={styles.profileTitle}>Saved Pins</Text>
 
-                        <Text style={styles.profileTitle}>Saved Pins</Text>
+                    <View style={styles.savedCard}>
+                      <Text style={styles.savedItem}>Study Spot</Text>
+                      <Text style={styles.savedItem}>Bluebook Vending</Text>
+                      <Text style={styles.savedItem}>Group Meetup</Text>
+                    </View>
+                  </View>
+                ) : selectedEvent ? (
+                  <View>
+                    <View style={styles.detailHeaderRow}>
+                      <Pressable
+                        onPress={() => setSelectedEvent(null)}
+                        style={styles.backButton}
+                      >
+                        <Ionicons name="arrow-back" size={24} color="#111" />
+                      </Pressable>
 
-                        <View style={styles.savedCard}>
-                          <Text style={styles.savedItem}>Study Spot</Text>
-                          <Text style={styles.savedItem}>Bluebook Vending</Text>
-                          <Text style={styles.savedItem}>Group Meetup</Text>
-                        </View>
+                      <Text style={styles.eventTitle}>{selectedEvent.title}</Text>
+                    </View>
+
+                    <View style={styles.eventActionRow}>
+                      <Pressable style={styles.eventActionButton}>
+                        <Ionicons name="bookmark-outline" size={22} color="#111" />
+                        <Text style={styles.eventActionText}>Saved</Text>
+                      </Pressable>
+
+                      <Pressable style={styles.eventActionButton}>
+                        <Ionicons name="navigate-outline" size={22} color="#111" />
+                        <Text style={styles.eventActionText}>Navigate</Text>
+                      </Pressable>
+                    </View>
+
+                    <Text style={styles.sectionTitle}>About</Text>
+
+                    <View style={styles.aboutCard}>
+                      <View style={styles.aboutRow}>
+                        <Ionicons name="calendar-outline" size={16} color="#222" />
+                        <Text style={styles.aboutText}>{selectedEvent.date}</Text>
                       </View>
-                      ) : selectedEvent ? (
-                        <View>
-                          <View style={styles.detailHeaderRow}>
-                            <Pressable
-                              onPress={() => setSelectedEvent(null)}
-                              style={styles.backButton}
-                            >
-                              <Ionicons name="arrow-back" size={24} color="#111" />
-                            </Pressable>
 
-                            <Text style={styles.eventTitle}>
-                              {selectedEvent?.title}
-                            </Text>
-                          </View>
+                      <View style={styles.aboutRowLast}>
+                        <Ionicons name="location-outline" size={16} color="#222" />
+                        <Text style={styles.aboutText}>{selectedEvent.location}</Text>
+                      </View>
+                    </View>
 
-                          <View style={styles.eventActionRow}>
-                            <Pressable style={styles.eventActionButton}>
-                              <Ionicons name="bookmark-outline" size={22} color="#111" />
-                              <Text style={styles.eventActionText}>Saved</Text>
-                            </Pressable>
+                    <Text style={styles.sectionTitle}>Event Details</Text>
 
-                            <Pressable style={styles.eventActionButton}>
-                              <Ionicons name="navigate-outline" size={22} color="#111" />
-                              <Text style={styles.eventActionText}>Navigate</Text>
-                            </Pressable>
-                          </View>
-
-                          <Text style={styles.sectionTitle}>About</Text>
-
-                          <View style={styles.aboutCard}>
-                            <View style={styles.aboutRow}>
-                              <Ionicons name="calendar-outline" size={16} color="#222" />
-                              <Text style={styles.aboutText}>{selectedEvent?.date}</Text>
-                            </View>
-
-                            <View style={styles.aboutRowLast}>
-                              <Ionicons name="location-outline" size={16} color="#222" />
-                              <Text style={styles.aboutText}>{selectedEvent?.location}</Text>
-                            </View>
-                          </View>
-
-                          <Text style={styles.sectionTitle}>Event Details</Text>
-
-                          <View style={styles.aboutCard}>
-                            <Text style={styles.eventDetailText}>
-                              {selectedEvent?.description}
-                            </Text>
-                          </View>
-                        </View>
-                      ) : (
-                    <View>
-                      {search.trim() === "" && (
-                        <>
-                          <Text style={styles.sectionTitle}>Nearby</Text>
-                          <NearbyChips />
-                        </>
-                      )}
-                      <Text style={styles.sectionTitle}>Events</Text>
-
-                      {filteredEvents.map((event) => (
-                        <EventCard
-                          key={event.id}
-                          title={event.title}
-                          date={event.date}
-                          club={event.club}
-                          location={event.location}
-                          type={event.type}
-                          onPress={() => {
-                            setSearch("");
-                            setSelectedEvent({
-                              title: event.title,
-                              date: event.date,
-                              location: event.location,
-                              description: event.description,
-                            });
-                          }}
-                        />
-                      ))}
-
-                      {filteredEvents.length === 0 && (
-                        <Text style={styles.emptytext}>
-                          No matching events found.
-                        </Text>
-                      )}
-
-                      <Text style={styles.radiusText}>
-                        Floor: L{activeFloor} • Radius:{" "}
-                        {cameraRadius.toFixed(1)}
+                    <View style={styles.aboutCard}>
+                      <Text style={styles.eventDetailText}>
+                        {selectedEvent.description}
                       </Text>
                     </View>
-                  )}
-                </ScrollView>
-              </Animated.View>
-          )}
+                  </View>
+                ) : (
+                  <View>
+                    {search.trim() === "" && (
+                      <>
+                        <Text style={styles.sectionTitle}>Nearby</Text>
+                        <NearbyChips />
+                      </>
+                    )}
 
-          {!isNavigating && (
-              <BottomSheet
-                  ref={bottomSheetRef}
-                  index={-1}
-                  snapPoints={snapPoints}
-                  enableDynamicSizing={false}
-                  enablePanDownToClose
-                  onChange={handleSheetChange}
-                  backgroundStyle={styles.bottomSheetBackground}
-                  handleIndicatorStyle={styles.handleIndicator}
-              >
-                <BottomSheetScrollView
-                    contentContainerStyle={styles.sheetContentContainer}
-                    showsVerticalScrollIndicator={false}
-                >
-                  {sheetView === "detail" && selectedNode && (
-                      <RoomDetailSheet
-                          node={selectedNode}
-                          onNavigate={() => handleNavigate(false)}
-                          onDismiss={() => {
-                            setSelectedRoom(null);
-                            setSelectedNode(null);
-                            setPathWaypoints([]);
-                            setSheetView("default");
-                            bottomSheetRef.current?.close();
-                          }}
-                      />
-                  )}
+                    <Text style={styles.sectionTitle}>Events</Text>
 
-                  {sheetView === "directions" && selectedNode && (
-                      <DirectionsSheet
-                          destination={selectedNode}
-                          route={activeRoute}
-                          onAvoidStairsChange={handleAvoidStairsChange}
-                          onConfirm={handleConfirmRoute}
-                          onBack={() => {
-                            setSheetView("detail");
-                            setPathWaypoints([]);
-                            bottomSheetRef.current?.snapToIndex(0);
-                            if (selectedRoom) focusRoom(selectedRoom, activeFloor);
-                          }}
+                    {filteredEvents.map((event, index) => (
+                      <EventCard
+                        key={`${event.id}-${event.location}-${index}`}
+                        title={event.title}
+                        date={event.date}
+                        club={event.club}
+                        location={event.location}
+                        type={event.type}
+                        onPress={() => {
+                          setSearch("");
+                          setSelectedEvent({
+                            title: event.title,
+                            date: event.date,
+                            location: event.location,
+                            description: event.description,
+                          });
+                        }}
                       />
-                  )}
-                </BottomSheetScrollView>
-              </BottomSheet>
-          )}
-        </View>
-      </GestureHandlerRootView>
-  );
+                    ))}
+
+                    {filteredEvents.length === 0 && (
+                      <Text style={styles.emptytext}>No matching events found.</Text>
+                    )}
+
+                    <Text style={styles.radiusText}>
+                      Floor: L{activeFloor} • Radius: {cameraRadius.toFixed(1)}
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
+            </Animated.View>
+          </Animated.View>
+        </Animated.View>
+      )}
+
+      {!isNavigating && (
+        <BottomSheet
+          ref={bottomSheetRef}
+          index={-1}
+          snapPoints={snapPoints}
+          enableDynamicSizing={false}
+          enablePanDownToClose
+          onChange={handleSheetChange}
+          backgroundStyle={styles.bottomSheetBackground}
+          handleIndicatorStyle={styles.handleIndicator}
+        >
+          <BottomSheetScrollView
+            contentContainerStyle={styles.sheetContentContainer}
+            showsVerticalScrollIndicator={false}
+          >
+            {sheetView === "detail" && selectedNode && (
+              <RoomDetailSheet
+                node={selectedNode}
+                onNavigate={() => handleNavigate(false)}
+                onDismiss={() => {
+                  setSelectedRoom(null);
+                  setSelectedNode(null);
+                  setPathWaypoints([]);
+                  setSheetView("default");
+                  bottomSheetRef.current?.close();
+                }}
+              />
+            )}
+
+            {sheetView === "directions" && selectedNode && (
+              <DirectionsSheet
+                destination={selectedNode}
+                route={activeRoute}
+                onAvoidStairsChange={handleAvoidStairsChange}
+                onConfirm={handleConfirmRoute}
+                onBack={() => {
+                  setSheetView("detail");
+                  setPathWaypoints([]);
+                  bottomSheetRef.current?.snapToIndex(0);
+
+                  if (selectedRoom) {
+                    focusRoom(selectedRoom, activeFloor);
+                  }
+                }}
+              />
+            )}
+          </BottomSheetScrollView>
+        </BottomSheet>
+      )}
+    </View>
+  </GestureHandlerRootView>
+);
 }
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
   emptytext: { paddingHorizontal: 20, color: "#666", marginTop: 8, fontSize: 15 },
@@ -1515,30 +1485,6 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: "rgba(56, 54, 54, 0.80)",
   },
-  dragHeader: { paddingTop: 6 },
-  stretchHandleArea: { alignItems: "center", paddingTop: 4, paddingBottom: 2 },
-  stretchHandle: { width: 70, height: 4, borderRadius: 999, backgroundColor: "rgba(56, 54, 54, 0.80)" },
-  stretchSearchShell: { marginHorizontal: 0, marginBottom: 4, borderRadius: 30, backgroundColor: "transparent", paddingVertical: 0 },
-  stretchContentWrap: { flex: 1, paddingBottom: 18 },
-
-    pinButton: {
-    position: "absolute",
-    bottom: 120,
-    right: 16,
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    zIndex: 100,
-    elevation: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.16,
-    shadowRadius: 8,
-  },
-
   stretchSearchShell: {
     marginHorizontal: 0,
     marginBottom: 4,
