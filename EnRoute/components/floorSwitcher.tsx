@@ -8,7 +8,7 @@ type Floor = {
 };
 
 const FLOORS: Floor[] = [
-  { label: "L3", value: 3 },
+ /* { label: "L3", value: 3 },*/
   { label: "L2", value: 2 },
   { label: "L1", value: 1 },
 ];

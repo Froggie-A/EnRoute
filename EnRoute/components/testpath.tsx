@@ -1,19 +1,12 @@
 // components/testpath.tsx
-// Checkpoint 3 — waypoints received as a prop from index.tsx.
-// The 3D scene no longer owns the path data — the parent does.
-//
-// Props:
-//   waypoints  — array of [x, y, z] world-space points defining the path.
-//                Parent passes these in; this component just draws them.
-//
-// Everything else (ribbon geometry, start puck, end dot, label projector)
-// is unchanged from Checkpoint 2.
+// Waypoints received as a prop from index.tsx.
+// Path only renders when directions are active (pathWaypoints.length >= 2).
 
-import React, { useMemo , useEffect} from "react";
+import React, { useMemo, useEffect } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber/native";
 
-export const FLOOR_Y = -0.2; // confirmed floor surface Y from Checkpoint 1
+export const FLOOR_Y = -0.2;
 
 const PATH_COLOR = "#1A365D";
 const PATH_WIDTH = 0.25;
@@ -22,12 +15,11 @@ const PATH_WIDTH = 0.25;
 // testpathLabel.tsx reads it to position the pill overlay.
 export const endLabelPosRef = { current: null as { x: number; y: number } | null };
 
-// ─── Props ────────────────────────────────────────────────────────────────────
 type Props = {
     waypoints: [number, number, number][];
 };
 
-// ─── Ribbon geometry ─────────────────────────────────────────────────────────
+// ─── Ribbon geometry ──────────────────────────────────────────────────────────
 function buildRibbon(points: [number, number, number][], width: number): THREE.BufferGeometry {
     const hw = width / 2;
     const positions: number[] = [];
@@ -37,7 +29,7 @@ function buildRibbon(points: [number, number, number][], width: number): THREE.B
         const [cx, cy, cz] = points[i];
         let dx = 0, dz = 0;
         if (i < points.length - 1) { dx += points[i + 1][0] - cx; dz += points[i + 1][2] - cz; }
-        if (i > 0)                  { dx += cx - points[i - 1][0]; dz += cz - points[i - 1][2]; }
+        if (i > 0) { dx += cx - points[i - 1][0]; dz += cz - points[i - 1][2]; }
         const len = Math.sqrt(dx * dx + dz * dz) || 1;
         dx /= len; dz /= len;
         const px = -dz * hw, pz = dx * hw;
@@ -57,7 +49,7 @@ function buildRibbon(points: [number, number, number][], width: number): THREE.B
     return geo;
 }
 
-// ─── Start marker — Apple Maps location puck ─────────────────────────────────
+// ─── Start marker — Apple Maps location puck ──────────────────────────────────
 function StartMarker({ pos }: { pos: [number, number, number] }) {
     const [x, y, z] = pos;
     const flat: [number, number, number] = [-Math.PI / 2, 0, 0];
@@ -75,7 +67,7 @@ function StartMarker({ pos }: { pos: [number, number, number] }) {
     );
 }
 
-// ─── End dot — small floor marker where the label notch points ────────────────
+// ─── End dot ──────────────────────────────────────────────────────────────────
 function EndDot({ pos }: { pos: [number, number, number] }) {
     const [x, y, z] = pos;
     const flat: [number, number, number] = [-Math.PI / 2, 0, 0];
@@ -93,11 +85,12 @@ function EndDot({ pos }: { pos: [number, number, number] }) {
     );
 }
 
-// ─── Projector — writes end position screen coords to endLabelPosRef ─────────
+// ─── Projector — writes end screen coords to endLabelPosRef every frame ───────
 function EndLabelProjector({ endPos }: { endPos: [number, number, number] }) {
     const { camera, size } = useThree();
     const worldPos = useMemo(() => new THREE.Vector3(...endPos), [endPos]);
 
+    // Null out the ref when the path unmounts so the label disappears
     useEffect(() => {
         return () => { endLabelPosRef.current = null; };
     }, []);
@@ -108,7 +101,7 @@ function EndLabelProjector({ endPos }: { endPos: [number, number, number] }) {
             endLabelPosRef.current = null;
         } else {
             endLabelPosRef.current = {
-                x: (ndc.x  + 1) / 2 * size.width,
+                x: (ndc.x + 1) / 2 * size.width,
                 y: (-ndc.y + 1) / 2 * size.height,
             };
         }
@@ -124,7 +117,7 @@ export default function TestPath({ waypoints }: Props) {
     if (waypoints.length < 2) return null;
 
     const startPos = waypoints[0];
-    const endPos   = waypoints[waypoints.length - 1];
+    const endPos = waypoints[waypoints.length - 1];
 
     return (
         <group>
@@ -136,9 +129,8 @@ export default function TestPath({ waypoints }: Props) {
                     depthWrite={false}
                 />
             </mesh>
-
             <StartMarker pos={startPos} />
-            <EndDot      pos={endPos}   />
+            <EndDot pos={endPos} />
             <EndLabelProjector endPos={endPos} />
         </group>
     );

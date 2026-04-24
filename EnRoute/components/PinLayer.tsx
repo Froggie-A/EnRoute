@@ -68,33 +68,33 @@ function PinModel({
     return clone;
   }, [scene, preview]);
 
-  useEffect(() => {
-    if (!groupRef.current || preview) return;
-    groupRef.current.position.set(position[0], position[1], position[2]);
-  }, [position, preview]);
-
   useFrame((_, delta) => {
-    if (!groupRef.current) return;
+  if (!groupRef.current) return;
+  if (!preview) return;
+  if (!previewPinRef?.current) return;
 
-    if (preview && previewPinRef?.current) {
-      targetRef.current.set(
-        previewPinRef.current.x,
-        previewPinRef.current.y,
-        previewPinRef.current.z
-      );
+  targetRef.current.set(
+    previewPinRef.current.x,
+    previewPinRef.current.y,
+    previewPinRef.current.z
+  );
 
-      groupRef.current.position.lerp(
-        targetRef.current,
-        1 - Math.pow(0.01, delta)
-      );
-    }
-  });
+  groupRef.current.position.lerp(
+  targetRef.current,
+  1 - Math.pow(0.00001, delta)
+);
+});
 
   return (
-    <group ref={groupRef} scale={[0.1, 0.1, 0.1]} rotation={[0, 0, 0]}>
-      <primitive object={clonedScene} />
-    </group>
-  );
+  <group
+    ref={groupRef}
+    position={position}
+    scale={[0.1, 0.1, 0.1]}
+    rotation={[0, 0, 0]}
+  >
+    <primitive object={clonedScene} />
+  </group>
+);
 }
 
 export default function PinLayer({
@@ -129,8 +129,14 @@ export default function PinLayer({
 
   if (!modelUri) return null;
 
-  const visiblePins = pins.filter((pin) => pin.floor === activeFloor);
-  const showPreview = previewPin && previewPin.floor === activeFloor;
+  const visiblePins = pins.filter(
+  (pin): pin is Pin => pin !== null && pin.floor === activeFloor
+);
+  const showPreview =
+  previewPin !== null &&
+  previewPin !== undefined &&
+  previewPin.floor === activeFloor;
+
 
   return (
     <>
@@ -142,7 +148,7 @@ export default function PinLayer({
         />
       ))}
 
-      {showPreview && previewPin && (
+      {showPreview && previewPin !== null && (
         <PinModel
           position={[previewPin.x, previewPin.y - EMBED_DEPTH, previewPin.z]}
           preview
