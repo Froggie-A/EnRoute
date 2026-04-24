@@ -1,24 +1,14 @@
-// components/TestPathLabel.tsx
-// Checkpoint 2 — Apple Maps-style destination label pill.
-// A 2D React Native <View> that tracks the 3D endpoint world position.
-//
-// Place this OUTSIDE the <Canvas>, right after </Canvas> in index.tsx:
-//   import TestPathLabel from "@/components/TestPathLabel";
-//   ...
-//   </Canvas>
-//   <TestPathLabel />
-//
-// It reads endLabelPosRef from TestPath.tsx (updated every frame by useFrame)
-// and repositions itself using a fast Animated value — no re-renders on every frame.
+// components/testpathLabel.tsx
+// Apple Maps-style destination label pill.
+// Tracks the 3D endpoint world position via endLabelPosRef.
+// Hidden during navigation and when no path is active.
 
 import React, { useEffect, useRef } from "react";
 import { Animated, StyleSheet, View, Text } from "react-native";
 import { endLabelPosRef } from "./testpath";
 
-// Label dimensions — used to center the pill over the anchor point
 const PILL_W  = 140;
 const PILL_H  = 36;
-// How far above the floor dot the pill floats (in screen pixels)
 const LIFT_PX = 60;
 
 type LabelProps = {
@@ -27,8 +17,8 @@ type LabelProps = {
 };
 
 export default function TestPathLabel({ label, isNavigating = false }: LabelProps) {
-    const animX = useRef(new Animated.Value(-999)).current;
-    const animY = useRef(new Animated.Value(-999)).current;
+    const animX   = useRef(new Animated.Value(-999)).current;
+    const animY   = useRef(new Animated.Value(-999)).current;
     const visible = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
@@ -37,20 +27,18 @@ export default function TestPathLabel({ label, isNavigating = false }: LabelProp
         function tick() {
             const pos = endLabelPosRef.current;
             if (pos && !isNavigating) {
-                // Center pill horizontally over the dot, lift it upward
                 animX.setValue(pos.x - PILL_W / 2);
                 animY.setValue(pos.y - PILL_H - LIFT_PX);
                 visible.setValue(1);
             } else {
                 visible.setValue(0);
             }
-            // requestAnimationFrame keeps this in sync with the render loop
             rafId = requestAnimationFrame(tick);
         }
 
         rafId = requestAnimationFrame(tick);
         return () => cancelAnimationFrame(rafId);
-    }, []);
+    }, [isNavigating]);
 
     return (
         <Animated.View
@@ -59,17 +47,11 @@ export default function TestPathLabel({ label, isNavigating = false }: LabelProp
                 styles.pill,
                 {
                     opacity: visible,
-                    transform: [
-                        { translateX: animX },
-                        { translateY: animY },
-                    ],
+                    transform: [{ translateX: animX }, { translateY: animY }],
                 },
             ]}
         >
-            {/* Pill label */}
-            <Text style={styles.label} numberOfLines={1}>{label ?? "Endpoint"}</Text>
-
-            {/* Downward notch / triangle pointing to the floor dot */}
+            <Text style={styles.label} numberOfLines={1}>{label ?? "Destination"}</Text>
             <View style={styles.notch} />
         </Animated.View>
     );
@@ -86,12 +68,12 @@ const styles = StyleSheet.create({
         borderRadius: PILL_H / 2,
         alignItems: "center",
         justifyContent: "center",
-        // Drop shadow so it reads clearly against the 3D model
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.35,
         shadowRadius: 4,
         elevation: 6,
+        // Low zIndex so BottomSheet and NavOverlay always render on top
         zIndex: 5,
     },
     label: {
@@ -100,7 +82,6 @@ const styles = StyleSheet.create({
         fontWeight: "700",
         letterSpacing: 0.2,
     },
-    // Small triangle notch below the pill, pointing down toward the floor dot
     notch: {
         position: "absolute",
         bottom: -7,

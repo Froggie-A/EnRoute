@@ -1,68 +1,55 @@
 // components/testpath.tsx
-// Checkpoint 3 — waypoints received as a prop from index.tsx.
-// The 3D scene no longer owns the path data — the parent does.
-//
-// Props:
-//   waypoints  — array of [x, y, z] world-space points defining the path.
-//                Parent passes these in; this component just draws them.
-//
-// Everything else (ribbon geometry, start puck, end dot, label projector)
-// is unchanged from Checkpoint 2.
+// Renders the navigation path as a 3D tube using CatmullRomCurve3 + TubeGeometry.
 
-import React, { useMemo , useEffect} from "react";
+import React, { useMemo, useEffect } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber/native";
 
-export const FLOOR_Y = -0.2; // confirmed floor surface Y from Checkpoint 1
+export const FLOOR_Y = -0.2;
 
-const PATH_COLOR = "#1A365D";
-const PATH_WIDTH = 0.25;
+const PATH_COLOR  = "#1A365D";
+const TUBE_RADIUS = 0.045;   // world-space radius of the cylinder
+const TUBE_SEGS   = 8;       // radial segments — smooth enough, cheap to render
+const LIFT_Y      = 0.06;    // lift above floor to avoid z-fighting
+const CURVE_TENSION = 0.4;
 
-// Shared ref: EndLabelProjector writes projected screen coords here every frame.
-// testpathLabel.tsx reads it to position the pill overlay.
 export const endLabelPosRef = { current: null as { x: number; y: number } | null };
 
-// ─── Props ────────────────────────────────────────────────────────────────────
 type Props = {
     waypoints: [number, number, number][];
 };
 
-// ─── Ribbon geometry ─────────────────────────────────────────────────────────
-function buildRibbon(points: [number, number, number][], width: number): THREE.BufferGeometry {
-    const hw = width / 2;
-    const positions: number[] = [];
-    const indices: number[] = [];
-
+// ─── Tube geometry ────────────────────────────────────────────────────────────
+function buildTube(points: [number, number, number][]): THREE.TubeGeometry {
+    // Insert midpoints between every pair of waypoints so the spline
+    // has more control points to curve through — this is what eliminates
+    // sharp 90-degree corners between hallway segments.
+    const densified: THREE.Vector3[] = [];
     for (let i = 0; i < points.length; i++) {
-        const [cx, cy, cz] = points[i];
-        let dx = 0, dz = 0;
-        if (i < points.length - 1) { dx += points[i + 1][0] - cx; dz += points[i + 1][2] - cz; }
-        if (i > 0)                  { dx += cx - points[i - 1][0]; dz += cz - points[i - 1][2]; }
-        const len = Math.sqrt(dx * dx + dz * dz) || 1;
-        dx /= len; dz /= len;
-        const px = -dz * hw, pz = dx * hw;
-        positions.push(cx + px, cy, cz + pz);
-        positions.push(cx - px, cy, cz - pz);
-    }
-    for (let i = 0; i < points.length - 1; i++) {
-        const b = i * 2;
-        indices.push(b, b + 1, b + 2);
-        indices.push(b + 1, b + 3, b + 2);
+        const [x, y, z] = points[i];
+        densified.push(new THREE.Vector3(x, y + LIFT_Y, z));
+        if (i < points.length - 1) {
+            const [nx, ny, nz] = points[i + 1];
+            densified.push(new THREE.Vector3(
+                (x + nx) / 2,
+                (y + ny) / 2 + LIFT_Y,
+                (z + nz) / 2
+            ));
+        }
     }
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-    geo.setIndex(indices);
-    geo.computeVertexNormals();
-    return geo;
+    const curve = new THREE.CatmullRomCurve3(densified, false, "catmullrom", CURVE_TENSION);
+    // More tubular segments = smoother curve along the path length
+    const tubularSegs = Math.max(60, densified.length * 12);
+    return new THREE.TubeGeometry(curve, tubularSegs, TUBE_RADIUS, TUBE_SEGS, false);
 }
 
-// ─── Start marker — Apple Maps location puck ─────────────────────────────────
+// ─── Start marker ─────────────────────────────────────────────────────────────
 function StartMarker({ pos }: { pos: [number, number, number] }) {
     const [x, y, z] = pos;
     const flat: [number, number, number] = [-Math.PI / 2, 0, 0];
     return (
-        <group position={[x, y, z]}>
+        <group position={[x, y + LIFT_Y, z]}>
             <mesh rotation={flat} renderOrder={1000}>
                 <ringGeometry args={[0.18, 0.26, 32]} />
                 <meshBasicMaterial color="white" side={THREE.DoubleSide} depthTest={false} depthWrite={false} />
@@ -75,12 +62,12 @@ function StartMarker({ pos }: { pos: [number, number, number] }) {
     );
 }
 
-// ─── End dot — small floor marker where the label notch points ────────────────
+// ─── End dot ──────────────────────────────────────────────────────────────────
 function EndDot({ pos }: { pos: [number, number, number] }) {
     const [x, y, z] = pos;
     const flat: [number, number, number] = [-Math.PI / 2, 0, 0];
     return (
-        <group position={[x, y, z]}>
+        <group position={[x, y + LIFT_Y, z]}>
             <mesh rotation={flat} renderOrder={1000}>
                 <ringGeometry args={[0.10, 0.15, 32]} />
                 <meshBasicMaterial color="white" side={THREE.DoubleSide} depthTest={false} depthWrite={false} />
@@ -93,10 +80,13 @@ function EndDot({ pos }: { pos: [number, number, number] }) {
     );
 }
 
-// ─── Projector — writes end position screen coords to endLabelPosRef ─────────
+// ─── Projector ────────────────────────────────────────────────────────────────
 function EndLabelProjector({ endPos }: { endPos: [number, number, number] }) {
     const { camera, size } = useThree();
-    const worldPos = useMemo(() => new THREE.Vector3(...endPos), [endPos]);
+    const worldPos = useMemo(
+        () => new THREE.Vector3(endPos[0], endPos[1] + LIFT_Y, endPos[2]),
+        [endPos]
+    );
 
     useEffect(() => {
         return () => { endLabelPosRef.current = null; };
@@ -108,7 +98,7 @@ function EndLabelProjector({ endPos }: { endPos: [number, number, number] }) {
             endLabelPosRef.current = null;
         } else {
             endLabelPosRef.current = {
-                x: (ndc.x  + 1) / 2 * size.width,
+                x: (ndc.x + 1) / 2 * size.width,
                 y: (-ndc.y + 1) / 2 * size.height,
             };
         }
@@ -119,7 +109,7 @@ function EndLabelProjector({ endPos }: { endPos: [number, number, number] }) {
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 export default function TestPath({ waypoints }: Props) {
-    const ribbonGeo = useMemo(() => buildRibbon(waypoints, PATH_WIDTH), [waypoints]);
+    const tubeGeo = useMemo(() => buildTube(waypoints), [waypoints]);
 
     if (waypoints.length < 2) return null;
 
@@ -128,17 +118,17 @@ export default function TestPath({ waypoints }: Props) {
 
     return (
         <group>
-            <mesh geometry={ribbonGeo} renderOrder={999}>
-                <meshBasicMaterial
+            <mesh geometry={tubeGeo} renderOrder={999}>
+                <meshStandardMaterial
                     color={PATH_COLOR}
-                    side={THREE.DoubleSide}
+                    roughness={0.4}
+                    metalness={0.1}
                     depthTest={false}
                     depthWrite={false}
                 />
             </mesh>
-
             <StartMarker pos={startPos} />
-            <EndDot      pos={endPos}   />
+            <EndDot pos={endPos} />
             <EndLabelProjector endPos={endPos} />
         </group>
     );
