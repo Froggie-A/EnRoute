@@ -30,7 +30,7 @@ export function FloorSwitcher({
       style={{
         position: "absolute",
         right: 16,
-        bottom: 250,
+        bottom: 270,
         zIndex: 2,
         elevation: 2,
         alignItems: "center",

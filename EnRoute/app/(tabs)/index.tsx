@@ -292,7 +292,7 @@ export default function HomeScreen() {
   const cameraTargetRef = useRef(new THREE.Vector3(0, 0, 0));
   const [pins, setPins] = useState<Pin[]>([]);
   const [previewPin, setPreviewPin] = useState<Pin | null>(null);
-
+  const [panelView, setPanelView] = useState<"main" | "profile">("main");
   const raycasterRef = useRef(new THREE.Raycaster());
   const pointerRef = useRef(new THREE.Vector2());
 
@@ -420,7 +420,7 @@ export default function HomeScreen() {
       title: "Resume Help",
       date: "Feb 28 • 11 AM - 7 PM",
       club: "Student Government",
-      location: "PFT 3147",
+      location: "PFT 1200",
       type: "book-outline" as const,
       description: "Resume review event details here.",
     },
@@ -768,11 +768,10 @@ export default function HomeScreen() {
     expandFullyPanel();
   }, [expandFullyPanel]);
 
-  const handleProfilePress = useCallback(() => {
-    setSheetView("profile");
-    expandStretchPanel();
-  }, [expandStretchPanel]);
-
+  const handleProfilePress = () => {
+    setPanelView("profile");
+    openSheet();
+  };
   const cameraPanResponder = useMemo(
     () =>
       PanResponder.create({
@@ -961,6 +960,8 @@ export default function HomeScreen() {
     );
   }
 
+  
+
   return (
     <GestureHandlerRootView style={styles.container}>
       <View
@@ -1028,13 +1029,34 @@ export default function HomeScreen() {
         )}
 
         {sheetIndex === -1 && (
-          <PlacePinButton
-            mode={mode}
-            onSelect={(m) => {
-              setMode(m);
-              setPinMode(m === "pin"); 
-            }}
-          />
+          <Pressable
+            onPress={() => setPinMode((prev) => !prev)}
+            style={[
+              styles.pinButton
+            ]}
+          >
+            <View style={styles.pinContainer}>
+              <View
+                style={[
+                  styles.pinHead,
+                  { backgroundColor: pinMode ? "#FF5A5F" : "#D94040" },
+                ]}
+              />
+              <View
+                style={[
+                  styles.pinBase,
+                  { backgroundColor: pinMode ? "#FF5A5F" : "#D94040" },
+                ]}
+              />
+            </View>
+
+            <Ionicons
+              name="navigate"
+              size={26}
+              color="#8FD3FF"
+              style={styles.arrow}
+            />
+          </Pressable>
         )}
  
 
@@ -1080,6 +1102,7 @@ export default function HomeScreen() {
                   <View style={styles.stretchHandle} />
                 </View>
 
+              {!selectedEvent && panelView !== "profile" && (
                 <View style={styles.stretchSearchShell}>
                   <SearchBarRow
                     search={search}
@@ -1088,6 +1111,7 @@ export default function HomeScreen() {
                     onPressProfile={handleProfilePress}
                   />
                 </View>
+              )}
               </View>
 
               <Animated.View
@@ -1144,45 +1168,80 @@ export default function HomeScreen() {
                         />
                       ))}
                     </View>
-                  ) : selectedEvent ? (
-                    <View>
-                      <Pressable
-                        onPress={() => setSelectedEvent(null)}
-                        style={styles.backButton}
-                      >
-                        <Text style={styles.backButtonText}>← Back</Text>
-                      </Pressable>
+                    ) : panelView === "profile" ? (
+                      <View style={styles.profileSavedView}>
+                        <View style={styles.profileHeaderRow}>
+                          <Text style={styles.profileTitle}>Saved Rooms</Text>
 
-                      <Text style={styles.eventTitle}>{selectedEvent.title}</Text>
+                          <Pressable onPress={() => setPanelView("main")}>
+                            <Ionicons name="close" size={34} color="#111" />
+                          </Pressable>
+                        </View>
 
-                      <View style={styles.eventActionRow}>
-                        <Pressable style={styles.eventActionButton}>
-                          <Ionicons
-                            name="bookmark-outline"
-                            size={22}
-                            color="#222"
-                          />
-                          <Text style={styles.eventActionText}>Saved</Text>
-                        </Pressable>
+                        <View style={styles.savedCard}>
+                          <Text style={styles.savedItem}>PFT 1263</Text>
+                          <Text style={styles.savedItem}>PFT 1200</Text>
+                          <Text style={styles.savedItem}>PFT 1225</Text>
+                        </View>
 
-                        <Pressable style={styles.eventActionButton}>
-                          <Ionicons
-                            name="arrow-redo-outline"
-                            size={22}
-                            color="#222"
-                          />
-                          <Text style={styles.eventActionText}>Navigate</Text>
-                        </Pressable>
+                        <Text style={styles.profileTitle}>Saved Pins</Text>
+
+                        <View style={styles.savedCard}>
+                          <Text style={styles.savedItem}>Study Spot</Text>
+                          <Text style={styles.savedItem}>Bluebook Vending</Text>
+                          <Text style={styles.savedItem}>Group Meetup</Text>
+                        </View>
                       </View>
+                      ) : selectedEvent ? (
+                        <View>
+                          <View style={styles.detailHeaderRow}>
+                            <Pressable
+                              onPress={() => setSelectedEvent(null)}
+                              style={styles.backButton}
+                            >
+                              <Ionicons name="arrow-back" size={24} color="#111" />
+                            </Pressable>
 
-                      <Text style={styles.eventMeta}>{selectedEvent.date}</Text>
-                      <Text style={styles.eventMeta}>{selectedEvent.location}</Text>
-                      <Text style={styles.eventSectionTitle}>Description</Text>
-                      <Text style={styles.eventDescription}>
-                        {selectedEvent.description}
-                      </Text>
-                    </View>
-                  ) : (
+                            <Text style={styles.eventTitle}>
+                              {selectedEvent?.title}
+                            </Text>
+                          </View>
+
+                          <View style={styles.eventActionRow}>
+                            <Pressable style={styles.eventActionButton}>
+                              <Ionicons name="bookmark-outline" size={22} color="#111" />
+                              <Text style={styles.eventActionText}>Saved</Text>
+                            </Pressable>
+
+                            <Pressable style={styles.eventActionButton}>
+                              <Ionicons name="navigate-outline" size={22} color="#111" />
+                              <Text style={styles.eventActionText}>Navigate</Text>
+                            </Pressable>
+                          </View>
+
+                          <Text style={styles.sectionTitle}>About</Text>
+
+                          <View style={styles.aboutCard}>
+                            <View style={styles.aboutRow}>
+                              <Ionicons name="calendar-outline" size={16} color="#222" />
+                              <Text style={styles.aboutText}>{selectedEvent?.date}</Text>
+                            </View>
+
+                            <View style={styles.aboutRowLast}>
+                              <Ionicons name="location-outline" size={16} color="#222" />
+                              <Text style={styles.aboutText}>{selectedEvent?.location}</Text>
+                            </View>
+                          </View>
+
+                          <Text style={styles.sectionTitle}>Event Details</Text>
+
+                          <View style={styles.aboutCard}>
+                            <Text style={styles.eventDetailText}>
+                              {selectedEvent?.description}
+                            </Text>
+                          </View>
+                        </View>
+                      ) : (
                     <View>
                       {search.trim() === "" && (
                         <>
@@ -1200,14 +1259,15 @@ export default function HomeScreen() {
                           club={event.club}
                           location={event.location}
                           type={event.type}
-                          onPress={() =>
+                          onPress={() => {
+                            setSearch("");
                             setSelectedEvent({
                               title: event.title,
                               date: event.date,
                               location: event.location,
                               description: event.description,
-                            })
-                          }
+                            });
+                          }}
                         />
                       ))}
 
@@ -1333,8 +1393,8 @@ const styles = StyleSheet.create({
 
   stretchHandleArea: {
     alignItems: "center",
-    paddingTop: 4,
-    paddingBottom: 2,
+    paddingTop: 2,
+    paddingBottom: 6,
   },
 
   stretchHandle: {
@@ -1395,15 +1455,6 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
 
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 12,
-    color: "#333",
-    marginTop: 8,
-    paddingHorizontal: 20,
-  },
-
   radiusText: {
     marginTop: 16,
     marginBottom: 30,
@@ -1420,52 +1471,80 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
 
-  eventTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#222",
-    marginBottom: 8,
-    paddingHorizontal: 20,
-  },
-
-  eventMeta: {
-    fontSize: 14,
-    color: "#666",
-    marginBottom: 4,
-    paddingHorizontal: 20,
-  },
-
-  eventSectionTitle: {
-    marginTop: 18,
-    marginBottom: 8,
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#222",
-    paddingHorizontal: 20,
-  },
-
-  eventDescription: {
-    fontSize: 15,
-    color: "#333",
-    lineHeight: 22,
-    paddingHorizontal: 20,
+  detailHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 42,
+    paddingHorizontal: 12,
+    marginTop: 4,
+    marginBottom: 10,
   },
 
   backButton: {
-    marginBottom: 16,
-    alignSelf: "flex-start",
-    paddingHorizontal: 20,
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 8,
   },
 
-  backButtonText: {
-    fontSize: 16,
+  eventTitle: {
+    fontSize: 28,
+    fontWeight: "500",
+    color: "#222",
+    flexShrink: 1,
+  },
+
+  sectionTitle: {
+    fontSize: 20,
     fontWeight: "600",
-    color: "#3498DB",
+    marginBottom: 8,
+    color: "#222",
+    marginTop: 6,
+    paddingHorizontal: 12,
   },
 
-  eventActionRow: {
+  aboutCard: {
+    backgroundColor: "rgba(253, 254, 238, 1)",
+    boxShadow: '0px 4px 4px 2px rgba(0, 0, 0, 0.1)',
+    borderRadius: 12,
+    marginHorizontal: 12,
+    marginBottom: 12,
+    paddingVertical: 20,
+    paddingHorizontal: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+
+  aboutRow: {
     flexDirection: "row",
-    gap: 14,
+    alignItems: "center",
+    marginBottom: 8,
+  },
+
+  aboutRowLast: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  aboutText: {
+    marginLeft: 10,
+    fontSize: 15,
+    color: "#222",
+  },
+
+  eventDetailText: {
+    fontSize: 14,
+    color: "#333",
+    lineHeight: 20,
+  },
+  eventActionRow: {
+    alignSelf: "center",
+    flexDirection: "row",
+    gap: 40,
     marginTop: 14,
     marginBottom: 18,
     paddingHorizontal: 20,
@@ -1474,8 +1553,12 @@ const styles = StyleSheet.create({
   eventActionButton: {
     backgroundColor: "#BFDDF3",
     borderRadius: 14,
+    width: 112,
+    height: 72,
+    borderWidth: 1,
+    borderColor: "#000000",
     paddingVertical: 10,
-    paddingHorizontal: 18,
+    paddingHorizontal: 20,
     alignItems: "center",
     justifyContent: "center",
     minWidth: 92,
@@ -1483,8 +1566,91 @@ const styles = StyleSheet.create({
 
   eventActionText: {
     marginTop: 4,
-    fontSize: 13,
+    fontSize: 16,
     fontWeight: "600",
     color: "#222",
+  },
+  pinButton: {
+    position: "absolute",
+    bottom: 140,
+    right: 20,
+    width: 54,
+    height: 110,
+    borderRadius: 27,
+    borderWidth: 1,
+    backgroundColor: "rgba(120, 116, 116, 0.75)",
+    borderColor: "rgba(255, 255, 255, 0.75)",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 14,
+    paddingBottom: 14,
+    zIndex: 20,
+    elevation: 10,
+  },
+
+  pinContainer: {
+    alignItems: "center",
+  },
+
+  pinHead: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#D94040",
+    zIndex: 2,
+  },
+
+  pinBase: {
+    width: 4,
+    height: 16,
+    backgroundColor: "#D94040",
+    borderRadius: 2,
+    marginTop: -4,
+  },
+
+  arrow: {
+    transform: [{ rotate: "25deg" }],
+  },
+  profileSavedView: {
+    position: "absolute",
+    top: 10,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 20,
+  },
+
+  profileHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
+  },
+
+  profileTitle: {
+    fontSize: 26,
+    fontWeight: "700",
+    color: "#111",
+    marginBottom: 16,
+  },
+
+  savedCard: {
+    backgroundColor: "#FFFDF0",
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 32,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 5,
+  },
+
+  savedItem: {
+    fontSize: 16,
+    color: "#111",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.3)",
   },
 });
