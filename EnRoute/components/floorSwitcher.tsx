@@ -8,7 +8,7 @@ type Floor = {
 };
 
 const FLOORS: Floor[] = [
-  { label: "L3", value: 3 },
+ /* { label: "L3", value: 3 },*/
   { label: "L2", value: 2 },
   { label: "L1", value: 1 },
 ];
@@ -30,7 +30,7 @@ export function FloorSwitcher({
       style={{
         position: "absolute",
         right: 16,
-        bottom: 200,
+        bottom: 250,
         zIndex: 2,
         elevation: 2,
         alignItems: "center",
