@@ -10,20 +10,15 @@ type Props = {
 };
 
 /*
-  These bounds define the usable floor area on your centered model,
-  in the MODEL'S ORIGINAL coordinates before the parent group scale [0.1, 0.1, 0.1].
+  Bounds match the actual node coordinate range in seed-nodes.ts.
+  x: entrance0=48 .. room_1200=-53  →  minX=-53, maxX=48
+  y(→z): bathroom_0=15 .. bathroom_5=-40  →  minZ=-40, maxZ=15
 
-  You will probably need to tweak these numbers a little so the dot lines up perfectly.
+  y: 0.05 — marker sits just above the floor surface after group scale 0.1.
 */
 const MODEL_FLOOR_BOUNDS: Record<
     1 | 2 | 3,
-    {
-        minX: number;
-        maxX: number;
-        minZ: number;
-        maxZ: number;
-        y: number;
-    }
+    { minX: number; maxX: number; minZ: number; maxZ: number; y: number }
 > = {
     1: { minX: -53, maxX: 48, minZ: -40, maxZ: 15, y: 0.05 },
     2: { minX: -53, maxX: 48, minZ: -40, maxZ: 15, y: 0.05 },
@@ -48,15 +43,9 @@ export default function UserLocationMarker({
     const pos = useMemo(() => {
         const normalized = normalizeLocationToBuilding(latitude, longitude);
         const bounds = MODEL_FLOOR_BOUNDS[activeFloor];
-
         const x = THREE.MathUtils.lerp(bounds.minX, bounds.maxX, normalized.x);
         const z = THREE.MathUtils.lerp(bounds.minZ, bounds.maxZ, normalized.y);
-
-        return {
-            x,
-            y: bounds.y,
-            z,
-        };
+        return { x, y: bounds.y, z };
     }, [latitude, longitude, activeFloor]);
 
     const chevronGeo = React.useMemo(() => {
@@ -68,7 +57,12 @@ export default function UserLocationMarker({
         return (
             <group position={[pos.x, pos.y, pos.z]}>
                 <mesh geometry={chevronGeo} rotation={[-Math.PI / 2, 0, 0]} renderOrder={1002}>
-                    <meshBasicMaterial color="#E74C3C" side={THREE.DoubleSide} depthTest={false} depthWrite={false} />
+                    <meshBasicMaterial
+                        color="#E74C3C"
+                        side={THREE.DoubleSide}
+                        depthTest={false}
+                        depthWrite={false}
+                    />
                 </mesh>
             </group>
         );
