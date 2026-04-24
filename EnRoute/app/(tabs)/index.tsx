@@ -45,6 +45,7 @@ import { getNode } from "@/navigation/db";
 import { useRoute } from "@/hooks/use-route";
 import type { NavNode } from "@/navigation/db";
 import type { RouteResult } from "@/navigation/pathfinding";
+import PlacePinButton from "@/components/placePinButton";
 
 const FLOOR_MODELS = {
   1: require("../../assets/models/1stFloorModel.glb"),
@@ -206,9 +207,12 @@ function CameraController({
     targetRef.current.addScaledVector(forward, g.deltaPan.y * 0.01);
 
     spherical.current.theta -= g.deltaRotate.x * 0.0035;
-    spherical.current.phi = Math.max(
-      0.2,
-      Math.min(Math.PI - 0.2, spherical.current.phi - g.deltaRotate.y * 0.0035)
+    const MIN_PHI = 0.25;
+    const MAX_PHI = Math.PI / 2.2; 
+    spherical.current.phi = THREE.MathUtils.clamp(
+      spherical.current.phi - g.deltaRotate.y * 0.0035,
+      MIN_PHI,
+      MAX_PHI
     );
 
     if (g.deltaZoom !== 0 && lerpRadiusRef.current === null) {
@@ -503,6 +507,8 @@ export default function HomeScreen() {
     lerpRadiusRef.current = zoomRadius;
   }, []);
 
+  const [mode, setMode] = useState<"pin" | "navigate" | null>(null);
+
   const getPinPointFromTouch = useCallback(
     (pageX: number, pageY: number): Pin | null => {
       const cam = cameraRef.current;
@@ -515,15 +521,19 @@ export default function HomeScreen() {
       pointer.y = -(pageY / mapSize.height) * 2 + 1;
       raycaster.setFromCamera(pointer, cam);
 
-      const intersects = raycaster.intersectObjects(
-        (sceneRef.current ?? []).length ? sceneRef.current! : [],
-        true
-      );
+      const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -PIN_Y);
+      const point = new THREE.Vector3();
 
-      if (intersects.length === 0) return null;
+      const didHit = raycaster.ray.intersectPlane(floorPlane, point);
 
-      const point = intersects[0].point;
-      return { x: point.x, y: PIN_Y, z: point.z, floor: activeFloorRef.current };
+      if (!didHit) return null;
+
+      return {
+        x: point.x,
+        y: PIN_Y,
+        z: point.z,
+        floor: activeFloorRef.current,
+      };
     },
     [mapSize.width, mapSize.height]
   );
@@ -539,34 +549,44 @@ export default function HomeScreen() {
         onMoveShouldSetPanResponder: () => pinMode,
 
         onPanResponderGrant: (evt) => {
-          if (!pinMode) return;
-          const point = getPinPointFromTouch(
-            evt.nativeEvent.pageX,
-            evt.nativeEvent.pageY
-          );
-          if (point) {
-            previewPinRef.current = point;
-            setPreviewPin(point);
-          }
-        },
+        if (!pinMode) return;
+
+        const point = getPinPointFromTouch(
+          evt.nativeEvent.pageX,
+          evt.nativeEvent.pageY
+        );
+
+        if (point) {
+          previewPinRef.current = point;
+          setPreviewPin(point);
+        }
+      },
 
         onPanResponderMove: (evt) => {
-          if (!pinMode) return;
-          const point = getPinPointFromTouch(
-            evt.nativeEvent.pageX,
-            evt.nativeEvent.pageY
-          );
-          if (point) previewPinRef.current = point;
-        },
+        if (!pinMode) return;
+
+        const point = getPinPointFromTouch(
+          evt.nativeEvent.pageX,
+          evt.nativeEvent.pageY
+        );
+
+        if (point) {
+          previewPinRef.current = point;
+        }
+      },
 
         onPanResponderRelease: () => {
-          if (previewPinRef.current) {
-            setPins((prev) => [...prev, previewPinRef.current!]);
-          }
-          previewPinRef.current = null;
-          setPreviewPin(null);
-          setPinMode(false);
-        },
+        const finalPin = previewPinRef.current;
+
+        if (finalPin) {
+          setPins((prev) => [...prev, finalPin]);
+        }
+
+        previewPinRef.current = null;
+        setPreviewPin(null);
+        setPinMode(false);
+        setMode(null);
+      },
 
         onPanResponderTerminate: () => {
           previewPinRef.current = null;
@@ -1038,6 +1058,7 @@ export default function HomeScreen() {
             />
           </Pressable>
         )}
+ 
 
         {sheetIndex === -1 && (
           <FloorSwitcher
@@ -1381,6 +1402,24 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 999,
     backgroundColor: "rgba(56, 54, 54, 0.80)",
+  },
+
+    pinButton: {
+    position: "absolute",
+    bottom: 120,
+    right: 16,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    zIndex: 100,
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
   },
 
   stretchSearchShell: {
