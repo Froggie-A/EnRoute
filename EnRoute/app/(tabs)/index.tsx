@@ -46,6 +46,8 @@ import { useRoute } from "@/hooks/use-route";
 import type { NavNode } from "@/navigation/db";
 import type { RouteResult } from "@/navigation/pathfinding";
 
+import { PinSwitcher } from "@/components/pinbutton";
+
 const FLOOR_MODELS = {
   1: require("../../assets/models/1stFloorModel.glb"),
   2: require("../../assets/models/2ndFloorModel.glb"),
@@ -565,7 +567,6 @@ export default function HomeScreen() {
           }
           previewPinRef.current = null;
           setPreviewPin(null);
-          setPinMode(false);
         },
 
         onPanResponderTerminate: () => {
@@ -689,6 +690,8 @@ export default function HomeScreen() {
 
       const navId = getNavNodeId(hitboxId, activeFloorRef.current);
       const node = navId ? getNode(navId) : null;
+
+      
 
       setSelectedRoom(hitboxId);
       setSelectedNode(node);
@@ -1007,42 +1010,34 @@ export default function HomeScreen() {
           />
         )}
 
-        {sheetIndex === -1 && (
-          <Pressable
-            onPress={() => setPinMode((prev) => !prev)}
-            style={({ pressed }) => [
-              styles.pinButton,
-              {
-                backgroundColor: pinMode
-                  ? "rgba(160,160,160,0.28)"
-                  : "rgba(255,255,255,0.82)",
-                borderColor: pinMode
-                  ? "rgba(255,255,255,0.2)"
-                  : "rgba(255,255,255,0.35)",
-                transform: [{ scale: pressed ? 0.95 : 1 }],
-              },
-            ]}
-          >
-            <Ionicons
-              name={pinMode ? "pin" : "pin-outline"}
-              size={24}
-              color="#111"
-            />
-          </Pressable>
-        )}
- 
 
-        {sheetIndex === -1 && (
-          <FloorSwitcher
-            activeFloor={activeFloor}
-            onFloorChange={(floor) => {
-              const nextFloor = floor as FloorNumber;
-              activeFloorRef.current = nextFloor;
-              setActiveFloor(nextFloor);
-              lerpRadiusRef.current = FLOOR_CONFIG[nextFloor].snapRadius;
-            }}
-          />
-        )}
+{sheetIndex === -1 && (
+  <View
+    style={{
+      position: "absolute",
+      right: 10,
+      bottom: 20,
+      zIndex: 100,
+      alignItems: "center",
+      gap: 8,
+    }}
+  >
+    <PinSwitcher
+      placing={pinMode}
+      onToggle={() => setPinMode((prev) => !prev)}
+    />
+
+    <FloorSwitcher
+      activeFloor={activeFloor}
+      onFloorChange={(floor) => {
+        const nextFloor = floor as FloorNumber;
+        activeFloorRef.current = nextFloor;
+        setActiveFloor(nextFloor);
+        lerpRadiusRef.current = FLOOR_CONFIG[nextFloor].snapRadius;
+      }}
+    />
+  </View>
+)}
 
         {pinMode && (
           <View style={styles.pinOverlay} {...pinPanResponder.panHandlers} />
@@ -1338,23 +1333,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(56, 54, 54, 0.80)",
   },
 
-    pinButton: {
-    position: "absolute",
-    bottom: 120,
-    right: 16,
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    zIndex: 100,
-    elevation: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.16,
-    shadowRadius: 8,
-  },
 
   stretchSearchShell: {
     marginHorizontal: 0,
@@ -1411,7 +1389,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 1,
+    zIndex: 0,
   },
 
   eventTitle: {
