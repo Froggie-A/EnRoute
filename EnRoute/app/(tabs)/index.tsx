@@ -416,7 +416,7 @@ export default function HomeScreen() {
       title: "Resume Help",
       date: "Feb 28 • 11 AM - 7 PM",
       club: "Student Government",
-      location: "PFT 3147",
+      location: "PFT 1200",
       type: "book-outline" as const,
       description: "Resume review event details here.",
     },
