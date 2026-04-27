@@ -26,6 +26,8 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
 import { ScrollView } from "react-native";
 
+import NodeDebugLayer from "@/components/nodeDebugLayer"
+
 import { FloorSwitcher } from "@/components/floorSwitcher";
 import SearchBarRow from "@/components/SearchBarRow";
 import NearbyChips from "@/components/NearbyChips";
@@ -402,6 +404,8 @@ export default function HomeScreen() {
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
   const [pathWaypoints, setPathWaypoints] = useState<[number, number, number][]>([]);
   const [isNavigating, setIsNavigating] = useState(false);
+  // DEBUG GRAPH
+  const [showDebug, setShowDebug] = useState(false);
   const cameraTargetRef = useRef(new THREE.Vector3(0, 0, 0));
   const [pins, setPins] = useState<Pin[]>([]);
   const [previewPin, setPreviewPin] = useState<Pin | null>(null);
@@ -1130,6 +1134,7 @@ export default function HomeScreen() {
               selectedRoom={selectedRoom}
               setSelectedRoom={setSelectedRoom}
             />
+            <NodeDebugLayer visible={showDebug} />
 
             {location && (
               <UserLocationMarker
@@ -1205,7 +1210,34 @@ export default function HomeScreen() {
       )}
 
       {sheetIndex === -1 && (
-        <FloorSwitcher
+          <Pressable
+              onPress={() => setShowDebug(prev => !prev)}
+              style={{
+                position: "absolute",
+                bottom: 200,
+                left: 20,
+                backgroundColor: showDebug ? "#007AFF" : "rgba(255,255,255,0.82)",
+                width: 48,
+                height: 48,
+                borderRadius: 24,
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 20,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.18,
+                shadowRadius: 6,
+                elevation: 6,
+              }}
+          >
+            <Text style={{ fontSize: 11, fontWeight: "700", color: showDebug ? "white" : "#333" }}>
+              GRAPH
+            </Text>
+          </Pressable>
+      )}
+
+      {sheetIndex === -1 && (
+          <FloorSwitcher
           activeFloor={activeFloor}
           onFloorChange={(floor) => {
             const nextFloor = floor as FloorNumber;
