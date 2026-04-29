@@ -17,6 +17,9 @@ export const endLabelPosRef = { current: null as { x: number; y: number } | null
 
 type Props = {
     waypoints: [number, number, number][];
+    completedFraction?: number;
+    fullWaypoints?: [number, number, number][];
+    isNavigating?: boolean;
 };
 
 // ─── Tube geometry ────────────────────────────────────────────────────────────
@@ -108,8 +111,36 @@ function EndLabelProjector({ endPos }: { endPos: [number, number, number] }) {
 }
 
 // ─── Main export ──────────────────────────────────────────────────────────────
-export default function TestPath({ waypoints }: Props) {
+export default function TestPath({ waypoints, fullWaypoints, completedFraction = 0, isNavigating = false }: Props) {
     const tubeGeo = useMemo(() => buildTube(waypoints), [waypoints]);
+
+    // Faded completed section — only render if we have a full path and some progress
+    const completedWaypoints = useMemo(() => {
+        if (!fullWaypoints || fullWaypoints.length < 2 || completedFraction <= 0) return null;
+        // The completed section is fullWaypoints minus the remaining waypoints.
+        // We compute it by taking fullWaypoints up to the point where remaining starts.
+        if (waypoints.length < 2) return null;
+        const userStart = waypoints[0];
+        // Find where the remaining path starts in the full path
+        let splitIdx = 0;
+        let minDist = Infinity;
+        for (let i = 0; i < fullWaypoints.length; i++) {
+            const d = Math.hypot(
+                fullWaypoints[i][0] - userStart[0],
+                fullWaypoints[i][2] - userStart[2]
+            );
+            if (d < minDist) { minDist = d; splitIdx = i; }
+        }
+        if (splitIdx < 1) return null;
+        return fullWaypoints.slice(0, splitIdx + 1) as [number, number, number][];
+    }, [fullWaypoints, waypoints, completedFraction]);
+
+    const completedGeo = useMemo(
+        () => completedWaypoints && completedWaypoints.length >= 2
+            ? buildTube(completedWaypoints)
+            : null,
+        [completedWaypoints]
+    );
 
     if (waypoints.length < 2) return null;
 
@@ -118,6 +149,22 @@ export default function TestPath({ waypoints }: Props) {
 
     return (
         <group>
+            {/* Faded completed section behind user */}
+            {completedGeo && (
+                <mesh geometry={completedGeo} renderOrder={998}>
+                    <meshStandardMaterial
+                        color={PATH_COLOR}
+                        roughness={0.4}
+                        metalness={0.1}
+                        transparent
+                        opacity={0.18}
+                        depthTest={false}
+                        depthWrite={false}
+                    />
+                </mesh>
+            )}
+
+            {/* Active remaining path ahead of user */}
             <mesh geometry={tubeGeo} renderOrder={999}>
                 <meshStandardMaterial
                     color={PATH_COLOR}
@@ -127,7 +174,8 @@ export default function TestPath({ waypoints }: Props) {
                     depthWrite={false}
                 />
             </mesh>
-            <StartMarker pos={startPos} />
+
+            {!isNavigating && <StartMarker pos={startPos} />}
             <EndDot pos={endPos} />
             <EndLabelProjector endPos={endPos} />
         </group>
