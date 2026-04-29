@@ -55,15 +55,18 @@ import type { NavNode } from "@/navigation/db";
 import type { RouteResult } from "@/navigation/pathfinding";
 import PlacePinButton from "@/components/placePinButton";
 
+// GLB 3D Model Imports
 const FLOOR_MODELS = {
   1: require("../../assets/models/1stFloorModel.glb"),
   2: require("../../assets/models/2ndFloorModel.glb"),
   3: require("../../assets/models/3rdFloorModel.glb"),
 } as const;
 
-type FloorNumber = keyof typeof FLOOR_MODELS;
+// Items for the Half-Sheet.
+// This includes that room detail page, directions page, profile page, and the default search page.
 type SheetView = "default" | "detail" | "directions" | "profile";
 
+// Handles the gesture movements
 type GestureState = {
   deltaRotate: { x: number; y: number };
   deltaZoom: number;
@@ -71,21 +74,23 @@ type GestureState = {
   pinchMidpoint: { x: number; y: number } | null;
 };
 
+// Thresholds for the different floors for zooming in and zooming out. 
+type FloorNumber = keyof typeof FLOOR_MODELS;
 const FLOOR_CONFIG: Record<
     FloorNumber,
     { switchRadius: number; snapRadius: number; zoomInRadius: number }
 > = {
   1: { switchRadius: 50, snapRadius: 10, zoomInRadius: 5 },
   2: { switchRadius: 120, snapRadius: 10, zoomInRadius: 5 },
-  3: { switchRadius: 45, snapRadius: 10, zoomInRadius: 5 },
+  3: { switchRadius: 200, snapRadius: 10, zoomInRadius: 5 },
 };
 
-const SNAP_FRACTIONS = [0.5, 0.75, 0.9];
-
+// The heights for the half sheet
 const COLLAPSED_HEIGHT = 84;
 const MID_HEIGHT = 420;
 const EXPANDED_HEIGHT_FRACTION = 0.82;
 
+const SNAP_FRACTIONS = [0.5, 0.75, 0.9];
 const HARDCODED_LAT = 30.40775;
 const HARDCODED_LON = -91.17995;
 
@@ -371,6 +376,7 @@ function SceneCapture({
   return null;
 }
 
+// Swipe function to delete the exising pins under the profile page
 function SwipeDeletePinRow({
   pin,
   index,
@@ -429,10 +435,7 @@ function SwipeDeletePinRow({
         if (rowOpenRef.current) {
           nextX = -DELETE_WIDTH + gesture.dx;
         }
-
         if (nextX > 0) nextX = 0;
-
-        // Soft resistance past the delete width
         if (nextX < -DELETE_WIDTH) {
           nextX = -DELETE_WIDTH + (nextX + DELETE_WIDTH) * 0.25;
         }
@@ -683,6 +686,7 @@ export default function HomeScreen() {
     extrapolate: "clamp",
   });
 
+  // Events for the Search Bar
   const events = [
     {
       id: "1",
@@ -731,6 +735,7 @@ export default function HomeScreen() {
     },
   ];
 
+  // Filtering for the events in the search half sheet.
   const filteredEvents = events.filter((event) => {
     const query = search.trim().toLowerCase();
     if (!query) return true;
@@ -787,8 +792,6 @@ const findRoomBySearch = useCallback(() => {
     setActiveRoute(null);
     setPathWaypoints([]);
     setSelectedEvent(null);
-
-    // hide your custom search panel faster
     setShowCollapsedPill(false);
     setPanelExpanded(false);
     setPanelLevel("collapsed");
@@ -813,6 +816,7 @@ const findRoomBySearch = useCallback(() => {
   console.log("No room found for search:", query);
 }, [search, focusRoom, panelHeightAnim]);
 
+// Function that zooms in on a pin when clicked in the profile page. 
   const focusPin = useCallback((pin: Pin) => {
   if (pin.floor !== activeFloorRef.current) {
     activeFloorRef.current = pin.floor;
@@ -828,6 +832,7 @@ const findRoomBySearch = useCallback(() => {
   lerpRadiusRef.current = 3.5;
 }, []);
 
+// Maps the 3D Pin model color to a hex color for the saved pins icon under the profile. 
 const getPinHex = (color?: Pin["color"]) => {
   switch (color) {
     case "blue":
@@ -842,9 +847,10 @@ const getPinHex = (color?: Pin["color"]) => {
   }
 };
 
-  const [mode, setMode] = useState<"pin" | "navigate" | null>(null);
+const [mode, setMode] = useState<"pin" | "navigate" | null>(null);
 
-  const getPinPointFromTouch = useCallback(
+// Function that allows user to touch the 3D Pin Model
+const getPinPointFromTouch = useCallback(
     (pageX: number, pageY: number): Pin | null => {
       const cam = cameraRef.current;
       if (!cam || mapSize.width <= 0 || mapSize.height <= 0) return null;

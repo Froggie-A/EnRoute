@@ -7,8 +7,8 @@ type Floor = {
   value: number;
 };
 
+// Floor Labels and the Floor Value
 const FLOORS: Floor[] = [
- /* { label: "L3", value: 3 },*/
   { label: "L2", value: 2 },
   { label: "L1", value: 1 },
 ];
@@ -18,6 +18,7 @@ type FloorSwitcherProps = {
   onFloorChange: (floor: number) => void;
 };
 
+
 export function FloorSwitcher({
   activeFloor,
   onFloorChange,
@@ -25,6 +26,7 @@ export function FloorSwitcher({
   const [expanded, setExpanded] = useState(false);
 
   return (
+    // Default styling
     <View
       pointerEvents="box-none"
       style={{
@@ -36,6 +38,7 @@ export function FloorSwitcher({
         alignItems: "center",
       }}
     >
+    
       {expanded ? (
         <View style={{ alignItems: "center" }}>
           <TouchableOpacity
