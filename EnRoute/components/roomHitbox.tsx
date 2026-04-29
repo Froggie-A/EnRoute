@@ -145,6 +145,7 @@ export default function RoomHitboxes({
   );
 }
 
+
 export function getRoomAtScreenPoint(
     x: number,
     y: number,
@@ -214,3 +215,41 @@ export function getRoomAtScreenPoint(
 
   return bestMatch;
 }
+
+export function findRoomBySearch(floor: 1 | 2 | 3, query: string) {
+  const cleaned = query
+    .toLowerCase()
+    .replace("pft", "")
+    .replace("room", "")
+    .replace(/\s+/g, "")
+    .trim();
+
+  const rooms = ROOM_DATA[floor] ?? [];
+
+  return rooms.find((room: any) => {
+    const id = String(room.id ?? "").toLowerCase().replace(/\s+/g, "");
+    const name = String(room.name ?? "").toLowerCase().replace(/\s+/g, "");
+    const label = String(room.label ?? "").toLowerCase().replace(/\s+/g, "");
+
+    return (
+      id.includes(cleaned) ||
+      name.includes(cleaned) ||
+      label.includes(cleaned)
+    );
+  });
+}
+export function findRoomsStartingWith(
+  floor: 1 | 2 | 3,
+  query: string
+) {
+  const normalizedQuery = query.trim().toLowerCase();
+
+  const rooms = ROOM_DATA[floor] ?? [];
+
+  return rooms.filter((room) => {
+    const roomNumber = room.id.match(/\d+/)?.[0] || "";
+
+    return roomNumber.startsWith(normalizedQuery);
+  });
+}
+
