@@ -15,6 +15,7 @@ import {
   PanResponder,
   ActivityIndicator,
   Animated,
+  Image,
 } from "react-native";
 import { Canvas, useThree, useFrame } from "@react-three/fiber/native";
 import { useGLTF } from "@react-three/drei/native";
@@ -422,16 +423,30 @@ export default function HomeScreen() {
   } | null>(null);
 
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
+  const [mapFilterResults, setMapFilterResults] = useState<string[]>([]);
+
+  const activeMapIcons = useMemo(() => {
+    const fromNearbyChips = selectedFilters.flatMap((f) => FILTER_MAP?.[f] ?? []);
+    const fromSearchCard = mapFilterResults.flatMap((f) => FILTER_MAP?.[f] ?? []);
+
+    return [...new Set([...fromNearbyChips, ...fromSearchCard])];
+  }, [selectedFilters, mapFilterResults]);
 
   const activeTypes = useMemo(() => {
-    const fromFilters = selectedFilters.flatMap((f) => FILTER_MAP?.[f] ?? []);
+    const fromNearbyChips = selectedFilters.flatMap(
+      (f) => FILTER_MAP?.[f] ?? []
+    );
 
-    const query = search.trim().toLowerCase();
-    const matchedFilter = query ? SEARCH_ALIAS_MAP?.[query] ?? null : null;
-    const fromSearch = matchedFilter ? FILTER_MAP?.[matchedFilter] ?? [] : [];
+    const fromSearchCard = mapFilterResults.flatMap(
+      (f) => FILTER_MAP?.[f] ?? []
+    );
 
-    return [...new Set([...fromFilters, ...fromSearch])];
-}, [selectedFilters, search]);
+    return [...new Set([...fromNearbyChips, ...fromSearchCard])];
+  }, [selectedFilters, mapFilterResults]);
+
+
+
+
 
   const [sheetIndex, setSheetIndex] = useState(-1);
   const [showCollapsedPill, setShowCollapsedPill] = useState(true);
@@ -597,7 +612,18 @@ export default function HomeScreen() {
       description: "Free lunch event details here.",
     },
   ];
-
+  // icons for filters
+  const FILTER_ICONS: Record<string, any> = {
+    "Restrooms":require("../../assets/images/restroom-icon.png"),
+    "Study Rooms":require("../../assets/images/study-room-icon.png"),
+    "Vending Machines": require("../../assets/images/vending-mach-icon.png"),
+    "Water Fountains": require("../../assets/images/water-fount-icon.png"),
+    "Elevators": require("../../assets/images/elevator-icon.png"),
+    "Emergency Exits": require("../../assets/images/emer-exit-icon.png"),       
+    "Fire Extinguishers": require("../../assets/images/fire-exting-icon.png"),
+    "Defibrillators": require("../../assets/images/first-aid-icon.png"),
+  
+  };
   const filteredEvents = events.filter((event) => {
   const query = search.trim().toLowerCase();
   if (!query) return true;
@@ -607,6 +633,13 @@ export default function HomeScreen() {
     event.date.toLowerCase().includes(query)
   );
 });
+
+  const searchedFilters = Object.keys(FILTER_MAP).filter((filter) => {
+    const query = search.trim().toLowerCase();
+    if (!query) return false;
+
+    return filter.toLowerCase().includes(query);
+  });
 
   useEffect(() => { activeFloorRef.current = activeFloor; }, [activeFloor]);
   useEffect(() => { mapSizeRef.current = mapSize; }, [mapSize]);
@@ -1379,7 +1412,36 @@ export default function HomeScreen() {
                     </View>
                   )}
 
-                  <Text style={styles.sectionTitle}>Events</Text>
+                  {search.trim() === "" && (
+                    <Text style={styles.sectionTitle}>Events</Text>
+                  )}
+
+                  {searchedFilters.map((filter) => (
+                    <Pressable
+                      key={filter}
+                      style={styles.filterResultCard}
+                      onPress={() => {
+                        setMapFilterResults([filter]);
+                        setSearch("");
+                        setSelectedEvent(null);
+                        setPanelView("main");
+                        snapPanelTo(COLLAPSED_HEIGHT);
+                      }}
+                    >
+                      <View style={styles.filterIconCircle}>
+                        <Image
+                          source={FILTER_ICONS[filter]}
+                          style={styles.filterIconImage}
+                          resizeMode="contain"
+                        />
+                      </View>
+
+                      <View>
+                        <Text style={styles.filterResultTitle}>{filter}</Text>
+                        <Text style={styles.filterResultSubtitle}>Search nearby {filter}</Text>
+                      </View>
+                    </Pressable>
+                  ))}
 
                   {filteredEvents.map((event, index) => (
                     <EventCard
@@ -1401,8 +1463,8 @@ export default function HomeScreen() {
                     />
                   ))}
 
-                  {filteredEvents.length === 0 && (
-                    <Text style={styles.emptytext}>No matching events found.</Text>
+                  {filteredEvents.length === 0 && searchedFilters.length === 0 && (
+                    <Text style={styles.emptytext}>No matching item found.</Text>
                   )}
 
                   <Text style={styles.radiusText}>
@@ -1734,5 +1796,56 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(0,0,0,0.3)",
+  },
+
+  filterResultCard: {
+    flexDirection: "row",
+    alignItems: "center",
+
+    backgroundColor: "rgba(253, 254, 238, 1)",
+    borderRadius: 18,
+    padding: 22,
+    marginBottom: 12,
+    marginLeft: 12,
+    marginRight: 12,
+
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.04)",
+
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+
+    elevation: 4, // Android shadow
+  },
+
+  filterResultTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111",
+  },
+
+  filterResultSubtitle: {
+    fontSize: 13,
+    color: "#666",
+    marginTop: 2,
+  },
+  filterIconCircle: {
+    width: 44,
+    height: 44,
+    marginRight: 8,
+    marginLeft: -4,
+    borderRadius: 22,
+    backgroundColor: "transparent",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  filterIconImage: {
+    width: 46,
+    height: 46,
   },
 });
