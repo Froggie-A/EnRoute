@@ -807,15 +807,17 @@ const filteredEvents = useMemo(() => {
     );
   });
 
-  useEffect(() => {
-    activeFloorRef.current = activeFloor;
-    setUserNodeId(null); // reset so snap picks fresh on new floor
-  }, [activeFloor]);  useEffect(() => { mapSizeRef.current = mapSize; }, [mapSize]);
   return [...roomResults, ...normalEvents];
 }, [search]);
 
-  useEffect(() => { activeFloorRef.current = activeFloor; }, [activeFloor]);
-  useEffect(() => { mapSizeRef.current = mapSize; }, [mapSize]);
+useEffect(() => {
+  activeFloorRef.current = activeFloor;
+  setUserNodeId(null);
+}, [activeFloor]);
+
+useEffect(() => {
+  mapSizeRef.current = mapSize;
+}, [mapSize]);
 
   useEffect(() => {
     if (!location || hasCenteredOnUser.current) return;
@@ -1677,7 +1679,6 @@ const getPinPointFromTouch = useCallback(
                 ]}
             />
           </Pressable>
-        </Pressable>
       </View>
       )}
 
