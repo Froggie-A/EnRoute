@@ -4,11 +4,15 @@ import { useGLTF } from "@react-three/drei/native";
 import { Asset } from "expo-asset";
 import { useFrame } from "@react-three/fiber/native";
 
+export type PinColor = "red" | "blue" | "green" | "yellow";
+
 export type Pin = {
   x: number;
   y: number;
   z: number;
   floor: 1 | 2 | 3;
+  title?: string;
+  color?: PinColor;
 };
 
 type Props = {
@@ -18,20 +22,28 @@ type Props = {
   activeFloor: 1 | 2 | 3;
 };
 
-const MAP_PIN_MODEL = require("../assets/models/mapPin.glb");
+const PIN_MODELS: Record<PinColor, number> = {
+  red: require("../assets/models/mapPin.glb"),
+  blue: require("../assets/models/mapPinBlue.glb"),
+  green: require("../assets/models/mapPinGreen.glb"),
+  yellow: require("../assets/models/mapPinYellow.glb"),
+};
 
 function PinModel({
   position,
   preview = false,
   previewPinRef,
-  modelUri,
+  modelSource,
 }: {
   position: [number, number, number];
   preview?: boolean;
   previewPinRef?: React.MutableRefObject<Pin | null>;
-  modelUri: string;
+  modelSource: number;
 }) {
-  const { scene } = useGLTF(modelUri);
+  const asset = Asset.fromModule(modelSource);
+  const uri = asset.localUri ?? asset.uri;
+  const { scene } = useGLTF(uri);
+
   const groupRef = useRef<THREE.Group>(null);
   const targetRef = useRef(new THREE.Vector3());
 
@@ -50,18 +62,16 @@ function PinModel({
       if (child.isMesh) {
         child.frustumCulled = false;
 
-        if (child.material) {
-          const materials = Array.isArray(child.material)
-            ? child.material
-            : [child.material];
+        const materials = Array.isArray(child.material)
+          ? child.material
+          : [child.material];
 
-          materials.forEach((mat: any) => {
-            mat.transparent = preview;
-            mat.opacity = preview ? 0.6 : 1;
-            mat.depthWrite = true;
-            mat.needsUpdate = true;
-          });
-        }
+        materials.forEach((mat: any) => {
+          mat.transparent = preview;
+          mat.opacity = preview ? 0.6 : 1;
+          mat.depthWrite = true;
+          mat.needsUpdate = true;
+        });
       }
     });
 
@@ -80,21 +90,16 @@ function PinModel({
   );
 
   groupRef.current.position.lerp(
-  targetRef.current,
-  1 - Math.pow(0.00001, delta)
-);
+    targetRef.current,
+    1 - Math.pow(0.00001, delta)
+  );
 });
 
   return (
-  <group
-    ref={groupRef}
-    position={position}
-    scale={[0.1, 0.1, 0.1]}
-    rotation={[0, 0, 0]}
-  >
-    <primitive object={clonedScene} />
-  </group>
-);
+    <group ref={groupRef} position={position} scale={[0.1, 0.1, 0.1]}>
+      <primitive object={clonedScene} />
+    </group>
+  );
 }
 
 export default function PinLayer({
@@ -103,59 +108,67 @@ export default function PinLayer({
   previewPinRef,
   activeFloor,
 }: Props) {
-  const [modelUri, setModelUri] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
   const EMBED_DEPTH = 0.0;
 
   useEffect(() => {
     let mounted = true;
 
-    (async () => {
-      const asset = Asset.fromModule(MAP_PIN_MODEL);
-      await asset.downloadAsync();
+    async function preloadPins() {
+      const sources = Object.values(PIN_MODELS);
 
-      if (!mounted) return;
+      await Promise.all(
+        sources.map(async (source) => {
+          const asset = Asset.fromModule(source);
+          await asset.downloadAsync();
+          const uri = asset.localUri ?? asset.uri;
+          if (uri) useGLTF.preload(uri);
+        })
+      );
 
-      const resolvedUri = asset.localUri ?? asset.uri;
-      if (resolvedUri) {
-        setModelUri(resolvedUri);
-        useGLTF.preload(resolvedUri);
-      }
-    })();
+      if (mounted) setReady(true);
+    }
+
+    preloadPins();
 
     return () => {
       mounted = false;
     };
   }, []);
 
-  if (!modelUri) return null;
+  if (!ready) return null;
 
   const visiblePins = pins.filter(
-  (pin): pin is Pin => pin !== null && pin.floor === activeFloor
-);
-  const showPreview =
-  previewPin !== null &&
-  previewPin !== undefined &&
-  previewPin.floor === activeFloor;
+    (pin): pin is Pin => pin !== null && pin.floor === activeFloor
+  );
 
+  const showPreview =
+    previewPin !== null &&
+    previewPin !== undefined &&
+    previewPin.floor === activeFloor;
 
   return (
     <>
-      {visiblePins.map((pin, index) => (
-        <PinModel
-          key={`pin-${index}`}
-          position={[pin.x, pin.y - EMBED_DEPTH, pin.z]}
-          modelUri={modelUri}
-        />
-      ))}
+      {visiblePins.map((pin, index) => {
+        const color = pin.color ?? "red";
+
+        return (
+          <PinModel
+            key={`pin-${index}`}
+            position={[pin.x, pin.y - EMBED_DEPTH, pin.z]}
+            modelSource={PIN_MODELS[color]}
+          />
+        );
+      })}
 
       {showPreview && previewPin !== null && (
-        <PinModel
-          position={[previewPin.x, previewPin.y - EMBED_DEPTH, previewPin.z]}
-          preview
-          previewPinRef={previewPinRef}
-          modelUri={modelUri}
-        />
-      )}
+      <PinModel
+        key={`preview-${previewPin.color ?? "red"}`}
+        position={[previewPin.x, previewPin.y - EMBED_DEPTH, previewPin.z]}
+        preview
+        modelSource={PIN_MODELS[previewPin.color ?? "red"]}
+      />
+    )}
     </>
   );
 }
