@@ -26,20 +26,20 @@ export const TEST_NODES: NavNode[] = [
     { id: 'entrance0',    label: 'Entrance',            type: 'entrance',  floor: 1, x:  48,    y: -32,   z: 0, accessible: true },
 
     // Rooms — x,y should put the node at the room door / center of the room
-    { id: 'room_1221_a',  label: 'Classroom 1221 - A',  type: 'classroom', floor: 1, x:  48,    y: -19,   z: 0, accessible: true },
-    { id: 'room_1221_b',  label: 'Classroom 1221 - B',  type: 'classroom', floor: 1, x:  48,    y: -13.5, z: 0, accessible: true },
+    { id: 'room_1221_a',  label: 'Classroom 1221 - A',  type: 'classroom', floor: 1, x:  48,    y: -19,   z: 0, accessible: true, photo: require('../assets/images/example_pic.png') },
+    { id: 'room_1221_b',  label: 'Classroom 1221 - B',  type: 'classroom', floor: 1, x:  48,    y: -13.5, z: 0, accessible: true, photo: require('../assets/images/example_pic.png')},
 
-    { id: 'room_1225_a',  label: 'Classroom 1225 - A',  type: 'classroom', floor: 1, x:  48,    y: -10.5, z: 0, accessible: true },
-    { id: 'room_1225_b',  label: 'Classroom 1225 - B',  type: 'classroom', floor: 1, x:  48,    y: -5,    z: 0, accessible: true },
+    { id: 'room_1225_a',  label: 'Classroom 1225 - A',  type: 'classroom', floor: 1, x:  48,    y: -10.5, z: 0, accessible: true, photo: require('../assets/images/example_pic.png')},
+    { id: 'room_1225_b',  label: 'Classroom 1225 - B',  type: 'classroom', floor: 1, x:  48,    y: -5,    z: 0, accessible: true, photo: require('../assets/images/example_pic.png') },
 
-    { id: 'room_1253_a',  label: 'Classroom 1253 - A',  type: 'classroom', floor: 1, x:  -1,    y: -28,   z: 0, accessible: true },
-    { id: 'room_1253_b',  label: 'Classroom 1253 - B',  type: 'classroom', floor: 1, x:  -1,    y: -17.5, z: 0, accessible: true },
+    { id: 'room_1253_a',  label: 'Classroom 1253 - A',  type: 'classroom', floor: 1, x:  -1,    y: -28,   z: 0, accessible: true, photo: require('../assets/images/example_pic.png') },
+    { id: 'room_1253_b',  label: 'Classroom 1253 - B',  type: 'classroom', floor: 1, x:  -1,    y: -17.5, z: 0, accessible: true, photo: require('../assets/images/example_pic.png') },
 
-    { id: 'room_1263_a',  label: 'Classroom 1263 - A',  type: 'classroom', floor: 1, x:  -36,   y: -27,   z: 0, accessible: true },
-    { id: 'room_1263_b',  label: 'Classroom 1263 - B',  type: 'classroom', floor: 1, x:  -36,   y: -16,   z: 0, accessible: true },
+    { id: 'room_1263_a',  label: 'Classroom 1263 - A',  type: 'classroom', floor: 1, x:  -36,   y: -27,   z: 0, accessible: true, photo: require('../assets/images/example_pic.png') },
+    { id: 'room_1263_b',  label: 'Classroom 1263 - B',  type: 'classroom', floor: 1, x:  -36,   y: -16,   z: 0, accessible: true, photo: require('../assets/images/example_pic.png') },
 
-    { id: 'room_1202_a',  label: 'Classroom 1202 - A',  type: 'classroom', floor: 1, x:  -41,   y: -30,   z: 0, accessible: true },
-    { id: 'room_1200_a',  label: 'Classroom 1200 - A',  type: 'classroom', floor: 1, x:  -53,   y: -30,   z: 0, accessible: true },
+    { id: 'room_1202_a',  label: 'Classroom 1202 - A',  type: 'classroom', floor: 1, x:  -41,   y: -30,   z: 0, accessible: true, photo: require('../assets/images/example_pic.png') },
+    { id: 'room_1200_a',  label: 'Classroom 1200 - A',  type: 'classroom', floor: 1, x:  -53,   y: -30,   z: 0, accessible: true, photo: require('../assets/images/example_pic.png') },
 
     // Bathrooms — positions match roomHitbox.tsx
     { id: 'bathroom_3',   label: 'Bathroom',              type: 'bathroom',  floor: 1, x:  -1,    y:   2,   z: 0, accessible: true },

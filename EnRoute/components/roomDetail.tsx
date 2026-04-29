@@ -57,8 +57,11 @@ export default function RoomDetailSheet({ node, estimatedMinutes = 3, onNavigate
 
             {/* Room photo */}
             <View style={styles.photoPlaceholder}>
-                <Ionicons name="image-outline" size={36} color="#bbb" />
-                <Text style={styles.photoPlaceholderText}>No photo available</Text>
+                            <Image
+                source={node.photo}
+                resizeMode="cover"
+            />
+    
             </View>
         </View>
     );
@@ -140,6 +143,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
         gap: 8,
+        paddingTop: 20,
     },
     photoPlaceholderText: {
         fontSize: 13,

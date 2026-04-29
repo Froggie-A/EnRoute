@@ -31,6 +31,7 @@ export interface NavNode {
     y: number;
     z: number;
     accessible: boolean;
+    photo?: any;
 }
 
 export interface NavEdge {
