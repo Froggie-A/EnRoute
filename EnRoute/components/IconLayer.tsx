@@ -62,7 +62,7 @@ const ICON_DATA: Record<1 | 2, IconPin[]> = {
     { x: -0.075, y: 0.15, z: 3.1, type: "fountain" },
     { x: -0.26, y: 0.15, z: -4.4, type: "fountain" },
     { x: -4.21, y: 0.15, z: -3.7, type: "fountain" },
-    { x: -0.15, y: 0, z: 1.25, type: "fire" },
+    { x: -0.08, y: 0, z: 1.25, type: "fire" },
     { x: 1.3, y: 0, z: -0.42, type: "fire" },
     { x: 4, y: 0, z: -0.42, type: "fire" },
     { x: 3.7, y: 0, z: 0.48, type: "fire" },
