@@ -43,6 +43,7 @@ import TestPathLabel from "@/components/testpathLabel";
 import PinLayer, { Pin } from "@/components/PinLayer";
 import UserLocationMarker from "@/components/UserLocationMarker";
 import IconLayer from "@/components/IconLayer";
+import { FILTER_MAP,SEARCH_ALIAS_MAP } from "@/utils/iconFilters";
 
 import { getNode } from "@/navigation/db";
 import { useRoute } from "@/hooks/use-route";
@@ -420,6 +421,18 @@ export default function HomeScreen() {
     description: string;
   } | null>(null);
 
+  const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
+
+  const activeTypes = useMemo(() => {
+    const fromFilters = selectedFilters.flatMap((f) => FILTER_MAP?.[f] ?? []);
+
+    const query = search.trim().toLowerCase();
+    const matchedFilter = query ? SEARCH_ALIAS_MAP?.[query] ?? null : null;
+    const fromSearch = matchedFilter ? FILTER_MAP?.[matchedFilter] ?? [] : [];
+
+    return [...new Set([...fromFilters, ...fromSearch])];
+}, [selectedFilters, search]);
+
   const [sheetIndex, setSheetIndex] = useState(-1);
   const [showCollapsedPill, setShowCollapsedPill] = useState(true);
 
@@ -586,14 +599,14 @@ export default function HomeScreen() {
   ];
 
   const filteredEvents = events.filter((event) => {
-    const query = search.trim().toLowerCase();
-    if (!query) return true;
-    return (
-        event.title.toLowerCase().includes(query) ||
-        event.location.toLowerCase().includes(query) ||
-        event.date.toLowerCase().includes(query)
-    );
-  });
+  const query = search.trim().toLowerCase();
+  if (!query) return true;
+  return (
+    event.title.toLowerCase().includes(query) ||
+    event.location.toLowerCase().includes(query) ||
+    event.date.toLowerCase().includes(query)
+  );
+});
 
   useEffect(() => { activeFloorRef.current = activeFloor; }, [activeFloor]);
   useEffect(() => { mapSizeRef.current = mapSize; }, [mapSize]);
@@ -1150,7 +1163,10 @@ export default function HomeScreen() {
             activeFloor={activeFloor}
           />
 
-          <IconLayer activeFloor={activeFloor} />
+          <IconLayer activeFloor={activeFloor} 
+          cameraRadius={cameraRadius}
+          allowedTypes={activeTypes}
+          />
         </Suspense>
 
         <CameraController
@@ -1274,7 +1290,7 @@ export default function HomeScreen() {
                   transform: [{ translateY: contentTranslateY }],
                 },
               ]}
-              pointerEvents={panelExpanded ? "auto" : "none"}
+              pointerEvents="auto"
             >
               <ScrollView
                 showsVerticalScrollIndicator={false}
@@ -1352,45 +1368,48 @@ export default function HomeScreen() {
                     </View>
                   </View>
                 ) : (
-                  <View>
-                    {search.trim() === "" && (
-                      <>
-                        <Text style={styles.sectionTitle}>Nearby</Text>
-                        <NearbyChips />
-                      </>
-                    )}
-
-                    <Text style={styles.sectionTitle}>Events</Text>
-
-                    {filteredEvents.map((event, index) => (
-                      <EventCard
-                        key={`${event.id}-${event.location}-${index}`}
-                        title={event.title}
-                        date={event.date}
-                        club={event.club}
-                        location={event.location}
-                        type={event.type}
-                        onPress={() => {
-                          setSearch("");
-                          setSelectedEvent({
-                            title: event.title,
-                            date: event.date,
-                            location: event.location,
-                            description: event.description,
-                          });
-                        }}
+                <View>
+                  {search.trim() === "" && (
+                    <View onStartShouldSetResponder={() => true}>
+                      <Text style={styles.sectionTitle}>Nearby</Text>
+                      <NearbyChips
+                        selected={selectedFilters}
+                        setSelected={setSelectedFilters}
                       />
-                    ))}
+                    </View>
+                  )}
 
-                    {filteredEvents.length === 0 && (
-                      <Text style={styles.emptytext}>No matching events found.</Text>
-                    )}
+                  <Text style={styles.sectionTitle}>Events</Text>
 
-                    <Text style={styles.radiusText}>
-                      Floor: L{activeFloor} • Radius: {cameraRadius.toFixed(1)}
-                    </Text>
-                  </View>
-                )}
+                  {filteredEvents.map((event, index) => (
+                    <EventCard
+                      key={`${event.id}-${event.location}-${index}`}
+                      title={event.title}
+                      date={event.date}
+                      club={event.club}
+                      location={event.location}
+                      type={event.type}
+                      onPress={() => {
+                        setSearch("");
+                        setSelectedEvent({
+                          title: event.title,
+                          date: event.date,
+                          location: event.location,
+                          description: event.description,
+                        });
+                      }}
+                    />
+                  ))}
+
+                  {filteredEvents.length === 0 && (
+                    <Text style={styles.emptytext}>No matching events found.</Text>
+                  )}
+
+                  <Text style={styles.radiusText}>
+                    Floor: L{activeFloor} • Radius: {cameraRadius.toFixed(1)}
+                  </Text>
+                </View>
+              )}
               </ScrollView>
             </Animated.View>
           </Animated.View>

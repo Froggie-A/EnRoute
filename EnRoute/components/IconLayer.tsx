@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { Asset } from "expo-asset";
 import { useTexture } from "@react-three/drei/native";
 
-type IconType =
+export type IconType =
   | "studyroom"
   | "emergency"
   | "restroom"
@@ -21,7 +21,7 @@ type IconPin = {
   type: IconType;
 };
 
-const ICON_DATA: Record<1 | 2, IconPin[]> = {
+const ICON_DATA: Record<1 | 2 | 3, IconPin[]> = {
   1: [
     { x: -1.5, y: 0.15, z: 0.5, type: "studyroom" },
     { x: -1.5, y: 0.15, z: 2.3, type: "studyroom" },
@@ -143,6 +143,7 @@ const ICON_DATA: Record<1 | 2, IconPin[]> = {
     { x: -0.27, y: 0.15, z: -4.46, type: "bottle" },
   ],
 
+  3: [],
 };
 
 const textureSources = {
@@ -159,9 +160,23 @@ const textureSources = {
 
 export default function IconLayer({
   activeFloor,
+  cameraRadius,
+  allowedTypes,
 }: {
-  activeFloor: 1 | 2;
+  activeFloor: 1 | 2 | 3;
+  cameraRadius: number;
+  allowedTypes: IconType[];
 }) {
+  const visibleIcons = ICON_DATA[activeFloor];
+
+  const filteredIcons = useMemo(() => {
+      if (allowedTypes.length === 0) {
+        // No filter active: only show "above-floor" icons (y >= 0.15)
+        return visibleIcons.filter((icon) => icon.y >= 0.15);
+      }
+      // Filter active: show matching icons regardless of y
+      return visibleIcons.filter((icon) => allowedTypes.includes(icon.type));
+    }, [visibleIcons, allowedTypes]);
 
   const texturesArray = useTexture(Object.values(textureSources)) as THREE.Texture[];
 
@@ -177,11 +192,9 @@ export default function IconLayer({
     bottle: texturesArray[8],
   };
 
-  const visibleIcons = ICON_DATA[activeFloor];
-
   return (
     <>
-      {visibleIcons.map((icon, i) => (
+      {filteredIcons.map((icon, i) => (
         <sprite
           key={i}
           position={[icon.x, icon.y + 0.2, icon.z]}
