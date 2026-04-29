@@ -15,6 +15,7 @@ import {
   PanResponder,
   ActivityIndicator,
   Animated,
+  TextInput,
 } from "react-native";
 import { Canvas, useThree, useFrame } from "@react-three/fiber/native";
 import { useGLTF } from "@react-three/drei/native";
@@ -34,6 +35,7 @@ import RoomHitboxes, {
   getRoomAtScreenPoint,
   getRoomById,
   getNavNodeId,
+  findRoomBySearch as findRoomHitboxBySearch
 } from "@/components/roomHitbox";
 import RoomDetailSheet from "@/components/roomDetail";
 import DirectionsSheet, { START_NODE_ID } from "@/components/Directions";
@@ -369,6 +371,141 @@ function SceneCapture({
   return null;
 }
 
+function SwipeDeletePinRow({
+  pin,
+  index,
+  onPress,
+  onDelete,
+  getPinHex,
+}: {
+  pin: Pin;
+  index: number;
+  onPress: () => void;
+  onDelete: () => void;
+  getPinHex: (color?: Pin["color"]) => string;
+}) {
+  const translateX = useRef(new Animated.Value(0)).current;
+  const rowOpenRef = useRef(false);
+
+  const DELETE_WIDTH = 90;
+  const MAX_SWIPE = -110;
+  const OPEN_THRESHOLD = -45;
+
+  const closeRow = () => {
+    rowOpenRef.current = false;
+    Animated.spring(translateX, {
+      toValue: 0,
+      useNativeDriver: true,
+      damping: 24,
+      stiffness: 220,
+      mass: 0.8,
+    }).start();
+  };
+
+  const openRow = () => {
+    rowOpenRef.current = true;
+    Animated.spring(translateX, {
+      toValue: -DELETE_WIDTH,
+      useNativeDriver: true,
+      damping: 24,
+      stiffness: 220,
+      mass: 0.8,
+    }).start();
+  };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gesture) =>
+        Math.abs(gesture.dx) > 6 &&
+        Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.2,
+
+      onPanResponderGrant: () => {
+        translateX.stopAnimation();
+      },
+
+      onPanResponderMove: (_, gesture) => {
+        let nextX = gesture.dx;
+
+        if (rowOpenRef.current) {
+          nextX = -DELETE_WIDTH + gesture.dx;
+        }
+
+        if (nextX > 0) nextX = 0;
+
+        // Soft resistance past the delete width
+        if (nextX < -DELETE_WIDTH) {
+          nextX = -DELETE_WIDTH + (nextX + DELETE_WIDTH) * 0.25;
+        }
+
+        translateX.setValue(Math.max(nextX, MAX_SWIPE));
+      },
+
+      onPanResponderRelease: (_, gesture) => {
+        const projectedX =
+          (rowOpenRef.current ? -DELETE_WIDTH : 0) +
+          gesture.dx +
+          gesture.vx * 60;
+
+        const shouldOpen =
+          projectedX < OPEN_THRESHOLD || gesture.vx < -0.35;
+
+        const shouldClose =
+          gesture.vx > 0.35 || projectedX > -DELETE_WIDTH / 2;
+
+        if (rowOpenRef.current) {
+          shouldClose ? closeRow() : openRow();
+        } else {
+          shouldOpen ? openRow() : closeRow();
+        }
+      },
+
+      onPanResponderTerminate: () => {
+        rowOpenRef.current ? openRow() : closeRow();
+      },
+    })
+  ).current;
+
+  return (
+    <View style={styles.swipeDeleteWrap}>
+      <Pressable
+        style={styles.deleteButton}
+        onPress={() => {
+          closeRow();
+          onDelete();
+        }}
+      >
+        <Ionicons name="trash-outline" size={22} color="#fff" />
+      </Pressable>
+
+      <Animated.View
+        style={[
+          styles.savedPinRow,
+          {
+            transform: [{ translateX }],
+          },
+        ]}
+        {...panResponder.panHandlers}
+      >
+        <Pressable onPress={onPress} style={styles.savedPinPressable}>
+          <View style={styles.savedPinLeft}>
+            <Ionicons name="pin" size={20} color={getPinHex(pin.color)} />
+
+            <Text style={styles.savedItemNoBorder}>
+              {pin.title || "Untitled Pin"}
+            </Text>
+          </View>
+
+          <View style={styles.swipeIndicator}>
+            <View style={styles.swipeLine} />
+            <View style={styles.swipeLine} />
+            <View style={styles.swipeLine} />
+          </View>
+        </Pressable>
+      </Animated.View>
+    </View>
+  );
+}
+
 
 
 //── Main screen ──────────────────────────────────────────────────────────────
@@ -380,6 +517,15 @@ export default function HomeScreen() {
   const [isReady, setIsReady] = useState(false);
 
   const sceneRef = useRef<THREE.Object3D[] | null>(null);
+
+  const [pendingPin, setPendingPin] = useState<Pin | null>(null);
+  const [editingPinIndex, setEditingPinIndex] = useState<number | null>(null);
+  const [customizingPreviewPin, setCustomizingPreviewPin] = useState<Pin | null>(null);
+  const [pinTitle, setPinTitle] = useState("");
+  const [pinColor, setPinColor] = useState<"red" | "blue" | "green" | "yellow">("red");
+
+  const [showPinSavedToast, setShowPinSavedToast] = useState(false);
+  const pinSavedAnim = useRef(new Animated.Value(120)).current;
 
   const [location, setLocation] = useState<Location.LocationObject | null>({
     coords: {
@@ -616,9 +762,85 @@ export default function HomeScreen() {
     const [x, y, z] = room.position;
     const [, sy, sz] = room.size;
     cameraTargetRef.current.set(x * groupScale, y * groupScale, z * groupScale);
-    const zoomRadius = Math.max(2.5, Math.max(sy, sz) * groupScale * 2.2);
+    const zoomRadius = Math.max(5, Math.max(sy, sz) * groupScale * 1.4);
     lerpRadiusRef.current = zoomRadius;
   }, []);
+
+const findRoomBySearch = useCallback(() => {
+  const query = search.trim();
+  if (!query) return;
+
+  for (const floor of [1, 2, 3] as FloorNumber[]) {
+    const room = findRoomHitboxBySearch(floor, query);
+    if (!room) continue;
+
+    const navId = getNavNodeId(room.id, floor);
+    const node = navId ? getNode(navId) : null;
+    if (!node) return;
+
+    activeFloorRef.current = floor;
+    setActiveFloor(floor);
+
+    setSelectedRoom(room.id);
+    setSelectedNode(node);
+    setSheetView("detail");
+    setActiveRoute(null);
+    setPathWaypoints([]);
+    setSelectedEvent(null);
+
+    // hide your custom search panel faster
+    setShowCollapsedPill(false);
+    setPanelExpanded(false);
+    setPanelLevel("collapsed");
+
+    Animated.timing(panelHeightAnim, {
+      toValue: COLLAPSED_HEIGHT,
+      duration: 100,
+      useNativeDriver: false,
+    }).start();
+
+    focusRoom(room.id, floor);
+
+    requestAnimationFrame(() => {
+      bottomSheetRef.current?.snapToIndex(0);
+      setSheetIndex(0);
+      sheetIndexRef.current = 0;
+    });
+
+    return;
+  }
+
+  console.log("No room found for search:", query);
+}, [search, focusRoom, panelHeightAnim]);
+
+  const focusPin = useCallback((pin: Pin) => {
+  if (pin.floor !== activeFloorRef.current) {
+    activeFloorRef.current = pin.floor;
+    setActiveFloor(pin.floor);
+  }
+
+  cameraTargetRef.current.set(
+    pin.x,
+    pin.y,
+    pin.z
+  );
+
+  lerpRadiusRef.current = 3.5;
+}, []);
+
+const getPinHex = (color?: Pin["color"]) => {
+  switch (color) {
+    case "blue":
+      return "#2F80ED";
+    case "green":
+      return "#27AE60";
+    case "yellow":
+      return "#F2C94C";
+    case "red":
+    default:
+      return "#D94040";
+  }
+};
 
   const [mode, setMode] = useState<"pin" | "navigate" | null>(null);
 
@@ -685,17 +907,20 @@ export default function HomeScreen() {
       },
 
         onPanResponderRelease: () => {
-        const finalPin = previewPinRef.current;
+          const finalPin = previewPinRef.current;
 
-        if (finalPin) {
-          setPins((prev) => [...prev, finalPin]);
-        }
+          if (finalPin) {
+            setPendingPin(finalPin);
+            setCustomizingPreviewPin(finalPin);
+            setPinTitle("");
+            setPinColor("red");
+          }
 
-        previewPinRef.current = null;
-        setPreviewPin(null);
-        setPinMode(false);
-        setMode(null);
-      },
+          previewPinRef.current = null;
+          setPreviewPin(null);
+          setPinMode(false);
+          setMode(null);
+        },
 
         onPanResponderTerminate: () => {
           previewPinRef.current = null;
@@ -718,6 +943,27 @@ export default function HomeScreen() {
   const collapseStretchPanel = useCallback(() => {
     snapPanelTo(COLLAPSED_HEIGHT);
   }, [snapPanelTo]);
+
+  const showPinSavedMessage = useCallback(() => {
+  setShowPinSavedToast(true);
+
+  Animated.sequence([
+    Animated.spring(pinSavedAnim, {
+      toValue: 0,
+      useNativeDriver: true,
+      damping: 18,
+      stiffness: 180,
+    }),
+    Animated.delay(1600),
+    Animated.timing(pinSavedAnim, {
+      toValue: 120,
+      duration: 250,
+      useNativeDriver: true,
+    }),
+  ]).start(() => {
+    setShowPinSavedToast(false);
+  });
+}, [pinSavedAnim]);
 
   const panelPanResponder = useMemo(
       () =>
@@ -890,6 +1136,39 @@ export default function HomeScreen() {
     setPanelView("profile");
     openSheet();
   };
+
+  const getPinFromTouch = useCallback(
+  (pageX: number, pageY: number): { pin: Pin; index: number } | null => {
+    const cam = cameraRef.current;
+    if (!cam || mapSize.width <= 0 || mapSize.height <= 0) return null;
+
+    const pointer = pointerRef.current;
+    const raycaster = raycasterRef.current;
+
+    pointer.x = (pageX / mapSize.width) * 2 - 1;
+    pointer.y = -(pageY / mapSize.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, cam);
+
+    let closest: { pin: Pin; index: number } | null = null;
+    let closestDistance = Infinity;
+
+    pins.forEach((pin, index) => {
+      if (pin.floor !== activeFloorRef.current) return;
+
+      const pinPosition = new THREE.Vector3(pin.x, pin.y, pin.z);
+      const distance = raycaster.ray.distanceToPoint(pinPosition);
+
+      if (distance < 0.35 && distance < closestDistance) {
+        closestDistance = distance;
+        closest = { pin, index };
+      }
+    });
+
+    return closest;
+  },
+  [pins, mapSize.width, mapSize.height]
+);
+
   const cameraPanResponder = useMemo(
       () =>
           PanResponder.create({
@@ -964,10 +1243,32 @@ export default function HomeScreen() {
               }
             },
 
-            onPanResponderRelease: () => {
+            onPanResponderRelease: (e) => {
+              if (!touchMovedRef.current) {
+                const tappedPin = getPinFromTouch(
+                  e.nativeEvent.pageX,
+                  e.nativeEvent.pageY
+                );
+
+                if (tappedPin) {
+                  setEditingPinIndex(tappedPin.index);
+                  setPendingPin(tappedPin.pin);
+                  setPinTitle(tappedPin.pin.title || "");
+                  setPinColor(tappedPin.pin.color || "red");
+            
+
+                  touchStartRef.current = null;
+                  touchRoomRef.current = null;
+                  touchMovedRef.current = false;
+                  prevTouches.current = [];
+                  return;
+                }
+              }
+
               if (!touchMovedRef.current && touchRoomRef.current) {
                 handleRoomSelect(touchRoomRef.current);
               }
+
               touchStartRef.current = null;
               touchRoomRef.current = null;
               touchMovedRef.current = false;
@@ -981,8 +1282,10 @@ export default function HomeScreen() {
               prevTouches.current = [];
             },
           }),
-      [pinMode, handleRoomSelect]
+      [pinMode, handleRoomSelect,getPinFromTouch]
   );
+
+  
 
   // Location watcher
   useEffect(() => {
@@ -1145,7 +1448,16 @@ export default function HomeScreen() {
 
           <PinLayer
             pins={pins}
-            previewPin={previewPin}
+            previewPin={
+              previewPin
+                ? previewPin
+                : customizingPreviewPin
+                  ? {
+                      ...customizingPreviewPin,
+                      color: pinColor,
+                    }
+                  : null
+            }
             previewPinRef={previewPinRef}
             activeFloor={activeFloor}
           />
@@ -1176,9 +1488,10 @@ export default function HomeScreen() {
       )}
 
       {sheetIndex === -1 && (
+        <View style={styles.pinButton}>
         <Pressable
           onPress={() => setPinMode((prev) => !prev)}
-          style={styles.pinButton}
+          style={styles.pinPressable}
         >
           <View style={styles.pinContainer}>
             <View
@@ -1194,7 +1507,14 @@ export default function HomeScreen() {
               ]}
             />
           </View>
+        </Pressable>
 
+        {/* NAVIGATION BUTTON (BLUE ARROW) */}
+        <Pressable
+          onPress={() => {
+          }}
+          style={styles.arrowPressable}
+        >
           <Ionicons
             name="navigate"
             size={26}
@@ -1202,6 +1522,7 @@ export default function HomeScreen() {
             style={styles.arrow}
           />
         </Pressable>
+      </View>
       )}
 
       {sheetIndex === -1 && (
@@ -1261,6 +1582,7 @@ export default function HomeScreen() {
                     setSearch={setSearch}
                     onPressExpand={openSheet}
                     onPressProfile={handleProfilePress}
+                    onSubmitSearch={findRoomBySearch}
                   />
                 </View>
               )}
@@ -1299,9 +1621,26 @@ export default function HomeScreen() {
                     <Text style={styles.profileTitle}>Saved Pins</Text>
 
                     <View style={styles.savedCard}>
-                      <Text style={styles.savedItem}>Study Spot</Text>
-                      <Text style={styles.savedItem}>Bluebook Vending</Text>
-                      <Text style={styles.savedItem}>Group Meetup</Text>
+                      {pins.length === 0 ? (
+                        <Text style={styles.savedItem}>No Saved Pins</Text>
+                      ) : (
+                        pins.map((pin, index) => (
+                          <SwipeDeletePinRow
+                            key={`saved-pin-${index}`}
+                            pin={pin}
+                            index={index}
+                            getPinHex={getPinHex}
+                            onPress={() => {
+                              focusPin(pin);
+                              setPanelView("main");
+                              snapPanelTo(COLLAPSED_HEIGHT);
+                            }}
+                            onDelete={() => {
+                              setPins((prev) => prev.filter((_, i) => i !== index));
+                            }}
+                          />
+                        ))
+                      )}
                     </View>
                   </View>
                 ) : selectedEvent ? (
@@ -1394,6 +1733,97 @@ export default function HomeScreen() {
               </ScrollView>
             </Animated.View>
           </Animated.View>
+        </Animated.View>
+      )}
+
+      {pendingPin && (
+        <View style={styles.pinCustomizeCard}>
+          <Text style={styles.pinCustomizeTitle}>Customize Pin</Text>
+
+          <TextInput
+            value={pinTitle}
+            onChangeText={setPinTitle}
+            placeholder="Pin Name"
+            style={styles.pinInput}
+          />
+
+          <View style={styles.colorRow}>
+            {[
+              { label: "red" as const, hex: "#D94040" },
+              { label: "blue" as const, hex: "#2F80ED" },
+              { label: "green" as const, hex: "#27AE60" },
+              { label: "yellow" as const, hex: "#F2C94C" },
+            ].map((item) => (
+              <Pressable
+                key={item.label}
+                onPress={() => setPinColor(item.label)}
+                style={[
+                  styles.colorDot,
+                  { backgroundColor: item.hex },
+                  pinColor === item.label && styles.selectedColorDot,
+                ]}
+              />
+            ))}
+          </View>
+
+          <View style={styles.pinActionRow}>
+            <Pressable
+              style={styles.cancelPinButton}
+              onPress={() => {
+              setPendingPin(null);
+              setEditingPinIndex(null);
+              setPreviewPin(null);
+              setCustomizingPreviewPin(null);
+            }}
+            >
+              <Text style={styles.cancelPinText}>Cancel</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.savePinButton}
+              onPress={() => {
+              const updatedPin: Pin = {
+                ...pendingPin,
+                title: pinTitle.trim() || "Untitled Pin",
+                color: pinColor,
+              };
+
+              if (editingPinIndex !== null) {
+                setPins((prev) =>
+                  prev.map((pin, index) =>
+                    index === editingPinIndex ? updatedPin : pin
+                  )
+                );
+              } else {
+                setPins((prev) => [...prev, updatedPin]);
+              }
+
+              setPendingPin(null);
+              setEditingPinIndex(null);
+              setPreviewPin(null);
+              setCustomizingPreviewPin(null);
+              showPinSavedMessage();
+            }}
+            >
+              <Text style={styles.savePinText}>Save Pin</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {showPinSavedToast && (
+        <Animated.View
+          style={[
+            styles.pinSavedToast,
+            {
+              transform: [{ translateY: pinSavedAnim }],
+            },
+          ]}
+        >
+          <Ionicons name="checkmark-circle" size={22} color="#111" />
+          <Text style={styles.pinSavedToastText}>
+            Pin Saved Under Profile
+          </Text>
         </Animated.View>
       )}
 
@@ -1716,4 +2146,193 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "rgba(0,0,0,0.3)",
   },
+
+  pinCustomizeCard: {
+ position: "absolute",
+  top: "50%",
+  left: "50%",
+  transform: [
+    { translateX: -160 }, 
+    { translateY: -180 }, 
+  ],
+  width: 320,
+
+  backgroundColor: "rgba(235, 235, 218, 1)",
+  borderRadius: 22,
+  padding: 18,
+  zIndex: 100,
+  elevation: 20,
+
+  shadowColor: "#000",
+  shadowOpacity: 0.18,
+  shadowRadius: 10,
+  shadowOffset: { width: 0, height: 4 },
+},
+
+
+pinCustomizeTitle: {
+  fontSize: 22,
+  fontWeight: "700",
+  marginBottom: 12,
+  color: "#111",
+},
+
+pinInput: {
+  backgroundColor: "#FFFDF0",
+  borderRadius: 12,
+  borderWidth: 1,
+  borderColor: "rgba(0,0,0,0.2)",
+  paddingHorizontal: 14,
+  paddingVertical: 10,
+  fontSize: 16,
+  marginBottom: 14,
+},
+
+colorRow: {
+  flexDirection: "row",
+  gap: 14,
+  marginBottom: 18,
+},
+
+colorDot: {
+  width: 34,
+  height: 34,
+  borderRadius: 17,
+  borderWidth: 1,
+  borderColor: "rgba(0,0,0,0.25)",
+},
+
+selectedColorDot: {
+  borderWidth: 3,
+  borderColor: "#111",
+},
+
+pinActionRow: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  gap: 12,
+},
+
+cancelPinButton: {
+  flex: 1,
+  paddingVertical: 12,
+  borderRadius: 14,
+  backgroundColor: "#DDD",
+  alignItems: "center",
+},
+
+savePinButton: {
+  flex: 1,
+  paddingVertical: 12,
+  borderRadius: 14,
+  backgroundColor: "#BFDDF3",
+  alignItems: "center",
+},
+
+cancelPinText: {
+  fontSize: 16,
+  fontWeight: "600",
+  color: "#111",
+},
+
+savePinText: {
+  fontSize: 16,
+  fontWeight: "700",
+  color: "#111",
+},
+pinPressable: {
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+arrowPressable: {
+  alignItems: "center",
+  justifyContent: "center",
+  marginTop: 6,
+},
+
+pinSavedToast: {
+  position: "absolute",
+  bottom: 120,
+  height: 46,
+  alignSelf: "center", 
+  paddingHorizontal: 16,
+  paddingVertical: 10,
+  borderRadius: 14,
+  backgroundColor: "rgba(235, 235, 218, 1)",
+  borderWidth: 1,
+  borderColor: "rgba(255,255,255,0.8)",
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+  zIndex: 200,
+  elevation: 30,
+  shadowColor: "#000",
+  shadowOpacity: 0.18,
+  shadowRadius: 10,
+  shadowOffset: { width: 0, height: 4 },
+},
+
+pinSavedToastText: {
+  fontSize: 14,
+  fontWeight: "700",
+  color: "#111",
+},
+
+swipeDeleteWrap: {
+  position: "relative",
+  overflow: "hidden",
+  borderBottomWidth: 1,
+  borderBottomColor: "rgba(0,0,0,0.3)",
+},
+
+deleteButton: {
+  position: "absolute",
+  right: 0,
+  top: 0,
+  bottom: 0,
+  width: 90,
+  backgroundColor: "#D94040",
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+savedPinRow: {
+  backgroundColor: "#FFFDF0",
+},
+
+savedPinPressable: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+  paddingVertical: 12,
+},
+
+savedPinLeft: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 10,
+  flex: 1,
+},
+
+savedItemNoBorder: {
+  fontSize: 16,
+  color: "#111",
+},
+
+swipeIndicator: {
+  justifyContent: "center",
+  alignItems: "flex-end",
+  gap: 3,
+},
+
+swipeLine: {
+  width: 14,
+  height: 2,
+  backgroundColor: "rgba(0,0,0,0.35)",
+  borderRadius: 2,
+},
+
+
 });
