@@ -16,6 +16,7 @@ import {
   ActivityIndicator,
   Animated,
   TextInput,
+  Easing,
 } from "react-native";
 import { Canvas, useThree, useFrame } from "@react-three/fiber/native";
 import { useGLTF } from "@react-three/drei/native";
@@ -391,79 +392,79 @@ function SwipeDeletePinRow({
   getPinHex: (color?: Pin["color"]) => string;
 }) {
   const translateX = useRef(new Animated.Value(0)).current;
-  const rowOpenRef = useRef(false);
+  const startXRef = useRef(0);
+  const isOpenRef = useRef(false);
+  const isSwipingRef = useRef(false);
 
   const DELETE_WIDTH = 90;
-  const MAX_SWIPE = -110;
-  const OPEN_THRESHOLD = -45;
+  const OPEN_THRESHOLD = -10;
 
-  const closeRow = () => {
-    rowOpenRef.current = false;
-    Animated.spring(translateX, {
-      toValue: 0,
+  const animateTo = (value: number) => {
+    translateX.stopAnimation();
+
+    Animated.timing(translateX, {
+      toValue: value,
+      duration: 110,
+      easing: Easing.linear,
       useNativeDriver: true,
-      damping: 24,
-      stiffness: 220,
-      mass: 0.8,
-    }).start();
+    }).start(() => {
+      startXRef.current = value;
+      isOpenRef.current = value === -DELETE_WIDTH;
+    });
   };
 
-  const openRow = () => {
-    rowOpenRef.current = true;
-    Animated.spring(translateX, {
-      toValue: -DELETE_WIDTH,
-      useNativeDriver: true,
-      damping: 24,
-      stiffness: 220,
-      mass: 0.8,
-    }).start();
-  };
+  const closeRow = () => animateTo(0);
+  const openRow = () => animateTo(-DELETE_WIDTH);
 
   const panResponder = useRef(
     PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+
       onMoveShouldSetPanResponder: (_, gesture) =>
         Math.abs(gesture.dx) > 6 &&
-        Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.2,
+        Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.8,
 
       onPanResponderGrant: () => {
-        translateX.stopAnimation();
+        isSwipingRef.current = true;
+
+        translateX.stopAnimation((value) => {
+          startXRef.current = value;
+        });
       },
 
       onPanResponderMove: (_, gesture) => {
-        let nextX = gesture.dx;
+        let nextX = startXRef.current + gesture.dx;
 
-        if (rowOpenRef.current) {
-          nextX = -DELETE_WIDTH + gesture.dx;
-        }
         if (nextX > 0) nextX = 0;
-        if (nextX < -DELETE_WIDTH) {
-          nextX = -DELETE_WIDTH + (nextX + DELETE_WIDTH) * 0.25;
-        }
+        if (nextX < -DELETE_WIDTH) nextX = -DELETE_WIDTH;
 
-        translateX.setValue(Math.max(nextX, MAX_SWIPE));
+        translateX.setValue(nextX);
       },
 
       onPanResponderRelease: (_, gesture) => {
-        const projectedX =
-          (rowOpenRef.current ? -DELETE_WIDTH : 0) +
-          gesture.dx +
-          gesture.vx * 60;
+      let finalX = startXRef.current + gesture.dx;
+      finalX = Math.min(0, Math.max(finalX, -DELETE_WIDTH));
 
-        const shouldOpen =
-          projectedX < OPEN_THRESHOLD || gesture.vx < -0.35;
+      const swipedLeftFarEnough = finalX <= -10;
+      const swipedFastLeft = gesture.vx < -0.1;
 
-        const shouldClose =
-          gesture.vx > 0.35 || projectedX > -DELETE_WIDTH / 2;
+      if (swipedLeftFarEnough || swipedFastLeft) {
+        openRow();
+      } else {
+        closeRow();
+      }
 
-        if (rowOpenRef.current) {
-          shouldClose ? closeRow() : openRow();
-        } else {
-          shouldOpen ? openRow() : closeRow();
-        }
-      },
+      setTimeout(() => {
+        isSwipingRef.current = false;
+      }, 120);
+    },
 
       onPanResponderTerminate: () => {
-        rowOpenRef.current ? openRow() : closeRow();
+        isOpenRef.current ? openRow() : closeRow();
+
+        setTimeout(() => {
+          isSwipingRef.current = false;
+        }, 120);
       },
     })
   ).current;
@@ -489,7 +490,12 @@ function SwipeDeletePinRow({
         ]}
         {...panResponder.panHandlers}
       >
-        <Pressable onPress={onPress} style={styles.savedPinPressable}>
+        <Pressable
+          onPress={() => {
+            if (!isSwipingRef.current) onPress();
+          }}
+          style={styles.savedPinPressable}
+        >
           <View style={styles.savedPinLeft}>
             <Ionicons name="pin" size={20} color={getPinHex(pin.color)} />
 
@@ -1743,6 +1749,7 @@ const getPinPointFromTouch = useCallback(
       )}
 
       {pendingPin && (
+         <View style={styles.pinCustomizeOverlay} pointerEvents="auto">
         <View style={styles.pinCustomizeCard}>
           <Text style={styles.pinCustomizeTitle}>Customize Pin</Text>
 
@@ -1750,6 +1757,7 @@ const getPinPointFromTouch = useCallback(
             value={pinTitle}
             onChangeText={setPinTitle}
             placeholder="Pin Name"
+            placeholderTextColor="#888"
             style={styles.pinInput}
           />
 
@@ -1811,9 +1819,10 @@ const getPinPointFromTouch = useCallback(
               showPinSavedMessage();
             }}
             >
-              <Text style={styles.savePinText}>Save Pin</Text>
+              <Text style={styles.savePinText}>Save</Text>
             </Pressable>
           </View>
+        </View>
         </View>
       )}
 
@@ -2158,10 +2167,11 @@ const styles = StyleSheet.create({
   top: "50%",
   left: "50%",
   transform: [
-    { translateX: -160 }, 
-    { translateY: -180 }, 
+    { translateX: -145 }, 
+    { translateY: -160 }, 
   ],
   width: 320,
+  
 
   backgroundColor: "rgba(235, 235, 218, 1)",
   borderRadius: 22,
@@ -2313,6 +2323,7 @@ savedPinPressable: {
   alignItems: "center",
   justifyContent: "space-between",
   paddingVertical: 12,
+  paddingRight: 28,
 },
 
 savedPinLeft: {
@@ -2338,6 +2349,18 @@ swipeLine: {
   height: 2,
   backgroundColor: "rgba(0,0,0,0.35)",
   borderRadius: 2,
+},
+pinCustomizeOverlay: {
+  position: "absolute",
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: "rgba(0, 0, 0, 0.45)",
+  zIndex: 200,
+  justifyContent: "flex-end",
+  paddingHorizontal: 16,
+  paddingBottom: 40,
 },
 
 
