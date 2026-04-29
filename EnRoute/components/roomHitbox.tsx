@@ -215,6 +215,7 @@ export function getRoomAtScreenPoint(
 
   return bestMatch;
 }
+
 export function findRoomBySearch(floor: 1 | 2 | 3, query: string) {
   const cleaned = query
     .toLowerCase()
@@ -237,3 +238,18 @@ export function findRoomBySearch(floor: 1 | 2 | 3, query: string) {
     );
   });
 }
+export function findRoomsStartingWith(
+  floor: 1 | 2 | 3,
+  query: string
+) {
+  const normalizedQuery = query.trim().toLowerCase();
+
+  const rooms = ROOM_DATA[floor] ?? [];
+
+  return rooms.filter((room) => {
+    const roomNumber = room.id.match(/\d+/)?.[0] || "";
+
+    return roomNumber.startsWith(normalizedQuery);
+  });
+}
+

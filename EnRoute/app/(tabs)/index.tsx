@@ -36,7 +36,8 @@ import RoomHitboxes, {
   getRoomAtScreenPoint,
   getRoomById,
   getNavNodeId,
-  findRoomBySearch as findRoomHitboxBySearch
+  findRoomBySearch as findRoomHitboxBySearch,
+  findRoomsStartingWith
 } from "@/components/roomHitbox";
 import RoomDetailSheet from "@/components/roomDetail";
 import DirectionsSheet, { START_NODE_ID } from "@/components/Directions";
@@ -741,16 +742,50 @@ export default function HomeScreen() {
     },
   ];
 
-  // Filtering for the events in the search half sheet.
-  const filteredEvents = events.filter((event) => {
-    const query = search.trim().toLowerCase();
+  // Filtering for the events and rooms in the search bar half sheet.
+const filteredEvents = useMemo(() => {
+  const query = search.trim().toLowerCase();
+  const queryNumber = query.replace(/\D/g, "");
+
+  const roomResults: any[] = [];
+
+  if (queryNumber) {
+    for (const floor of [1, 2, 3] as FloorNumber[]) {
+      const rooms = findRoomsStartingWith(floor, queryNumber);
+
+      rooms.forEach((room) => {
+        const roomNumber = room.id.match(/\d+/)?.[0] || room.id;
+
+        roomResults.push({
+          id: `room-${floor}-${room.id}`,
+          title: roomNumber,
+          date: `Floor L${floor}`,
+          club: "Room",
+          location: "PFT " + roomNumber,
+          type: "location-outline" as const,
+          description: `${room.name} is located on Floor L${floor}.`,
+          isRoom: true,
+          roomId: room.id,
+          floor,
+        });
+      });
+    }
+  }
+
+  const normalEvents = events.filter((event) => {
     if (!query) return true;
+
+    const eventRoomNumber = event.location.match(/\d+/)?.[0] || "";
+
     return (
-        event.title.toLowerCase().includes(query) ||
-        event.location.toLowerCase().includes(query) ||
-        event.date.toLowerCase().includes(query)
+      eventRoomNumber.startsWith(queryNumber) ||
+      event.title.toLowerCase().includes(query) ||
+      event.club.toLowerCase().includes(query)
     );
   });
+
+  return [...roomResults, ...normalEvents];
+}, [search]);
 
   useEffect(() => { activeFloorRef.current = activeFloor; }, [activeFloor]);
   useEffect(() => { mapSizeRef.current = mapSize; }, [mapSize]);
@@ -778,12 +813,15 @@ export default function HomeScreen() {
   }, []);
 
 const findRoomBySearch = useCallback(() => {
-  const query = search.trim();
+  const query = search.trim().toLowerCase();
   if (!query) return;
 
   for (const floor of [1, 2, 3] as FloorNumber[]) {
     const room = findRoomHitboxBySearch(floor, query);
-    if (!room) continue;
+    const roomNumber = room?.id.match(/\d+/)?.[0] || "";
+
+    // only zoom if the typed search exactly matches a room number
+    if (!room || roomNumber !== query) continue;
 
     const navId = getNavNodeId(room.id, floor);
     const node = navId ? getNode(navId) : null;
@@ -798,6 +836,8 @@ const findRoomBySearch = useCallback(() => {
     setActiveRoute(null);
     setPathWaypoints([]);
     setSelectedEvent(null);
+
+    setSearch("");
     setShowCollapsedPill(false);
     setPanelExpanded(false);
     setPanelLevel("collapsed");
@@ -809,18 +849,18 @@ const findRoomBySearch = useCallback(() => {
     }).start();
 
     focusRoom(room.id, floor);
-
     requestAnimationFrame(() => {
       bottomSheetRef.current?.snapToIndex(0);
       setSheetIndex(0);
       sheetIndexRef.current = 0;
     });
+    
 
     return;
   }
 
-  console.log("No room found for search:", query);
-}, [search, focusRoom, panelHeightAnim]);
+  console.log("No exact room found for search:", query);
+}, [search, focusRoom]);
 
 // Function that zooms in on a pin when clicked in the profile page. 
   const focusPin = useCallback((pin: Pin) => {
@@ -1722,6 +1762,33 @@ const getPinPointFromTouch = useCallback(
                         location={event.location}
                         type={event.type}
                         onPress={() => {
+                          if ("isRoom" in event && event.isRoom) {
+                            activeFloorRef.current = event.floor;
+                            setActiveFloor(event.floor);
+
+                            const navId = getNavNodeId(event.roomId, event.floor);
+                            const node = navId ? getNode(navId) : null;
+
+                            setSelectedRoom(event.roomId);
+                            setSelectedNode(node);
+                            setSheetView("detail");
+                            setActiveRoute(null);
+                            setPathWaypoints([]);
+                            setSelectedEvent(null);
+
+                            focusRoom(event.roomId, event.floor);
+                            snapPanelTo(COLLAPSED_HEIGHT);
+                            setShowCollapsedPill(false);
+
+                            requestAnimationFrame(() => {
+                              bottomSheetRef.current?.snapToIndex(0);
+                              setSheetIndex(0);
+                              sheetIndexRef.current = 0;
+                            });
+
+                            return;
+                          }
+
                           setSearch("");
                           setSelectedEvent({
                             title: event.title,
