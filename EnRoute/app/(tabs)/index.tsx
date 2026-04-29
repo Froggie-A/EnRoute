@@ -1992,6 +1992,11 @@ const getPinPointFromTouch = useCallback(
                             const navId = getNavNodeId(event.roomId, event.floor);
                             const node = navId ? getNode(navId) : null;
 
+                            if (!node) {
+                              console.warn("No nav node found for room:", event.roomId, navId);
+                              return;
+                            }
+
                             setSelectedRoom(event.roomId);
                             setSelectedNode(node);
                             setSheetView("detail");
@@ -2000,8 +2005,16 @@ const getPinPointFromTouch = useCallback(
                             setSelectedEvent(null);
 
                             focusRoom(event.roomId, event.floor);
-                            snapPanelTo(COLLAPSED_HEIGHT);
+
                             setShowCollapsedPill(false);
+                            setPanelExpanded(false);
+                            setPanelLevel("collapsed");
+
+                            Animated.timing(panelHeightAnim, {
+                              toValue: COLLAPSED_HEIGHT,
+                              duration: 100,
+                              useNativeDriver: false,
+                            }).start();
 
                             requestAnimationFrame(() => {
                               bottomSheetRef.current?.snapToIndex(0);
