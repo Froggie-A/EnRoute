@@ -1361,7 +1361,7 @@ export default function HomeScreen() {
                               onPress={() => {
                                 setSelectedEvent(event);
                                 setPanelView("main");
-                                snapPanelTo(MID_HEIGHT);
+                                snapPanelTo(expandedPanelHeight);
                               }}
                             >
                               <Text style={styles.savedItem}>{event.title}</Text>
