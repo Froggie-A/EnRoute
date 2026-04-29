@@ -218,8 +218,8 @@ const styles = StyleSheet.create({
         marginBottom: 4,
     },
     backBtn: {
-        width: 36, height: 36, borderRadius: 10,
-        backgroundColor: "#f0f0e8",
+        width: 40, height: 40, borderRadius: 10,
+        backgroundColor: "#EBEBDA",
         alignItems: "center", justifyContent: "center",
     },
     title: { fontSize: 20, fontWeight: "800", color: "#111" },

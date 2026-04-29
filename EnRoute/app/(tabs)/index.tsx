@@ -16,6 +16,7 @@ import {
   PanResponder,
   ActivityIndicator,
   Animated,
+  Keyboard,
   TextInput,
   Easing,
 } from "react-native";
@@ -28,6 +29,7 @@ import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
 import { ScrollView } from "react-native";
+import { BlurView } from "expo-blur";
 
 import NodeDebugLayer from "@/components/nodeDebugLayer"
 
@@ -521,6 +523,7 @@ function SwipeDeletePinRow({
 //── Main screen ──────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
+
   const previewPinRef = useRef<Pin | null>(null);
   const [activeFloor, setActiveFloor] = useState<FloorNumber>(1);
   const [cameraRadius, setCameraRadius] = useState(FLOOR_CONFIG[1].snapRadius);
@@ -581,6 +584,8 @@ export default function HomeScreen() {
     description: string;
   } | null>(null);
 
+  const [savedEvents, setSavedEvents] = useState<any[]>([]);
+
   const [sheetIndex, setSheetIndex] = useState(-1);
   const [showCollapsedPill, setShowCollapsedPill] = useState(true);
 
@@ -640,6 +645,12 @@ export default function HomeScreen() {
     return Math.max(MID_HEIGHT + 1, rawHeight);
   }, [mapSize.height]);
 
+  const resetCollapsedPanel = useCallback(() => {
+    setSearch("");
+    setSelectedEvent(null);
+    setPanelView("main");
+    setSheetView("default");
+}, []);
   useEffect(() => {
     Magnetometer.setUpdateInterval(100);
 
@@ -657,21 +668,46 @@ export default function HomeScreen() {
   }, []);
 
   const snapPanelTo = useCallback(
-      (toValue: number) => {
-        let level: "collapsed" | "mid" | "full" = "collapsed";
-        if (toValue === MID_HEIGHT) level = "mid";
-        if (toValue === expandedPanelHeight) level = "full";
-        setPanelLevel(level);
-        setPanelExpanded(level !== "collapsed");
-        Animated.spring(panelHeightAnim, {
-          toValue,
-          useNativeDriver: false,
-          damping: 24,
-          stiffness: 180,
-          mass: 0.9,
-        }).start();
-      },
-      [panelHeightAnim, expandedPanelHeight]
+    (toValue: number) => {
+      let level: "collapsed" | "mid" | "full" = "collapsed";
+
+      if (toValue === MID_HEIGHT) level = "mid";
+      if (toValue === expandedPanelHeight) level = "full";
+
+      if (level === "collapsed") {
+        Keyboard.dismiss();
+        resetCollapsedPanel();
+      }
+
+      setPanelLevel(level);
+      setPanelExpanded(level !== "collapsed");
+
+      Animated.spring(panelHeightAnim, {
+        toValue,
+        useNativeDriver: false,
+        damping: 24,
+        stiffness: 180,
+        mass: 0.9,
+      }).start();
+    },
+    [panelHeightAnim, expandedPanelHeight, resetCollapsedPanel]
+  );
+
+  const toggleSaveEvent = useCallback((event: any) => {
+    setSavedEvents((prev) => {
+      const exists = prev.some((e) => e.title === event.title);
+
+      if (exists) {
+        return prev.filter((e) => e.title !== event.title);
+      }
+
+      return [...prev, event];
+    });
+  }, []);
+
+  const isSaved = useCallback(
+    (title: string) => savedEvents.some((e) => e.title === title),
+    [savedEvents]
   );
 
   const contentOpacity = panelHeightAnim.interpolate({
@@ -712,7 +748,7 @@ export default function HomeScreen() {
 
   const panelBackgroundColor = panelHeightAnim.interpolate({
     inputRange: [COLLAPSED_HEIGHT, MID_HEIGHT],
-    outputRange: ["rgba(189,189,189,0.75)", "rgba(235, 235, 218, 1)"],
+    outputRange: ["rgba(189, 189, 189, 0.50)", "rgba(235, 235, 218, 1)",],
     extrapolate: "clamp",
   });
 
@@ -1748,12 +1784,25 @@ const getPinPointFromTouch = useCallback(
           <Animated.View
             style={[
               styles.stretchPanel,
-              {
-                borderRadius: panelRadius,
-                backgroundColor: panelBackgroundColor,
-              },
+              { borderRadius: panelRadius, backgroundColor: "transparent" },
             ]}
           >
+            <BlurView
+              intensity={80}
+              tint= {"light"}
+              style={StyleSheet.absoluteFill}
+            />
+            <Animated.View
+              style={[
+                StyleSheet.absoluteFill,
+                {
+                  borderRadius: panelRadius,
+                  backgroundColor: panelBackgroundColor,
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.55)",
+                },
+              ]}
+            />
             <View style={styles.dragHeader} {...panelPanResponder.panHandlers}>
               <View style={styles.stretchHandleArea}>
                 <View style={styles.stretchHandle} />
@@ -1788,22 +1837,54 @@ const getPinPointFromTouch = useCallback(
               >
                 {panelView === "profile" ? (
                   <View style={styles.profileSavedView}>
-                    <View style={styles.profileHeaderRow}>
-                      <Text style={styles.profileTitle}>Saved Rooms</Text>
+                    <View style={styles.profileCard}>
+                      <View style={styles.profileInfo}>
+                        <View style={styles.profileAvatar}>
+                          <Ionicons name="person" size={24} color="#1A365D" />
+                        </View>
+
+                        <View>
+                          <Text style={styles.profileName}>User</Text>
+                          <Text style={styles.profileEmail}>mikeTheTiger@lsu.edu</Text>
+                        </View>
+                      </View>
 
                       <Pressable onPress={() => setPanelView("main")}>
                         <Ionicons name="close" size={34} color="#111" />
                       </Pressable>
                     </View>
 
+                    {/* Saved Events */}
+                    <Text style={styles.profileTitle}>Saved Events</Text>
+                      <View style={styles.savedCard}>
+                        {savedEvents.length === 0 ? (
+                          <Text style={styles.savedItem}>No saved events yet</Text>
+                        ) : (
+                          savedEvents.map((event) => (
+                            <Pressable
+                              key={event.title}
+                              onPress={() => {
+                                setSelectedEvent(event);
+                                setPanelView("main");
+                                snapPanelTo(expandedPanelHeight);
+                              }}
+                            >
+                              <Text style={styles.savedItem}>{event.title}</Text>
+                            </Pressable>
+                          ))
+                        )}
+                      </View>
+
+                    {/* Saved Rooms */}
+                    <Text style={styles.profileTitle}>Saved Rooms</Text>
                     <View style={styles.savedCard}>
                       <Text style={styles.savedItem}>PFT 1263</Text>
                       <Text style={styles.savedItem}>PFT 1200</Text>
                       <Text style={styles.savedItem}>PFT 1225</Text>
                     </View>
 
+                    {/* Saved Pins */}
                     <Text style={styles.profileTitle}>Saved Pins</Text>
-
                     <View style={styles.savedCard}>
                       {pins.length === 0 ? (
                         <Text style={styles.savedItem}>No Saved Pins</Text>
@@ -1827,6 +1908,7 @@ const getPinPointFromTouch = useCallback(
                       )}
                     </View>
                   </View>
+
                 ) : selectedEvent ? (
                   <View>
                     <View style={styles.detailHeaderRow}>
@@ -1841,9 +1923,18 @@ const getPinPointFromTouch = useCallback(
                     </View>
 
                     <View style={styles.eventActionRow}>
-                      <Pressable style={styles.eventActionButton}>
-                        <Ionicons name="bookmark-outline" size={22} color="#111" />
-                        <Text style={styles.eventActionText}>Saved</Text>
+                      <Pressable
+                        style={styles.eventActionButton}
+                        onPress={() => toggleSaveEvent(selectedEvent)}
+                      >
+                        <Ionicons
+                          name={isSaved(selectedEvent.title) ? "bookmark" : "bookmark-outline"}
+                          size={22}
+                          color="#111"
+                        />
+                        <Text style={styles.eventActionText}>
+                          {isSaved(selectedEvent.title) ? "Saved" : "Save"}
+                        </Text>
                       </Pressable>
 
                       <Pressable style={styles.eventActionButton}>
@@ -2095,16 +2186,42 @@ const getPinPointFromTouch = useCallback(
 );
 }
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  emptytext: { paddingHorizontal: 20, color: "#666", marginTop: 8, fontSize: 15 },
-  canvasAbsolute: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
-  loaderWrap: { flex: 1, alignItems: "center", justifyContent: "center" },
-  pinOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 3 },
-  stretchPanelWrap: { position: "absolute", zIndex: 50 },
+  container: { 
+    flex: 1 
+  },
+  emptytext: { 
+    paddingHorizontal: 20, 
+    color: "#666", 
+    marginTop: 8, 
+    fontSize: 15 
+  },
+  canvasAbsolute: { 
+    position: "absolute", 
+    top: 0, 
+    left: 0, 
+    right: 0, 
+    bottom: 0 
+  },
+  loaderWrap: { 
+    flex: 1, 
+    alignItems: "center", 
+    justifyContent: "center" 
+  },
+  pinOverlay: { 
+    position: "absolute", 
+    top: 0, 
+    left: 0, 
+    right: 0, 
+    bottom: 0, 
+    zIndex: 3 
+  },
+  stretchPanelWrap: { 
+    position: "absolute",
+    zIndex: 50 
+  },
+
   stretchPanel: {
     flex: 1,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.75)",
     overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
@@ -2124,10 +2241,10 @@ const styles = StyleSheet.create({
   },
 
   stretchHandle: {
-    width: 70,
+    width: 48,
     height: 4,
     borderRadius: 999,
-    backgroundColor: "rgba(56, 54, 54, 0.80)",
+    backgroundColor: "rgba(120, 120, 120, 0.35)",
   },
   stretchSearchShell: {
     marginHorizontal: 0,
@@ -2143,11 +2260,9 @@ const styles = StyleSheet.create({
   },
 
   bottomSheetBackground: {
-    backgroundColor: "rgba(235, 235, 218, 1)",
+    backgroundColor: "rgba(235, 235, 218, 1) ",
     borderTopLeftRadius: 26,
     borderTopRightRadius: 26,
-    borderWidth: 1,
-    borderColor: "rgb(255, 255, 255)",
     overflow: "hidden",
   },
 
@@ -2284,9 +2399,7 @@ const styles = StyleSheet.create({
     width: 54,
     height: 110,
     borderRadius: 27,
-    borderWidth: 1,
     backgroundColor: "rgba(120, 116, 116, 0.75)",
-    borderColor: "rgba(255, 255, 255, 0.75)",
     alignItems: "center",
     justifyContent: "space-between",
     paddingTop: 14,
@@ -2358,6 +2471,42 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(0,0,0,0.3)",
+  },
+    profileCard: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#e7e6d8",
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 22,
+  },
+
+  profileInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  profileAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#d3d4bc",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+
+  profileName: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#111",
+  },
+
+  profileEmail: {
+    fontSize: 15,
+    color: "#111",
   },
 
   pinCustomizeCard: {
