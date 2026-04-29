@@ -7,6 +7,7 @@ type SearchBarRowProps = {
   setSearch: (value: string) => void;
   onPressExpand: () => void;
   onPressProfile: () => void;
+  onSubmitSearch?: () => void;
 };
 
 export default function SearchBarRow({
@@ -14,6 +15,7 @@ export default function SearchBarRow({
   setSearch,
   onPressExpand,
   onPressProfile,
+  onSubmitSearch,
 }: SearchBarRowProps) {
   return (
 
@@ -38,6 +40,8 @@ export default function SearchBarRow({
       placeholderTextColor="#f2f2f2"
       onFocus={onPressExpand}
       numberOfLines={1}
+      returnKeyType="search"
+      onSubmitEditing={onSubmitSearch}
     />
   </Pressable>
 
