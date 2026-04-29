@@ -1,4 +1,5 @@
 import "../../global.css";
+import { Magnetometer } from "expo-sensors";
 import React, {
   Suspense,
   useEffect,
@@ -16,6 +17,9 @@ import {
   ActivityIndicator,
   Animated,
   Image,
+  Keyboard,
+  TextInput,
+  Easing,
 } from "react-native";
 import { Canvas, useThree, useFrame } from "@react-three/fiber/native";
 import { useGLTF } from "@react-three/drei/native";
@@ -26,6 +30,9 @@ import BottomSheet, { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
 import { ScrollView } from "react-native";
+import { BlurView } from "expo-blur";
+
+import NodeDebugLayer from "@/components/nodeDebugLayer"
 
 import { FloorSwitcher } from "@/components/floorSwitcher";
 import SearchBarRow from "@/components/SearchBarRow";
@@ -35,6 +42,8 @@ import RoomHitboxes, {
   getRoomAtScreenPoint,
   getRoomById,
   getNavNodeId,
+  findRoomBySearch as findRoomHitboxBySearch,
+  findRoomsStartingWith
 } from "@/components/roomHitbox";
 import RoomDetailSheet from "@/components/roomDetail";
 import DirectionsSheet, { START_NODE_ID } from "@/components/Directions";
@@ -55,15 +64,18 @@ import type { NavNode } from "@/navigation/db";
 import type { RouteResult } from "@/navigation/pathfinding";
 import PlacePinButton from "@/components/placePinButton";
 
+// GLB 3D Model Imports
 const FLOOR_MODELS = {
   1: require("../../assets/models/1stFloorModel.glb"),
   2: require("../../assets/models/2ndFloorModel.glb"),
   3: require("../../assets/models/3rdFloorModel.glb"),
 } as const;
 
-type FloorNumber = keyof typeof FLOOR_MODELS;
+// Items for the Half-Sheet.
+// This includes that room detail page, directions page, profile page, and the default search page.
 type SheetView = "default" | "detail" | "directions" | "profile";
 
+// Handles the gesture movements
 type GestureState = {
   deltaRotate: { x: number; y: number };
   deltaZoom: number;
@@ -71,21 +83,23 @@ type GestureState = {
   pinchMidpoint: { x: number; y: number } | null;
 };
 
+// Thresholds for the different floors for zooming in and zooming out. 
+type FloorNumber = keyof typeof FLOOR_MODELS;
 const FLOOR_CONFIG: Record<
     FloorNumber,
     { switchRadius: number; snapRadius: number; zoomInRadius: number }
 > = {
   1: { switchRadius: 50, snapRadius: 10, zoomInRadius: 5 },
   2: { switchRadius: 120, snapRadius: 10, zoomInRadius: 5 },
-  3: { switchRadius: 45, snapRadius: 10, zoomInRadius: 5 },
+  3: { switchRadius: 200, snapRadius: 10, zoomInRadius: 5 },
 };
 
-const SNAP_FRACTIONS = [0.5, 0.75, 0.9];
-
+// The heights for the half sheet
 const COLLAPSED_HEIGHT = 84;
 const MID_HEIGHT = 420;
 const EXPANDED_HEIGHT_FRACTION = 0.82;
 
+const SNAP_FRACTIONS = [0.5, 0.75, 0.9];
 const HARDCODED_LAT = 30.40775;
 const HARDCODED_LON = -91.17995;
 
@@ -100,28 +114,21 @@ const MODEL_MAX_X = 12;
 const MODEL_MIN_Z = -18;
 const MODEL_MAX_Z = 18;
 
-// Node coordinate bounds — match actual range in seed-nodes.ts
-const NODE_MIN_X = -53;
-const NODE_MAX_X = 48;
-const NODE_MIN_Y = -40;
-const NODE_MAX_Y = 15;
+// Calibrated affine transform: GPS → node space.
+// Calibrated from 3 confirmed ground-truth GPS readings:
+//   entrance0 (48,-32), entrance2 (-59,-32), room_1272 (-15,5)
+// Uses centered+scaled coords for numerical stability (condition number ~45).
+const _GPS_LAT_MEAN = 30.4076288440;
+const _GPS_LON_MEAN = -91.1800997696;
+const _GPS_LAT_SCALE = 111000.0;
+const _GPS_LON_SCALE = 96000.0;
 
-// Used only for initial camera centering on first GPS fix
-function gpsToModelCoords(lat: number, lon: number): { x: number; z: number } {
-  const normX = (lon - BUILDING_MIN_LON) / (BUILDING_MAX_LON - BUILDING_MIN_LON);
-  const normZ = (BUILDING_MAX_LAT - lat) / (BUILDING_MAX_LAT - BUILDING_MIN_LAT);
-  return {
-    x: MODEL_MIN_X + normX * (MODEL_MAX_X - MODEL_MIN_X),
-    z: MODEL_MIN_Z + normZ * (MODEL_MAX_Z - MODEL_MIN_Z),
-  };
-}
-
-// Converts real GPS → model-space x,y used by TEST_NODES / snapToNode
 function gpsToNodeCoords(lat: number, lon: number): { x: number; y: number } {
-  const norm = normalizeLocationToBuilding(lat, lon);
+  const dlat = (lat - _GPS_LAT_MEAN) * _GPS_LAT_SCALE;
+  const dlon = (lon - _GPS_LON_MEAN) * _GPS_LON_SCALE;
   return {
-    x: NODE_MIN_X + norm.x * (NODE_MAX_X - NODE_MIN_X),
-    y: NODE_MIN_Y + norm.y * (NODE_MAX_Y - NODE_MIN_Y),
+    x: 0.81915305 * dlat + 0.66436662 * dlon + (-8.66666667),
+    y: -0.30001749 * dlat + 0.72257358 * dlon + (-19.66666667),
   };
 }
 
@@ -310,13 +317,15 @@ function CameraController({
         .normalize();
 
     spherical.current.theta -= g.deltaRotate.x * 0.0035;
+
     spherical.current.phi = Math.max(
-        0.2,
-        Math.min(Math.PI / 2.1, spherical.current.phi - g.deltaRotate.y * 0.0035)
+        0.35,
+        Math.min(Math.PI / 2.15, spherical.current.phi - g.deltaRotate.y * 0.0032)
     );
 
-    targetRef.current.addScaledVector(right, -g.deltaPan.x * 0.016);
-    targetRef.current.addScaledVector(forward, g.deltaPan.y * 0.016);
+// drag map naturally with finger
+    targetRef.current.addScaledVector(right, g.deltaPan.x * 0.009);
+    targetRef.current.addScaledVector(forward, g.deltaPan.y * 0.009);
 
     if (g.deltaZoom !== 0 && lerpRadiusRef.current === null) {
       const prev = spherical.current.radius;
@@ -345,9 +354,11 @@ function CameraController({
     camera.lookAt(targetRef.current);
     cameraRef.current = camera;
 
-    g.deltaRotate.x *= 0.82; g.deltaRotate.y *= 0.82;
-    g.deltaZoom *= 0.75;
-    g.deltaPan.x *= 0.82; g.deltaPan.y *= 0.82;
+    g.deltaRotate.x *= 0.70;
+    g.deltaRotate.y *= 0.70;
+    g.deltaZoom *= 0.65;
+    g.deltaPan.x *= 0.72;
+    g.deltaPan.y *= 0.72;
 
     if (Math.abs(g.deltaRotate.x) < 0.001) g.deltaRotate.x = 0;
     if (Math.abs(g.deltaRotate.y) < 0.001) g.deltaRotate.y = 0;
@@ -371,17 +382,165 @@ function SceneCapture({
   return null;
 }
 
+// Swipe function to delete the exising pins under the profile page
+function SwipeDeletePinRow({
+  pin,
+  index,
+  onPress,
+  onDelete,
+  getPinHex,
+}: {
+  pin: Pin;
+  index: number;
+  onPress: () => void;
+  onDelete: () => void;
+  getPinHex: (color?: Pin["color"]) => string;
+}) {
+  const translateX = useRef(new Animated.Value(0)).current;
+  const startXRef = useRef(0);
+  const isOpenRef = useRef(false);
+  const isSwipingRef = useRef(false);
+
+  const DELETE_WIDTH = 90;
+  const OPEN_THRESHOLD = -10;
+
+  const animateTo = (value: number) => {
+    translateX.stopAnimation();
+
+    Animated.timing(translateX, {
+      toValue: value,
+      duration: 110,
+      easing: Easing.linear,
+      useNativeDriver: true,
+    }).start(() => {
+      startXRef.current = value;
+      isOpenRef.current = value === -DELETE_WIDTH;
+    });
+  };
+
+  const closeRow = () => animateTo(0);
+  const openRow = () => animateTo(-DELETE_WIDTH);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+
+      onMoveShouldSetPanResponder: (_, gesture) =>
+        Math.abs(gesture.dx) > 6 &&
+        Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.8,
+
+      onPanResponderGrant: () => {
+        isSwipingRef.current = true;
+
+        translateX.stopAnimation((value) => {
+          startXRef.current = value;
+        });
+      },
+
+      onPanResponderMove: (_, gesture) => {
+        let nextX = startXRef.current + gesture.dx;
+
+        if (nextX > 0) nextX = 0;
+        if (nextX < -DELETE_WIDTH) nextX = -DELETE_WIDTH;
+
+        translateX.setValue(nextX);
+      },
+
+      onPanResponderRelease: (_, gesture) => {
+      let finalX = startXRef.current + gesture.dx;
+      finalX = Math.min(0, Math.max(finalX, -DELETE_WIDTH));
+
+      const swipedLeftFarEnough = finalX <= -10;
+      const swipedFastLeft = gesture.vx < -0.1;
+
+      if (swipedLeftFarEnough || swipedFastLeft) {
+        openRow();
+      } else {
+        closeRow();
+      }
+
+      setTimeout(() => {
+        isSwipingRef.current = false;
+      }, 120);
+    },
+
+      onPanResponderTerminate: () => {
+        isOpenRef.current ? openRow() : closeRow();
+
+        setTimeout(() => {
+          isSwipingRef.current = false;
+        }, 120);
+      },
+    })
+  ).current;
+
+  return (
+    <View style={styles.swipeDeleteWrap}>
+      <Pressable
+        style={styles.deleteButton}
+        onPress={() => {
+          closeRow();
+          onDelete();
+        }}
+      >
+        <Ionicons name="trash-outline" size={22} color="#fff" />
+      </Pressable>
+
+      <Animated.View
+        style={[
+          styles.savedPinRow,
+          {
+            transform: [{ translateX }],
+          },
+        ]}
+        {...panResponder.panHandlers}
+      >
+        <Pressable
+          onPress={() => {
+            if (!isSwipingRef.current) onPress();
+          }}
+          style={styles.savedPinPressable}
+        >
+          <View style={styles.savedPinLeft}>
+            <Ionicons name="pin" size={20} color={getPinHex(pin.color)} />
+
+            <Text style={styles.savedItemNoBorder}>
+              {pin.title || "Untitled Pin"}
+            </Text>
+          </View>
+
+          <View style={styles.swipeIndicator}>
+            <View style={styles.swipeLine} />
+            <View style={styles.swipeLine} />
+            <View style={styles.swipeLine} />
+          </View>
+        </Pressable>
+      </Animated.View>
+    </View>
+  );
+}
+
 
 
 //── Main screen ──────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
+
   const previewPinRef = useRef<Pin | null>(null);
   const [activeFloor, setActiveFloor] = useState<FloorNumber>(1);
   const [cameraRadius, setCameraRadius] = useState(FLOOR_CONFIG[1].snapRadius);
   const [isReady, setIsReady] = useState(false);
 
   const sceneRef = useRef<THREE.Object3D[] | null>(null);
+
+  const [pendingPin, setPendingPin] = useState<Pin | null>(null);
+  const [editingPinIndex, setEditingPinIndex] = useState<number | null>(null);
+  const [customizingPreviewPin, setCustomizingPreviewPin] = useState<Pin | null>(null);
+  const [pinTitle, setPinTitle] = useState("");
+  const [pinColor, setPinColor] = useState<"red" | "blue" | "green" | "yellow">("red");
+
+  const [showPinSavedToast, setShowPinSavedToast] = useState(false);
+  const pinSavedAnim = useRef(new Animated.Value(120)).current;
 
   const [location, setLocation] = useState<Location.LocationObject | null>({
     coords: {
@@ -398,12 +557,17 @@ export default function HomeScreen() {
 
   const hasCenteredOnUser = useRef(false);
 
+  const [compassHeading, setCompassHeading] = useState(0);
+
   const [mapSize, setMapSize] = useState({ width: 400, height: 800 });
   const [search, setSearch] = useState("");
   const [pinMode, setPinMode] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
   const [pathWaypoints, setPathWaypoints] = useState<[number, number, number][]>([]);
+
   const [isNavigating, setIsNavigating] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
+  const [userNodeId, setUserNodeId] = useState<string | null>(null);
   const cameraTargetRef = useRef(new THREE.Vector3(0, 0, 0));
   const [pins, setPins] = useState<Pin[]>([]);
   const [previewPin, setPreviewPin] = useState<Pin | null>(null);
@@ -447,6 +611,7 @@ export default function HomeScreen() {
 
 
 
+  const [savedEvents, setSavedEvents] = useState<any[]>([]);
 
   const [sheetIndex, setSheetIndex] = useState(-1);
   const [showCollapsedPill, setShowCollapsedPill] = useState(true);
@@ -469,6 +634,8 @@ export default function HomeScreen() {
   const navHeadingRef = useRef<number | null>(null);
   const destNodeIdRef = useRef<string | null>(null);
   const lastRerouteNodeRef = useRef<string | null>(null);
+  const fullPathWaypointsRef   = useRef<[number, number, number][]>([]);
+
 
   const activeFloorRef = useRef<FloorNumber>(1);
   const cameraRef = useRef<THREE.Camera | null>(null);
@@ -505,22 +672,69 @@ export default function HomeScreen() {
     return Math.max(MID_HEIGHT + 1, rawHeight);
   }, [mapSize.height]);
 
+  const resetCollapsedPanel = useCallback(() => {
+    setSearch("");
+    setSelectedEvent(null);
+    setPanelView("main");
+    setSheetView("default");
+}, []);
+  useEffect(() => {
+    Magnetometer.setUpdateInterval(100);
+
+    const sub = Magnetometer.addListener(({ x, y }) => {
+      let heading = Math.atan2(-y, x) * (180 / Math.PI);
+      heading = 90 - heading;
+
+      if (heading < 0) heading += 360;
+      if (heading >= 360) heading -= 360;
+
+      setCompassHeading(heading);
+    });
+
+    return () => sub.remove();
+  }, []);
+
   const snapPanelTo = useCallback(
-      (toValue: number) => {
-        let level: "collapsed" | "mid" | "full" = "collapsed";
-        if (toValue === MID_HEIGHT) level = "mid";
-        if (toValue === expandedPanelHeight) level = "full";
-        setPanelLevel(level);
-        setPanelExpanded(level !== "collapsed");
-        Animated.spring(panelHeightAnim, {
-          toValue,
-          useNativeDriver: false,
-          damping: 24,
-          stiffness: 180,
-          mass: 0.9,
-        }).start();
-      },
-      [panelHeightAnim, expandedPanelHeight]
+    (toValue: number) => {
+      let level: "collapsed" | "mid" | "full" = "collapsed";
+
+      if (toValue === MID_HEIGHT) level = "mid";
+      if (toValue === expandedPanelHeight) level = "full";
+
+      if (level === "collapsed") {
+        Keyboard.dismiss();
+        resetCollapsedPanel();
+      }
+
+      setPanelLevel(level);
+      setPanelExpanded(level !== "collapsed");
+
+      Animated.spring(panelHeightAnim, {
+        toValue,
+        useNativeDriver: false,
+        damping: 24,
+        stiffness: 180,
+        mass: 0.9,
+      }).start();
+    },
+    [panelHeightAnim, expandedPanelHeight, resetCollapsedPanel]
+  );
+
+  const toggleSaveEvent = useCallback((event: any) => {
+    setSavedEvents((prev) => {
+      const exists = prev.some((e) => e.title === event.title);
+
+      if (exists) {
+        return prev.filter((e) => e.title !== event.title);
+      }
+
+      return [...prev, event];
+    });
+  }, []);
+
+  const isSaved = useCallback(
+    (title: string) => savedEvents.some((e) => e.title === title),
+    [savedEvents]
   );
 
   const contentOpacity = panelHeightAnim.interpolate({
@@ -561,10 +775,11 @@ export default function HomeScreen() {
 
   const panelBackgroundColor = panelHeightAnim.interpolate({
     inputRange: [COLLAPSED_HEIGHT, MID_HEIGHT],
-    outputRange: ["rgba(189,189,189,0.75)", "rgba(235, 235, 218, 1)"],
+    outputRange: ["rgba(189, 189, 189, 0.50)", "rgba(235, 235, 218, 1)",],
     extrapolate: "clamp",
   });
 
+  // Events for the Search Bar
   const events = [
     {
       id: "1",
@@ -639,16 +854,66 @@ export default function HomeScreen() {
     if (!query) return false;
 
     return filter.toLowerCase().includes(query);
+
+  // Filtering for the events and rooms in the search bar half sheet.
+const filteredEvents = useMemo(() => {
+  const query = search.trim().toLowerCase();
+  const queryNumber = query.replace(/\D/g, "");
+
+  const roomResults: any[] = [];
+
+  if (queryNumber) {
+    for (const floor of [1, 2, 3] as FloorNumber[]) {
+      const rooms = findRoomsStartingWith(floor, queryNumber);
+
+      rooms.forEach((room) => {
+        const roomNumber = room.id.match(/\d+/)?.[0] || room.id;
+
+        roomResults.push({
+          id: `room-${floor}-${room.id}`,
+          title: roomNumber,
+          date: `Floor L${floor}`,
+          club: "Room",
+          location: "PFT " + roomNumber,
+          type: "location-outline" as const,
+          description: `${room.name} is located on Floor L${floor}.`,
+          isRoom: true,
+          roomId: room.id,
+          floor,
+        });
+      });
+    }
+  }
+
+  const normalEvents = events.filter((event) => {
+    if (!query) return true;
+
+    const eventRoomNumber = event.location.match(/\d+/)?.[0] || "";
+
+    return (
+      eventRoomNumber.startsWith(queryNumber) ||
+      event.title.toLowerCase().includes(query) ||
+      event.club.toLowerCase().includes(query)
+    );
   });
 
-  useEffect(() => { activeFloorRef.current = activeFloor; }, [activeFloor]);
-  useEffect(() => { mapSizeRef.current = mapSize; }, [mapSize]);
+  return [...roomResults, ...normalEvents];
+}, [search]);
+
+useEffect(() => {
+  activeFloorRef.current = activeFloor;
+  setUserNodeId(null);
+}, [activeFloor]);
+
+useEffect(() => {
+  mapSizeRef.current = mapSize;
+}, [mapSize]);
 
   useEffect(() => {
     if (!location || hasCenteredOnUser.current) return;
     hasCenteredOnUser.current = true;
-    const { x, z } = gpsToModelCoords(location.coords.latitude, location.coords.longitude);
-    cameraTargetRef.current.set(x, 0, z);
+    // const { x, z } = gpsToModelCoords(location.coords.latitude, location.coords.longitude);
+    // cameraTargetRef.current.set(x, 0, z);
     lerpRadiusRef.current = FLOOR_CONFIG[1].snapRadius;
   }, [location]);
 
@@ -662,13 +927,95 @@ export default function HomeScreen() {
     const [x, y, z] = room.position;
     const [, sy, sz] = room.size;
     cameraTargetRef.current.set(x * groupScale, y * groupScale, z * groupScale);
-    const zoomRadius = Math.max(2.5, Math.max(sy, sz) * groupScale * 2.2);
+    const zoomRadius = Math.max(5, Math.max(sy, sz) * groupScale * 1.4);
     lerpRadiusRef.current = zoomRadius;
   }, []);
 
-  const [mode, setMode] = useState<"pin" | "navigate" | null>(null);
+const findRoomBySearch = useCallback(() => {
+  const query = search.trim().toLowerCase();
+  if (!query) return;
 
-  const getPinPointFromTouch = useCallback(
+  for (const floor of [1, 2, 3] as FloorNumber[]) {
+    const room = findRoomHitboxBySearch(floor, query);
+    const roomNumber = room?.id.match(/\d+/)?.[0] || "";
+
+    // only zoom if the typed search exactly matches a room number
+    if (!room || roomNumber !== query) continue;
+
+    const navId = getNavNodeId(room.id, floor);
+    const node = navId ? getNode(navId) : null;
+    if (!node) return;
+
+    activeFloorRef.current = floor;
+    setActiveFloor(floor);
+
+    setSelectedRoom(room.id);
+    setSelectedNode(node);
+    setSheetView("detail");
+    setActiveRoute(null);
+    setPathWaypoints([]);
+    setSelectedEvent(null);
+
+    setSearch("");
+    setShowCollapsedPill(false);
+    setPanelExpanded(false);
+    setPanelLevel("collapsed");
+
+    Animated.timing(panelHeightAnim, {
+      toValue: COLLAPSED_HEIGHT,
+      duration: 100,
+      useNativeDriver: false,
+    }).start();
+
+    focusRoom(room.id, floor);
+    requestAnimationFrame(() => {
+      bottomSheetRef.current?.snapToIndex(0);
+      setSheetIndex(0);
+      sheetIndexRef.current = 0;
+    });
+    
+
+    return;
+  }
+
+  console.log("No exact room found for search:", query);
+}, [search, focusRoom]);
+
+// Function that zooms in on a pin when clicked in the profile page. 
+  const focusPin = useCallback((pin: Pin) => {
+  if (pin.floor !== activeFloorRef.current) {
+    activeFloorRef.current = pin.floor;
+    setActiveFloor(pin.floor);
+  }
+
+  cameraTargetRef.current.set(
+    pin.x,
+    pin.y,
+    pin.z
+  );
+
+  lerpRadiusRef.current = 3.5;
+}, []);
+
+// Maps the 3D Pin model color to a hex color for the saved pins icon under the profile. 
+const getPinHex = (color?: Pin["color"]) => {
+  switch (color) {
+    case "blue":
+      return "#2F80ED";
+    case "green":
+      return "#27AE60";
+    case "yellow":
+      return "#F2C94C";
+    case "red":
+    default:
+      return "#D94040";
+  }
+};
+
+const [mode, setMode] = useState<"pin" | "navigate" | null>(null);
+
+// Function that allows user to touch the 3D Pin Model
+const getPinPointFromTouch = useCallback(
     (pageX: number, pageY: number): Pin | null => {
       const cam = cameraRef.current;
       if (!cam || mapSize.width <= 0 || mapSize.height <= 0) return null;
@@ -731,17 +1078,20 @@ export default function HomeScreen() {
       },
 
         onPanResponderRelease: () => {
-        const finalPin = previewPinRef.current;
+          const finalPin = previewPinRef.current;
 
-        if (finalPin) {
-          setPins((prev) => [...prev, finalPin]);
-        }
+          if (finalPin) {
+            setPendingPin(finalPin);
+            setCustomizingPreviewPin(finalPin);
+            setPinTitle("");
+            setPinColor("red");
+          }
 
-        previewPinRef.current = null;
-        setPreviewPin(null);
-        setPinMode(false);
-        setMode(null);
-      },
+          previewPinRef.current = null;
+          setPreviewPin(null);
+          setPinMode(false);
+          setMode(null);
+        },
 
         onPanResponderTerminate: () => {
           previewPinRef.current = null;
@@ -764,6 +1114,27 @@ export default function HomeScreen() {
   const collapseStretchPanel = useCallback(() => {
     snapPanelTo(COLLAPSED_HEIGHT);
   }, [snapPanelTo]);
+
+  const showPinSavedMessage = useCallback(() => {
+  setShowPinSavedToast(true);
+
+  Animated.sequence([
+    Animated.spring(pinSavedAnim, {
+      toValue: 0,
+      useNativeDriver: true,
+      damping: 18,
+      stiffness: 180,
+    }),
+    Animated.delay(1600),
+    Animated.timing(pinSavedAnim, {
+      toValue: 120,
+      duration: 250,
+      useNativeDriver: true,
+    }),
+  ]).start(() => {
+    setShowPinSavedToast(false);
+  });
+}, [pinSavedAnim]);
 
   const panelPanResponder = useMemo(
       () =>
@@ -862,15 +1233,28 @@ export default function HomeScreen() {
       },
       [focusRoom]
   );
+  // DEMO VALUES
+  const DEMO_MODE = true;
+  const DEMO_START_NODE = "vending0";
+  
 
   const getFromNodeId = useCallback((): string => {
+    if (DEMO_MODE) return DEMO_START_NODE;
+
     if (!location) return START_NODE_ID;
-    const { x, y } = gpsToNodeCoords(location.coords.latitude, location.coords.longitude);
+
+    const { x, y } = gpsToNodeCoords(
+        location.coords.latitude,
+        location.coords.longitude
+    );
+
     const nearest = snapToNode(x, y, activeFloorRef.current);
+
     if (nearest) {
       console.log("[from node]", nearest.id, nearest.label);
       return nearest.id;
     }
+
     return START_NODE_ID;
   }, [location, snapToNode]);
 
@@ -910,6 +1294,7 @@ export default function HomeScreen() {
     setSheetIndex(-1); sheetIndexRef.current = -1;
     setShowCollapsedPill(false);
     setIsNavigating(true);
+    fullPathWaypointsRef.current = pathWaypoints;
     zoomToNavStart(pathWaypoints, lerpRadiusRef, lerpTargetRef, lerpThetaRef, lerpPhiRef);
   }, [activeRoute, selectedNode, pathWaypoints]);
 
@@ -917,6 +1302,8 @@ export default function HomeScreen() {
     navHeadingRef.current = null;
     destNodeIdRef.current = null;
     lastRerouteNodeRef.current = null;
+    fullPathWaypointsRef.current  = [];
+
     setIsNavigating(false);
     setActiveRoute(null);
     setSelectedRoom(null);
@@ -936,6 +1323,39 @@ export default function HomeScreen() {
     setPanelView("profile");
     openSheet();
   };
+
+  const getPinFromTouch = useCallback(
+  (pageX: number, pageY: number): { pin: Pin; index: number } | null => {
+    const cam = cameraRef.current;
+    if (!cam || mapSize.width <= 0 || mapSize.height <= 0) return null;
+
+    const pointer = pointerRef.current;
+    const raycaster = raycasterRef.current;
+
+    pointer.x = (pageX / mapSize.width) * 2 - 1;
+    pointer.y = -(pageY / mapSize.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, cam);
+
+    let closest: { pin: Pin; index: number } | null = null;
+    let closestDistance = Infinity;
+
+    pins.forEach((pin, index) => {
+      if (pin.floor !== activeFloorRef.current) return;
+
+      const pinPosition = new THREE.Vector3(pin.x, pin.y, pin.z);
+      const distance = raycaster.ray.distanceToPoint(pinPosition);
+
+      if (distance < 0.35 && distance < closestDistance) {
+        closestDistance = distance;
+        closest = { pin, index };
+      }
+    });
+
+    return closest;
+  },
+  [pins, mapSize.width, mapSize.height]
+);
+
   const cameraPanResponder = useMemo(
       () =>
           PanResponder.create({
@@ -973,34 +1393,54 @@ export default function HomeScreen() {
                 if (Math.hypot(dx, dy) > 8) touchMovedRef.current = true;
               }
 
+              // ONE FINGER = MOVE / PAN MAP
               if (touches.length === 1) {
                 const prev = prevTouches.current[0];
+
                 if (prev) {
-                  gestureRef.current.deltaRotate.x += touches[0].pageX - prev.x;
-                  gestureRef.current.deltaRotate.y += touches[0].pageY - prev.y;
+                  const dx = touches[0].pageX - prev.x;
+                  const dy = touches[0].pageY - prev.y;
+
+                  gestureRef.current.deltaPan.x += dx * 0.45;
+                  gestureRef.current.deltaPan.y += dy * 0.45;
                 }
+
                 prevTouches.current = [{ x: touches[0].pageX, y: touches[0].pageY }];
-              } else if (touches.length === 2) {
+              }
+
+              // TWO FINGERS = 3D ROTATE/TILT + PINCH ZOOM
+              else if (touches.length === 2) {
                 touchMovedRef.current = true;
+
                 const [t0, t1] = [touches[0], touches[1]];
                 const currDist = Math.hypot(t1.pageX - t0.pageX, t1.pageY - t0.pageY);
-                const currMid = { x: (t0.pageX + t1.pageX) / 2, y: (t0.pageY + t1.pageY) / 2 };
+                const currMid = {
+                  x: (t0.pageX + t1.pageX) / 2,
+                  y: (t0.pageY + t1.pageY) / 2,
+                };
 
                 if (prevTouches.current.length === 2) {
                   const [p0, p1] = prevTouches.current;
-                  const prevDist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-                  const prevMid = { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 };
-                  const distDelta = currDist - prevDist;
-                  const midDelta = { x: currMid.x - prevMid.x, y: currMid.y - prevMid.y };
 
-                  gestureRef.current.deltaZoom += distDelta * 0.15;
+                  const prevDist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+                  const prevMid = {
+                    x: (p0.x + p1.x) / 2,
+                    y: (p0.y + p1.y) / 2,
+                  };
+
+                  const distDelta = currDist - prevDist;
+                  const midDelta = {
+                    x: currMid.x - prevMid.x,
+                    y: currMid.y - prevMid.y,
+                  };
+
+                  // pinch zoom
+                  gestureRef.current.deltaZoom += distDelta * 0.14;
                   gestureRef.current.pinchMidpoint = currMid;
 
-                  if (Math.abs(midDelta.x) > 0.5 || Math.abs(midDelta.y) > 0.5) {
-                    const panFactor = Math.abs(distDelta) > 8 ? 0.08 : 0.25;
-                    gestureRef.current.deltaPan.x += midDelta.x * panFactor;
-                    gestureRef.current.deltaPan.y += midDelta.y * panFactor;
-                  }
+                  // two-finger drag rotates/tilts the 3D camera
+                  gestureRef.current.deltaRotate.x += midDelta.x * 0.7;
+                  gestureRef.current.deltaRotate.y += midDelta.y * 0.55;
                 }
 
                 prevTouches.current = [
@@ -1010,10 +1450,32 @@ export default function HomeScreen() {
               }
             },
 
-            onPanResponderRelease: () => {
+            onPanResponderRelease: (e) => {
+              if (!touchMovedRef.current) {
+                const tappedPin = getPinFromTouch(
+                  e.nativeEvent.pageX,
+                  e.nativeEvent.pageY
+                );
+
+                if (tappedPin) {
+                  setEditingPinIndex(tappedPin.index);
+                  setPendingPin(tappedPin.pin);
+                  setPinTitle(tappedPin.pin.title || "");
+                  setPinColor(tappedPin.pin.color || "red");
+            
+
+                  touchStartRef.current = null;
+                  touchRoomRef.current = null;
+                  touchMovedRef.current = false;
+                  prevTouches.current = [];
+                  return;
+                }
+              }
+
               if (!touchMovedRef.current && touchRoomRef.current) {
                 handleRoomSelect(touchRoomRef.current);
               }
+
               touchStartRef.current = null;
               touchRoomRef.current = null;
               touchMovedRef.current = false;
@@ -1027,11 +1489,14 @@ export default function HomeScreen() {
               prevTouches.current = [];
             },
           }),
-      [pinMode, handleRoomSelect]
+      [pinMode, handleRoomSelect,getPinFromTouch]
   );
+
+  
 
   // Location watcher
   useEffect(() => {
+
     let subscription: Location.LocationSubscription | null = null;
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -1047,6 +1512,8 @@ export default function HomeScreen() {
             if (loc.coords.heading != null && loc.coords.heading >= 0) {
               navHeadingRef.current = loc.coords.heading;
             }
+            // UserLocationMarker handles all node positioning via
+            // its own GPS + dead reckoning logic. Do not override it here.
           }
       );
 
@@ -1056,47 +1523,28 @@ export default function HomeScreen() {
 
   // Live reroute: recalculate route + remaining time whenever user moves to a new node
   // Live reroute: trim path + update steps as user moves through nodes
+// Live reroute: fires when UserLocationMarker advances to a new node.
+  // userNodeId is the single source of truth for where the user is.
   useEffect(() => {
-    if (!isNavigating || !location || !destNodeIdRef.current) return;
-    const { x, y } = gpsToNodeCoords(location.coords.latitude, location.coords.longitude);
-    const nearest = snapToNode(x, y, activeFloorRef.current);
-    if (!nearest) return;
+    if (!isNavigating || !userNodeId || !destNodeIdRef.current) return;
 
-    // Recalculate whenever nearest node changes
-    if (nearest.id === lastRerouteNodeRef.current) return;
-    lastRerouteNodeRef.current = nearest.id;
+    // Only recalculate when user has moved to a different node
+    if (userNodeId === lastRerouteNodeRef.current) return;
+    lastRerouteNodeRef.current = userNodeId;
 
-    if (nearest.id === destNodeIdRef.current) {
+    if (userNodeId === destNodeIdRef.current) {
       handleEndRoute();
       return;
     }
 
-    const newRoute = getTestRoute(nearest.id, destNodeIdRef.current);
+    const newRoute = getTestRoute(userNodeId, destNodeIdRef.current);
     if (!newRoute) return;
 
-    // Trim the path: remove waypoints behind the user by finding which
-    // waypoint is closest to the current nearest node world position,
-    // then slicing from there forward.
-    const nodeWorldX = nearest.x * 0.1;
-    const nodeWorldZ = nearest.y * 0.1;
     const newWaypoints = routeToWaypoints(newRoute);
-
-    // Find the waypoint index closest to the current node
-    let closestIdx = 0;
-    let closestDist = Infinity;
-    for (let i = 0; i < newWaypoints.length; i++) {
-      const [wx, , wz] = newWaypoints[i];
-      const d = Math.hypot(wx - nodeWorldX, wz - nodeWorldZ);
-      if (d < closestDist) { closestDist = d; closestIdx = i; }
-    }
-
-    // Keep from the closest point forward so the ribbon shrinks behind the user
-    const trimmedWaypoints = newWaypoints.slice(closestIdx) as [number, number, number][];
-
     setActiveRoute(newRoute);
-    setPathWaypoints(trimmedWaypoints.length >= 2 ? trimmedWaypoints : newWaypoints);
-  }, [location, isNavigating, snapToNode, getTestRoute, handleEndRoute]);
-
+    setPathWaypoints(newWaypoints.length >= 2 ? newWaypoints : []);
+  }, [userNodeId, isNavigating, getTestRoute, handleEndRoute]);
+  
   // Floor model preload
   useEffect(() => {
     async function preloadAll() {
@@ -1172,26 +1620,66 @@ export default function HomeScreen() {
 
           <group scale={[0.1, 0.1, 0.1]}>
             <RoomHitboxes
-              activeFloor={activeFloor}
-              selectedRoom={selectedRoom}
-              setSelectedRoom={setSelectedRoom}
-            />
-
-            {location && (
-              <UserLocationMarker
-                latitude={location.coords.latitude}
-                longitude={location.coords.longitude}
                 activeFloor={activeFloor}
-                isNavigating={isNavigating}
-              />
-            )}
+                selectedRoom={selectedRoom}
+                setSelectedRoom={setSelectedRoom}
+            />
+            <NodeDebugLayer visible={showDebug} />
           </group>
 
-          {pathWaypoints.length >= 2 && <TestPath waypoints={pathWaypoints} />}
+          {location && (
+              <UserLocationMarker
+                  latitude={location.coords.latitude}
+                  longitude={location.coords.longitude}
+                  activeFloor={activeFloor}
+                  isNavigating={isNavigating}
+                  currentNodeId={userNodeId}
+                  onNodeChange={setUserNodeId}
+                  gpsAccuracy={location.coords.accuracy ?? 20}
+                  routeNodeIds={
+                    isNavigating && activeRoute
+                        ? activeRoute.steps.map(s => s.node.id)
+                        : []
+                  }
+                  onRerouteNeeded={(fromNodeId) => {
+                    if (!destNodeIdRef.current) return;
+                    const newRoute = getTestRoute(fromNodeId, destNodeIdRef.current);
+                    if (newRoute) {
+                      setActiveRoute(newRoute);
+                      const wps = routeToWaypoints(newRoute);
+                      setPathWaypoints(wps);
+                    }
+                  }}
+              />
+          )}
+
+          {pathWaypoints.length >= 2 && (
+              <TestPath
+                  waypoints={pathWaypoints}
+                  isNavigating={isNavigating}
+                  fullWaypoints={isNavigating && fullPathWaypointsRef.current.length >= 2
+                      ? fullPathWaypointsRef.current
+                      : undefined}
+                  completedFraction={
+                    isNavigating && fullPathWaypointsRef.current.length >= 2
+                        ? 1 - pathWaypoints.length / fullPathWaypointsRef.current.length
+                        : 0
+                  }
+              />
+          )}
 
           <PinLayer
             pins={pins}
-            previewPin={previewPin}
+            previewPin={
+              previewPin
+                ? previewPin
+                : customizingPreviewPin
+                  ? {
+                      ...customizingPreviewPin,
+                      color: pinColor,
+                    }
+                  : null
+            }
             previewPinRef={previewPinRef}
             activeFloor={activeFloor}
           />
@@ -1225,9 +1713,10 @@ export default function HomeScreen() {
       )}
 
       {sheetIndex === -1 && (
+        <View style={styles.pinButton}>
         <Pressable
           onPress={() => setPinMode((prev) => !prev)}
-          style={styles.pinButton}
+          style={styles.pinPressable}
         >
           <View style={styles.pinContainer}>
             <View
@@ -1243,18 +1732,78 @@ export default function HomeScreen() {
               ]}
             />
           </View>
-
-          <Ionicons
-            name="navigate"
-            size={26}
-            color="#8FD3FF"
-            style={styles.arrow}
-          />
         </Pressable>
+
+          <Pressable
+              onPress={(e) => {
+                e.stopPropagation();
+
+                if (!location) return;
+
+                const userNode = userNodeId ? getNode(userNodeId) : null;
+
+                if (userNode) {
+                  cameraTargetRef.current.set(userNode.x * 0.1, 0, userNode.y * 0.1);
+                  lerpRadiusRef.current = FLOOR_CONFIG[activeFloorRef.current].zoomInRadius;
+                  return;
+                }
+
+                const gps = gpsToNodeCoords(
+                    location.coords.latitude,
+                    location.coords.longitude
+                );
+
+                cameraTargetRef.current.set(gps.x * 0.1, 0, gps.y * 0.1);
+                lerpRadiusRef.current = FLOOR_CONFIG[activeFloorRef.current].zoomInRadius;
+              }}
+              hitSlop={12}
+          >
+            <Ionicons
+                name="navigate"
+                size={26}
+                color="#8FD3FF"
+                style={[
+                  styles.arrow,
+                  {
+                    transform: [
+                      { rotate: `${compassHeading}deg` },
+                    ],
+                  },
+                ]}
+            />
+          </Pressable>
+      </View>
       )}
 
       {sheetIndex === -1 && (
-        <FloorSwitcher
+          <Pressable
+              onPress={() => setShowDebug(prev => !prev)}
+              style={{
+                position: "absolute",
+                bottom: 200,
+                left: 20,
+                backgroundColor: showDebug ? "#007AFF" : "rgba(255,255,255,0.82)",
+                width: 48,
+                height: 48,
+                borderRadius: 24,
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 20,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.18,
+                shadowRadius: 6,
+                elevation: 6,
+              }}
+          >
+            <Text style={{ fontSize: 11, fontWeight: "700", color: showDebug ? "white" : "#333" }}>
+              GRAPH
+            </Text>
+          </Pressable>
+      )}
+
+      {sheetIndex === -1 && (
+          <FloorSwitcher
           activeFloor={activeFloor}
           onFloorChange={(floor) => {
             const nextFloor = floor as FloorNumber;
@@ -1292,12 +1841,25 @@ export default function HomeScreen() {
           <Animated.View
             style={[
               styles.stretchPanel,
-              {
-                borderRadius: panelRadius,
-                backgroundColor: panelBackgroundColor,
-              },
+              { borderRadius: panelRadius, backgroundColor: "transparent" },
             ]}
           >
+            <BlurView
+              intensity={80}
+              tint= {"light"}
+              style={StyleSheet.absoluteFill}
+            />
+            <Animated.View
+              style={[
+                StyleSheet.absoluteFill,
+                {
+                  borderRadius: panelRadius,
+                  backgroundColor: panelBackgroundColor,
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.55)",
+                },
+              ]}
+            />
             <View style={styles.dragHeader} {...panelPanResponder.panHandlers}>
               <View style={styles.stretchHandleArea}>
                 <View style={styles.stretchHandle} />
@@ -1310,6 +1872,7 @@ export default function HomeScreen() {
                     setSearch={setSearch}
                     onPressExpand={openSheet}
                     onPressProfile={handleProfilePress}
+                    onSubmitSearch={findRoomBySearch}
                   />
                 </View>
               )}
@@ -1331,28 +1894,78 @@ export default function HomeScreen() {
               >
                 {panelView === "profile" ? (
                   <View style={styles.profileSavedView}>
-                    <View style={styles.profileHeaderRow}>
-                      <Text style={styles.profileTitle}>Saved Rooms</Text>
+                    <View style={styles.profileCard}>
+                      <View style={styles.profileInfo}>
+                        <View style={styles.profileAvatar}>
+                          <Ionicons name="person" size={24} color="#1A365D" />
+                        </View>
+
+                        <View>
+                          <Text style={styles.profileName}>User</Text>
+                          <Text style={styles.profileEmail}>mikeTheTiger@lsu.edu</Text>
+                        </View>
+                      </View>
 
                       <Pressable onPress={() => setPanelView("main")}>
                         <Ionicons name="close" size={34} color="#111" />
                       </Pressable>
                     </View>
 
+                    {/* Saved Events */}
+                    <Text style={styles.profileTitle}>Saved Events</Text>
+                      <View style={styles.savedCard}>
+                        {savedEvents.length === 0 ? (
+                          <Text style={styles.savedItem}>No saved events yet</Text>
+                        ) : (
+                          savedEvents.map((event) => (
+                            <Pressable
+                              key={event.title}
+                              onPress={() => {
+                                setSelectedEvent(event);
+                                setPanelView("main");
+                                snapPanelTo(expandedPanelHeight);
+                              }}
+                            >
+                              <Text style={styles.savedItem}>{event.title}</Text>
+                            </Pressable>
+                          ))
+                        )}
+                      </View>
+
+                    {/* Saved Rooms */}
+                    <Text style={styles.profileTitle}>Saved Rooms</Text>
                     <View style={styles.savedCard}>
                       <Text style={styles.savedItem}>PFT 1263</Text>
                       <Text style={styles.savedItem}>PFT 1200</Text>
                       <Text style={styles.savedItem}>PFT 1225</Text>
                     </View>
 
+                    {/* Saved Pins */}
                     <Text style={styles.profileTitle}>Saved Pins</Text>
-
                     <View style={styles.savedCard}>
-                      <Text style={styles.savedItem}>Study Spot</Text>
-                      <Text style={styles.savedItem}>Bluebook Vending</Text>
-                      <Text style={styles.savedItem}>Group Meetup</Text>
+                      {pins.length === 0 ? (
+                        <Text style={styles.savedItem}>No Saved Pins</Text>
+                      ) : (
+                        pins.map((pin, index) => (
+                          <SwipeDeletePinRow
+                            key={`saved-pin-${index}`}
+                            pin={pin}
+                            index={index}
+                            getPinHex={getPinHex}
+                            onPress={() => {
+                              focusPin(pin);
+                              setPanelView("main");
+                              snapPanelTo(COLLAPSED_HEIGHT);
+                            }}
+                            onDelete={() => {
+                              setPins((prev) => prev.filter((_, i) => i !== index));
+                            }}
+                          />
+                        ))
+                      )}
                     </View>
                   </View>
+
                 ) : selectedEvent ? (
                   <View>
                     <View style={styles.detailHeaderRow}>
@@ -1367,9 +1980,18 @@ export default function HomeScreen() {
                     </View>
 
                     <View style={styles.eventActionRow}>
-                      <Pressable style={styles.eventActionButton}>
-                        <Ionicons name="bookmark-outline" size={22} color="#111" />
-                        <Text style={styles.eventActionText}>Saved</Text>
+                      <Pressable
+                        style={styles.eventActionButton}
+                        onPress={() => toggleSaveEvent(selectedEvent)}
+                      >
+                        <Ionicons
+                          name={isSaved(selectedEvent.title) ? "bookmark" : "bookmark-outline"}
+                          size={22}
+                          color="#111"
+                        />
+                        <Text style={styles.eventActionText}>
+                          {isSaved(selectedEvent.title) ? "Saved" : "Save"}
+                        </Text>
                       </Pressable>
 
                       <Pressable style={styles.eventActionButton}>
@@ -1408,6 +2030,73 @@ export default function HomeScreen() {
                       <NearbyChips
                         selected={selectedFilters}
                         setSelected={setSelectedFilters}
+                  <View>
+                    {search.trim() === "" && (
+                      <>
+                        <Text style={styles.sectionTitle}>Nearby</Text>
+                        <NearbyChips />
+                      </>
+                    )}
+
+                    <Text style={styles.sectionTitle}>Events</Text>
+
+                    {filteredEvents.map((event, index) => (
+                      <EventCard
+                        key={`${event.id}-${event.location}-${index}`}
+                        title={event.title}
+                        date={event.date}
+                        club={event.club}
+                        location={event.location}
+                        type={event.type}
+                        onPress={() => {
+                          if ("isRoom" in event && event.isRoom) {
+                            activeFloorRef.current = event.floor;
+                            setActiveFloor(event.floor);
+
+                            const navId = getNavNodeId(event.roomId, event.floor);
+                            const node = navId ? getNode(navId) : null;
+
+                            if (!node) {
+                              console.warn("No nav node found for room:", event.roomId, navId);
+                              return;
+                            }
+
+                            setSelectedRoom(event.roomId);
+                            setSelectedNode(node);
+                            setSheetView("detail");
+                            setActiveRoute(null);
+                            setPathWaypoints([]);
+                            setSelectedEvent(null);
+
+                            focusRoom(event.roomId, event.floor);
+
+                            setShowCollapsedPill(false);
+                            setPanelExpanded(false);
+                            setPanelLevel("collapsed");
+
+                            Animated.timing(panelHeightAnim, {
+                              toValue: COLLAPSED_HEIGHT,
+                              duration: 100,
+                              useNativeDriver: false,
+                            }).start();
+
+                            requestAnimationFrame(() => {
+                              bottomSheetRef.current?.snapToIndex(0);
+                              setSheetIndex(0);
+                              sheetIndexRef.current = 0;
+                            });
+
+                            return;
+                          }
+
+                          setSearch("");
+                          setSelectedEvent({
+                            title: event.title,
+                            date: event.date,
+                            location: event.location,
+                            description: event.description,
+                          });
+                        }}
                       />
                     </View>
                   )}
@@ -1478,6 +2167,100 @@ export default function HomeScreen() {
         </Animated.View>
       )}
 
+      {pendingPin && (
+         <View style={styles.pinCustomizeOverlay} pointerEvents="auto">
+        <View style={styles.pinCustomizeCard}>
+          <Text style={styles.pinCustomizeTitle}>Customize Pin</Text>
+
+          <TextInput
+            value={pinTitle}
+            onChangeText={setPinTitle}
+            placeholder="Pin Name"
+            placeholderTextColor="#888"
+            style={styles.pinInput}
+          />
+
+          <View style={styles.colorRow}>
+            {[
+              { label: "red" as const, hex: "#D94040" },
+              { label: "blue" as const, hex: "#2F80ED" },
+              { label: "green" as const, hex: "#27AE60" },
+              { label: "yellow" as const, hex: "#F2C94C" },
+            ].map((item) => (
+              <Pressable
+                key={item.label}
+                onPress={() => setPinColor(item.label)}
+                style={[
+                  styles.colorDot,
+                  { backgroundColor: item.hex },
+                  pinColor === item.label && styles.selectedColorDot,
+                ]}
+              />
+            ))}
+          </View>
+
+          <View style={styles.pinActionRow}>
+            <Pressable
+              style={styles.cancelPinButton}
+              onPress={() => {
+              setPendingPin(null);
+              setEditingPinIndex(null);
+              setPreviewPin(null);
+              setCustomizingPreviewPin(null);
+            }}
+            >
+              <Text style={styles.cancelPinText}>Cancel</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.savePinButton}
+              onPress={() => {
+              const updatedPin: Pin = {
+                ...pendingPin,
+                title: pinTitle.trim() || "Untitled Pin",
+                color: pinColor,
+              };
+
+              if (editingPinIndex !== null) {
+                setPins((prev) =>
+                  prev.map((pin, index) =>
+                    index === editingPinIndex ? updatedPin : pin
+                  )
+                );
+              } else {
+                setPins((prev) => [...prev, updatedPin]);
+              }
+
+              setPendingPin(null);
+              setEditingPinIndex(null);
+              setPreviewPin(null);
+              setCustomizingPreviewPin(null);
+              showPinSavedMessage();
+            }}
+            >
+              <Text style={styles.savePinText}>Save</Text>
+            </Pressable>
+          </View>
+        </View>
+        </View>
+      )}
+
+      {showPinSavedToast && (
+        <Animated.View
+          style={[
+            styles.pinSavedToast,
+            {
+              transform: [{ translateY: pinSavedAnim }],
+            },
+          ]}
+        >
+          <Ionicons name="checkmark-circle" size={22} color="#111" />
+          <Text style={styles.pinSavedToastText}>
+            Pin Saved Under Profile
+          </Text>
+        </Animated.View>
+      )}
+
       {!isNavigating && (
         <BottomSheet
           ref={bottomSheetRef}
@@ -1532,16 +2315,42 @@ export default function HomeScreen() {
 );
 }
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  emptytext: { paddingHorizontal: 20, color: "#666", marginTop: 8, fontSize: 15 },
-  canvasAbsolute: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
-  loaderWrap: { flex: 1, alignItems: "center", justifyContent: "center" },
-  pinOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 3 },
-  stretchPanelWrap: { position: "absolute", zIndex: 50 },
+  container: { 
+    flex: 1 
+  },
+  emptytext: { 
+    paddingHorizontal: 20, 
+    color: "#666", 
+    marginTop: 8, 
+    fontSize: 15 
+  },
+  canvasAbsolute: { 
+    position: "absolute", 
+    top: 0, 
+    left: 0, 
+    right: 0, 
+    bottom: 0 
+  },
+  loaderWrap: { 
+    flex: 1, 
+    alignItems: "center", 
+    justifyContent: "center" 
+  },
+  pinOverlay: { 
+    position: "absolute", 
+    top: 0, 
+    left: 0, 
+    right: 0, 
+    bottom: 0, 
+    zIndex: 3 
+  },
+  stretchPanelWrap: { 
+    position: "absolute",
+    zIndex: 50 
+  },
+
   stretchPanel: {
     flex: 1,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.75)",
     overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
@@ -1561,10 +2370,10 @@ const styles = StyleSheet.create({
   },
 
   stretchHandle: {
-    width: 70,
+    width: 48,
     height: 4,
     borderRadius: 999,
-    backgroundColor: "rgba(56, 54, 54, 0.80)",
+    backgroundColor: "rgba(120, 120, 120, 0.35)",
   },
   stretchSearchShell: {
     marginHorizontal: 0,
@@ -1580,11 +2389,9 @@ const styles = StyleSheet.create({
   },
 
   bottomSheetBackground: {
-    backgroundColor: "rgba(235, 235, 218, 1)",
+    backgroundColor: "rgba(235, 235, 218, 1) ",
     borderTopLeftRadius: 26,
     borderTopRightRadius: 26,
-    borderWidth: 1,
-    borderColor: "rgb(255, 255, 255)",
     overflow: "hidden",
   },
 
@@ -1721,9 +2528,7 @@ const styles = StyleSheet.create({
     width: 54,
     height: 110,
     borderRadius: 27,
-    borderWidth: 1,
     backgroundColor: "rgba(120, 116, 116, 0.75)",
-    borderColor: "rgba(255, 255, 255, 0.75)",
     alignItems: "center",
     justifyContent: "space-between",
     paddingTop: 14,
@@ -1753,7 +2558,6 @@ const styles = StyleSheet.create({
   },
 
   arrow: {
-    transform: [{ rotate: "25deg" }],
   },
   profileSavedView: {
     position: "absolute",
@@ -1825,6 +2629,34 @@ const styles = StyleSheet.create({
 
   filterResultTitle: {
     fontSize: 16,
+    profileCard: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#e7e6d8",
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 22,
+  },
+
+  profileInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  profileAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#d3d4bc",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+
+  profileName: {
+    fontSize: 22,
     fontWeight: "700",
     color: "#111",
   },
@@ -1848,4 +2680,211 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
   },
+  profileEmail: {
+    fontSize: 15,
+    color: "#111",
+  },
+
+  pinCustomizeCard: {
+ position: "absolute",
+  top: "50%",
+  left: "50%",
+  transform: [
+    { translateX: -145 }, 
+    { translateY: -160 }, 
+  ],
+  width: 320,
+  
+
+  backgroundColor: "rgba(235, 235, 218, 1)",
+  borderRadius: 22,
+  padding: 18,
+  zIndex: 100,
+  elevation: 20,
+
+  shadowColor: "#000",
+  shadowOpacity: 0.18,
+  shadowRadius: 10,
+  shadowOffset: { width: 0, height: 4 },
+},
+
+
+pinCustomizeTitle: {
+  fontSize: 22,
+  fontWeight: "700",
+  marginBottom: 12,
+  color: "#111",
+},
+
+pinInput: {
+  backgroundColor: "#FFFDF0",
+  borderRadius: 12,
+  borderWidth: 1,
+  borderColor: "rgba(0,0,0,0.2)",
+  paddingHorizontal: 14,
+  paddingVertical: 10,
+  fontSize: 16,
+  marginBottom: 14,
+},
+
+colorRow: {
+  flexDirection: "row",
+  gap: 14,
+  marginBottom: 18,
+},
+
+colorDot: {
+  width: 34,
+  height: 34,
+  borderRadius: 17,
+  borderWidth: 1,
+  borderColor: "rgba(0,0,0,0.25)",
+},
+
+selectedColorDot: {
+  borderWidth: 3,
+  borderColor: "#111",
+},
+
+pinActionRow: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  gap: 12,
+},
+
+cancelPinButton: {
+  flex: 1,
+  paddingVertical: 12,
+  borderRadius: 14,
+  backgroundColor: "#DDD",
+  alignItems: "center",
+},
+
+savePinButton: {
+  flex: 1,
+  paddingVertical: 12,
+  borderRadius: 14,
+  backgroundColor: "#BFDDF3",
+  alignItems: "center",
+},
+
+cancelPinText: {
+  fontSize: 16,
+  fontWeight: "600",
+  color: "#111",
+},
+
+savePinText: {
+  fontSize: 16,
+  fontWeight: "700",
+  color: "#111",
+},
+pinPressable: {
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+arrowPressable: {
+  alignItems: "center",
+  justifyContent: "center",
+  marginTop: 6,
+},
+
+pinSavedToast: {
+  position: "absolute",
+  bottom: 120,
+  height: 46,
+  alignSelf: "center", 
+  paddingHorizontal: 16,
+  paddingVertical: 10,
+  borderRadius: 14,
+  backgroundColor: "rgba(235, 235, 218, 1)",
+  borderWidth: 1,
+  borderColor: "rgba(255,255,255,0.8)",
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+  zIndex: 200,
+  elevation: 30,
+  shadowColor: "#000",
+  shadowOpacity: 0.18,
+  shadowRadius: 10,
+  shadowOffset: { width: 0, height: 4 },
+},
+
+pinSavedToastText: {
+  fontSize: 14,
+  fontWeight: "700",
+  color: "#111",
+},
+
+swipeDeleteWrap: {
+  position: "relative",
+  overflow: "hidden",
+  borderBottomWidth: 1,
+  borderBottomColor: "rgba(0,0,0,0.3)",
+},
+
+deleteButton: {
+  position: "absolute",
+  right: 0,
+  top: 0,
+  bottom: 0,
+  width: 90,
+  backgroundColor: "#D94040",
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+savedPinRow: {
+  backgroundColor: "#FFFDF0",
+},
+
+savedPinPressable: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+  paddingVertical: 12,
+  paddingRight: 28,
+},
+
+savedPinLeft: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 10,
+  flex: 1,
+},
+
+savedItemNoBorder: {
+  fontSize: 16,
+  color: "#111",
+},
+
+swipeIndicator: {
+  justifyContent: "center",
+  alignItems: "flex-end",
+  gap: 3,
+},
+
+swipeLine: {
+  width: 14,
+  height: 2,
+  backgroundColor: "rgba(0,0,0,0.35)",
+  borderRadius: 2,
+},
+pinCustomizeOverlay: {
+  position: "absolute",
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: "rgba(0, 0, 0, 0.45)",
+  zIndex: 200,
+  justifyContent: "flex-end",
+  paddingHorizontal: 16,
+  paddingBottom: 40,
+},
+
+
 });

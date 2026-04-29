@@ -6,7 +6,7 @@
 //   - Room photo placeholder
 
 import React from "react";
-import { View, Text, StyleSheet, Pressable, Image } from "react-native";
+import { View, Text, StyleSheet, Pressable, Image, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { NavNode } from "@/navigation/db";
 
@@ -22,7 +22,28 @@ function roomNumber(label: string): string {
     return match ? match[0] : label;
 }
 
+const ROOM_IMAGES: Record<string, any[]> = {
+  "1253": [
+    require("../assets/images/1253_1.jpg"), require("../assets/images/1253_1.jpg"),
+  ],
+  "1202": [
+    require("../assets/images/1200_1202.jpg"),
+  ],
+  "1200": [
+    require("../assets/images/1200_1202.jpg"),
+  ],
+  "1263": [
+    require("../assets/images/1263_1.jpg"), require("../assets/images/1263_2.jpg"),
+  ],
+  "Bathroom": [
+    require("../assets/images/bath0.jpg"), require("../assets/images/bath5.jpg")
+  ],
+
+};
+
 export default function RoomDetailSheet({ node, estimatedMinutes = 3, onNavigate, onDismiss }: Props) {
+    const roomImages = ROOM_IMAGES[roomNumber(node.label)] || [];
+
     return (
         <View style={styles.container}>
             {/* Room number + building */}
@@ -56,10 +77,32 @@ export default function RoomDetailSheet({ node, estimatedMinutes = 3, onNavigate
             </View>
 
             {/* Room photo */}
-            <View style={styles.photoPlaceholder}>
-                <Ionicons name="image-outline" size={36} color="#bbb" />
-                <Text style={styles.photoPlaceholderText}>No photo available</Text>
-            </View>
+                {roomImages.length > 0 ? (
+                <View style={styles.photoGalleryWrap}>
+                    <ScrollView
+                        horizontal
+                        pagingEnabled
+                        showsHorizontalScrollIndicator={false}
+                        snapToAlignment="center"
+                        decelerationRate="fast"
+                        contentContainerStyle={styles.photoScrollContent}
+                        >
+                        {roomImages.map((img, index) => (
+                            <Image
+                            key={index}
+                            source={img}
+                            style={styles.roomPhoto}
+                            resizeMode="cover"
+                            />
+                        ))}
+                    </ScrollView>
+                </View>
+                ) : (
+                <View style={styles.photoPlaceholder}>
+                    <Ionicons name="image-outline" size={36} color="#bbb" />
+                    <Text style={styles.photoPlaceholderText}>No photo available</Text>
+                </View>
+                )}
         </View>
     );
 }
@@ -144,5 +187,19 @@ const styles = StyleSheet.create({
     photoPlaceholderText: {
         fontSize: 13,
         color: "#bbb",
+    },
+    photoGalleryWrap: {
+        width: "100%",
+        alignSelf: "center",
+    },
+    photoScrollContent: {
+        paddingLeft: 0,
+        paddingRight: 12,
+    },
+    roomPhoto: {
+        width: 345,
+        height: 300,
+        borderRadius: 16,
+        marginRight: 12,
     },
 });
