@@ -19,6 +19,7 @@ import {
   Keyboard,
   TextInput,
   Easing,
+  Image,
 } from "react-native";
 import { Canvas, useThree, useFrame } from "@react-three/fiber/native";
 import { useGLTF } from "@react-three/drei/native";
@@ -30,8 +31,9 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
 import { ScrollView } from "react-native";
 import { BlurView } from "expo-blur";
+import { FILTER_MAP, SEARCH_ALIAS_MAP } from "@/utils/iconFilters";
 
-import NodeDebugLayer from "@/components/nodeDebugLayer"
+import NodeDebugLayer from "@/components/nodeDebugLayer";
 
 import { FloorSwitcher } from "@/components/floorSwitcher";
 import SearchBarRow from "@/components/SearchBarRow";
@@ -586,6 +588,22 @@ export default function HomeScreen() {
 
   const [savedEvents, setSavedEvents] = useState<any[]>([]);
 
+  // Filter/search icon state for map icons
+  const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
+  const [mapFilterResults, setMapFilterResults] = useState<string[]>([]);
+
+  const activeTypes = useMemo(() => {
+    const fromNearbyChips = selectedFilters.flatMap((filter) =>
+      FILTER_MAP?.[filter] ?? []
+    );
+
+    const fromSearchCard = mapFilterResults.flatMap((filter) =>
+      FILTER_MAP?.[filter] ?? []
+    );
+
+    return [...new Set([...fromNearbyChips, ...fromSearchCard])];
+  }, [selectedFilters, mapFilterResults]);
+
   const [sheetIndex, setSheetIndex] = useState(-1);
   const [showCollapsedPill, setShowCollapsedPill] = useState(true);
 
@@ -766,9 +784,9 @@ export default function HomeScreen() {
     {
       id: "2",
       title: "Flutter Workshop",
-      date: "Mar 1 • 6 AM - 1 PM",
+      date: "April 29 • 6 PM - 7 PM",
       club: "Women in Cybersecurity",
-      location: "PFT 2246",
+      location: "PFT 1100",
       type: "laptop-outline" as const,
       description: "Flutter workshop details here.",
     },
@@ -800,6 +818,41 @@ export default function HomeScreen() {
       description: "Free lunch event details here.",
     },
   ];
+
+  // Icons for filter search results
+  const FILTER_ICONS: Record<string, any> = {
+    "Restrooms": require("../../assets/images/restroom-icon.png"),
+    "Study Rooms": require("../../assets/images/study-room-icon.png"),
+    "Vending Machines": require("../../assets/images/vending-mach-icon.png"),
+    "Water Fountains": require("../../assets/images/water-fount-icon.png"),
+    "Elevators": require("../../assets/images/elevator-icon.png"),
+    "Emergency Exits": require("../../assets/images/emer-exit-icon.png"),
+    "Fire Extinguishers": require("../../assets/images/fire-exting-icon.png"),
+    "Defibrillators": require("../../assets/images/first-aid-icon.png"),
+  };
+
+const searchedFilters = useMemo(() => {
+  const query = search.trim().toLowerCase();
+  if (!query) return [];
+
+  return Object.keys(FILTER_MAP).filter((filter) => {
+    const aliases = SEARCH_ALIAS_MAP?.[filter];
+
+    // normalize to array
+    const aliasList = Array.isArray(aliases)
+      ? aliases
+      : aliases
+      ? [aliases]
+      : [];
+
+    return (
+      filter.toLowerCase().includes(query) ||
+      aliasList.some((alias) =>
+        alias.toLowerCase().includes(query)
+      )
+    );
+  });
+}, [search]);
 
   // Filtering for the events and rooms in the search bar half sheet.
 const filteredEvents = useMemo(() => {
@@ -1630,7 +1683,11 @@ const getPinPointFromTouch = useCallback(
             activeFloor={activeFloor}
           />
 
-          <IconLayer activeFloor={activeFloor} />
+          <IconLayer
+            activeFloor={activeFloor}
+            cameraRadius={cameraRadius}
+            allowedTypes={activeTypes}
+          />
         </Suspense>
 
         <CameraController
@@ -1970,11 +2027,43 @@ const getPinPointFromTouch = useCallback(
                     {search.trim() === "" && (
                       <>
                         <Text style={styles.sectionTitle}>Nearby</Text>
-                        <NearbyChips />
+                        <NearbyChips
+                          selected={selectedFilters}
+                          setSelected={setSelectedFilters}
+                        />
                       </>
                     )}
 
-                    <Text style={styles.sectionTitle}>Events</Text>
+                    {search.trim() === "" && (
+                      <Text style={styles.sectionTitle}>Events</Text>
+                    )}
+
+                    {searchedFilters.map((filter) => (
+                      <Pressable
+                        key={filter}
+                        style={styles.filterResultCard}
+                        onPress={() => {
+                          setMapFilterResults([filter]);
+                          setSearch("");
+                          setSelectedEvent(null);
+                          setPanelView("main");
+                          snapPanelTo(COLLAPSED_HEIGHT);
+                        }}
+                      >
+                        <View style={styles.filterIconCircle}>
+                          <Image
+                            source={FILTER_ICONS[filter]}
+                            style={styles.filterIconImage}
+                            resizeMode="contain"
+                          />
+                        </View>
+
+                        <View>
+                          <Text style={styles.filterResultTitle}>{filter}</Text>
+                          <Text style={styles.filterResultSubtitle}>Search nearby {filter}</Text>
+                        </View>
+                      </Pressable>
+                    ))}
 
                     {filteredEvents.map((event, index) => (
                       <EventCard
@@ -2036,8 +2125,8 @@ const getPinPointFromTouch = useCallback(
                       />
                     ))}
 
-                    {filteredEvents.length === 0 && (
-                      <Text style={styles.emptytext}>No matching events found.</Text>
+                    {filteredEvents.length === 0 && searchedFilters.length === 0 && (
+                      <Text style={styles.emptytext}>No matching item found.</Text>
                     )}
 
                     <Text style={styles.radiusText}>
@@ -2413,6 +2502,8 @@ const styles = StyleSheet.create({
     height: 110,
     borderRadius: 27,
     backgroundColor: "rgba(120, 116, 116, 0.75)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.6)",
     alignItems: "center",
     justifyContent: "space-between",
     paddingTop: 14,
@@ -2723,5 +2814,52 @@ pinCustomizeOverlay: {
   paddingBottom: 40,
 },
 
+
+
+  filterResultCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(253, 254, 238, 1)",
+    borderRadius: 18,
+    padding: 22,
+    marginBottom: 12,
+    marginLeft: 12,
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.04)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+
+  filterResultTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111",
+  },
+
+  filterResultSubtitle: {
+    fontSize: 13,
+    color: "#666",
+    marginTop: 2,
+  },
+
+  filterIconCircle: {
+    width: 44,
+    height: 44,
+    marginRight: 8,
+    marginLeft: -4,
+    borderRadius: 22,
+    backgroundColor: "transparent",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  filterIconImage: {
+    width: 46,
+    height: 46,
+  },
 
 });

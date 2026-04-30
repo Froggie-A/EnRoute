@@ -50,9 +50,9 @@ export function FloorSwitcher({
               borderRadius: 29,
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: "rgba(255,255,255,0.82)",
+              backgroundColor: "rgba(120, 116, 116, 0.75)",
               borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.35)",
+              borderColor: "rgba(255,255,255,0.6)",
               zIndex: 2,
               elevation: 10,
               shadowColor: "#000",
@@ -61,7 +61,7 @@ export function FloorSwitcher({
               shadowRadius: 8,
             }}
           >
-            <ChevronDown size={24} color="#111" strokeWidth={2.5} />
+            <ChevronDown size={24} color="rgba(253, 254, 238, 1)" strokeWidth={3.5} />
           </TouchableOpacity>
 
           <View
@@ -73,9 +73,9 @@ export function FloorSwitcher({
               borderRadius: 29,
               alignItems: "center",
               overflow: "hidden",
-              backgroundColor: "rgba(160,160,160,0.28)",
+              backgroundColor: "rgba(120, 116, 116, 0.65)",
               borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.2)",
+              borderColor: "rgba(255,255,255,0.6)",
             }}
           >
             {FLOORS.map((floor) => {
@@ -83,30 +83,43 @@ export function FloorSwitcher({
 
               return (
                 <TouchableOpacity
-                  key={floor.value}
-                  onPress={() => {
-                    onFloorChange(floor.value);
-                    setExpanded(false);
-                  }}
-                  activeOpacity={0.8}
-                  style={{
-                    width: "100%",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    paddingVertical: 10,
-                  }}
-                >
-                  <Text
+                    key={floor.value}
+                    onPress={() => {
+                      onFloorChange(floor.value);
+                      setExpanded(false);
+                    }}
+                    activeOpacity={0.8}
                     style={{
-                      fontSize: 16,
-                      fontWeight: isActive ? "700" : "500",
-                      color: "#fff",
-                      opacity: isActive ? 1 : 0.9,
+                      width: "100%",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      paddingVertical: 2,
                     }}
                   >
-                    {floor.label}
-                  </Text>
-                </TouchableOpacity>
+                    <View
+                      style={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: 19,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: isActive
+                          ? "rgba(191, 221, 243, 0.50)"
+                          : "transparent",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 16,
+                          fontWeight: isActive ? "800" : "500",
+                          color: "rgba(253, 254, 238, 1)",
+                          opacity: isActive ? 1 : 0.9,
+                        }}
+                      >
+                        {floor.label}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
               );
             })}
           </View>
@@ -121,7 +134,7 @@ export function FloorSwitcher({
             borderRadius: 29,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: "rgba(255,255,255,0.82)",
+            backgroundColor: "rgba(120, 116, 116, 0.75)",
             borderWidth: 1,
             borderColor: "rgba(255,255,255,0.35)",
             zIndex: 2,
@@ -132,7 +145,7 @@ export function FloorSwitcher({
             shadowRadius: 8,
           }}
         >
-          <ChevronUp size={24} color="#111" strokeWidth={2.5} />
+          <ChevronUp size={24} color="rgba(253, 254, 238, 1)" strokeWidth={3} />
         </TouchableOpacity>
       )}
     </View>
