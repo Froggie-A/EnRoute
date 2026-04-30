@@ -18,7 +18,6 @@ import {
   Animated,
   Keyboard,
   TextInput,
-  Easing,
   Image,
 } from "react-native";
 import { Canvas, useThree, useFrame } from "@react-three/fiber/native";
@@ -32,9 +31,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { ScrollView } from "react-native";
 import { BlurView } from "expo-blur";
 import { FILTER_MAP, SEARCH_ALIAS_MAP } from "@/utils/iconFilters";
-
-import NodeDebugLayer from "@/components/nodeDebugLayer";
-
 import { FloorSwitcher } from "@/components/floorSwitcher";
 import SearchBarRow from "@/components/SearchBarRow";
 import NearbyChips from "@/components/NearbyChips";
@@ -64,7 +60,6 @@ import { routeToWaypoints } from "@/utils/routeToWaypoints";
 import { normalizeLocationToBuilding } from "@/utils/buildingLocation";
 import type { NavNode } from "@/navigation/db";
 import type { RouteResult } from "@/navigation/pathfinding";
-import PlacePinButton from "@/components/placePinButton";
 
 // GLB 3D Model Imports
 const FLOOR_MODELS = {
@@ -189,23 +184,23 @@ function zoomToNavStart(
 
 function FloorModel({ source }: { source: number }) {
   const asset = Asset.fromModule(source);
-  const { scene } = useGLTF(asset.uri);
+  const uri = asset.localUri ?? asset.uri;
+  const { scene } = useGLTF(uri);
 
   const clonedScene = useMemo(() => {
     const clone = scene.clone(true);
+
     const box = new THREE.Box3().setFromObject(clone);
     const center = new THREE.Vector3();
     box.getCenter(center);
     clone.position.sub(center);
-    return clone;
-  }, [scene]);
 
-  useEffect(() => {
-    clonedScene.traverse((child: any) => {
+    clone.traverse((child: any) => {
       if (child.isMesh && child.material) {
         const materials = Array.isArray(child.material)
-            ? child.material
-            : [child.material];
+          ? child.material
+          : [child.material];
+
         materials.forEach((mat: any) => {
           mat.transparent = false;
           mat.opacity = 1;
@@ -214,7 +209,9 @@ function FloorModel({ source }: { source: number }) {
         });
       }
     });
-  }, [clonedScene]);
+
+    return clone;
+  }, [scene]);
 
   return <primitive object={clonedScene} />;
 }
@@ -589,7 +586,6 @@ export default function HomeScreen() {
   const [pathWaypoints, setPathWaypoints] = useState<[number, number, number][]>([]);
 
   const [isNavigating, setIsNavigating] = useState(false);
-  const [showDebug, setShowDebug] = useState(false);
   const [userNodeId, setUserNodeId] = useState<string | null>(null);
   const cameraTargetRef = useRef(new THREE.Vector3(0, 0, 0));
   const [pins, setPins] = useState<Pin[]>([]);
@@ -704,20 +700,19 @@ export default function HomeScreen() {
     setSheetView("default");
 }, []);
   useEffect(() => {
-    Magnetometer.setUpdateInterval(100);
+  Magnetometer.setUpdateInterval(500);
 
-    const sub = Magnetometer.addListener(({ x, y }) => {
-      let heading = Math.atan2(-y, x) * (180 / Math.PI);
-      heading = 90 - heading;
+  const sub = Magnetometer.addListener(({ x, y }) => {
+    let heading = 90 - Math.atan2(-y, x) * (180 / Math.PI);
+    heading = (heading + 360) % 360;
 
-      if (heading < 0) heading += 360;
-      if (heading >= 360) heading -= 360;
+    setCompassHeading((prev) =>
+      Math.abs(prev - heading) > 3 ? heading : prev
+    );
+  });
 
-      setCompassHeading(heading);
-    });
-
-    return () => sub.remove();
-  }, []);
+  return () => sub.remove();
+}, []);
 
   const snapPanelTo = useCallback(
     (toValue: number) => {
@@ -1046,7 +1041,7 @@ const getPinHex = (color?: Pin["color"]) => {
   }
 };
 
-const [mode, setMode] = useState<"pin" | "navigate" | null>(null);
+const [setMode] = useState<"pin" | "navigate" | null>(null);
 
 // Function that allows user to touch the 3D Pin Model
 const getPinPointFromTouch = useCallback(
@@ -1124,7 +1119,6 @@ const getPinPointFromTouch = useCallback(
           previewPinRef.current = null;
           setPreviewPin(null);
           setPinMode(false);
-          setMode(null);
         },
 
         onPanResponderTerminate: () => {
@@ -1206,26 +1200,26 @@ const getPinPointFromTouch = useCallback(
       [collapseStretchPanel, expandStretchPanel, expandedPanelHeight, panelExpanded, panelHeightAnim]
   );
 
-  const handleRadiusChange = useCallback((radius: number) => {
-    setCameraRadius(radius);
-    if (lerpRadiusRef.current !== null) return;
-    const current = activeFloorRef.current;
-    const { switchRadius, snapRadius, zoomInRadius } = FLOOR_CONFIG[current];
-    const nextFloor = (current < 3 ? current + 1 : current) as FloorNumber;
-    const prevFloor = (current > 1 ? current - 1 : current) as FloorNumber;
-    if (radius >= switchRadius && nextFloor !== current) {
-      activeFloorRef.current = nextFloor;
-      setActiveFloor(nextFloor);
-      lerpRadiusRef.current = FLOOR_CONFIG[nextFloor].snapRadius;
-      return;
-    }
-    if (radius < snapRadius * 0.2 && prevFloor !== current) {
-      activeFloorRef.current = prevFloor;
-      setActiveFloor(prevFloor);
-      lerpRadiusRef.current = zoomInRadius;
-    }
-  }, []);
+const handleRadiusChange = useCallback((radius: number) => {
+  setCameraRadius((prev) => (Math.abs(prev - radius) < 0.35 ? prev : radius));
 
+  if (lerpRadiusRef.current !== null) return;
+
+  const current = activeFloorRef.current;
+  const { switchRadius, snapRadius, zoomInRadius } = FLOOR_CONFIG[current];
+
+  if (radius >= switchRadius && current < 3) {
+    const next = (current + 1) as FloorNumber;
+    activeFloorRef.current = next;
+    setActiveFloor(next);
+    lerpRadiusRef.current = FLOOR_CONFIG[next].snapRadius;
+  } else if (radius < snapRadius * 0.2 && current > 1) {
+    const prev = (current - 1) as FloorNumber;
+    activeFloorRef.current = prev;
+    setActiveFloor(prev);
+    lerpRadiusRef.current = zoomInRadius;
+  }
+}, []);
   // Double-tap to select room → zoom into it + open detail sheet
   const handleRoomSelect = useCallback(
       (hitboxId: string | null) => {
@@ -1584,31 +1578,41 @@ const getPinPointFromTouch = useCallback(
 
 
   // Location watcher
-  useEffect(() => {
+useEffect(() => {
+  let subscription: Location.LocationSubscription | null = null;
+  let mounted = true;
 
-    let subscription: Location.LocationSubscription | null = null;
-    (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") return;
-      const current = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.BestForNavigation,
-      });
-      setLocation(current);
-      subscription = await Location.watchPositionAsync(
-          { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 100, distanceInterval: 0.5 },
-          (loc) => {
-            setLocation(loc);
-            if (loc.coords.heading != null && loc.coords.heading >= 0) {
-              navHeadingRef.current = loc.coords.heading;
-            }
-            // UserLocationMarker handles all node positioning via
-            // its own GPS + dead reckoning logic. Do not override it here.
-          }
-      );
+  (async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted" || !mounted) return;
 
-    })();
-    return () => { subscription?.remove(); };
-  }, []);
+    const current = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Balanced,
+    });
+
+    if (mounted) setLocation(current);
+
+    subscription = await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.Balanced,
+        timeInterval: 1000,
+        distanceInterval: 2,
+      },
+      (loc) => {
+        setLocation(loc);
+
+        if (loc.coords.heading != null && loc.coords.heading >= 0) {
+          navHeadingRef.current = loc.coords.heading;
+        }
+      }
+    );
+  })();
+
+  return () => {
+    mounted = false;
+    subscription?.remove();
+  };
+}, []);
 
   // Live reroute: recalculate route + remaining time whenever user moves to a new node
   // Live reroute: trim path + update steps as user moves through nodes
