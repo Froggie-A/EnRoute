@@ -3,7 +3,7 @@
 // ══════════════════════════════════════════════════════════════════════════════
 const DEMO_MODE       = true;
 // ── Demo start: match this to DEMO_START_NODE in index.tsx ──
-const DEMO_START_NODE = "room_1263_a";  // ← "vending0" or "room_1263_a"
+const DEMO_START_NODE = "room_1263_cen";  // ← "vending0" or "room_1263_a"
 const STEP_BUFFER     = 0;
 // ══════════════════════════════════════════════════════════════════════════════
 

@@ -124,6 +124,8 @@ export const TEST_NODES: NavNode[] = [
 
     { id: 'room_1340_a',  label: 'Classroom 1340 - A',  type: 'classroom', floor: 1, x:  -25,   y: 21,   z: 0, accessible: true },
 
+    { id: 'room_1263_cen',  label: 'Classroom 1263',  type: 'classroom', floor: 1, x:  -34,   y: -21,   z: 0, accessible: true },
+
 
 
     // Vendings
@@ -466,6 +468,7 @@ export const TEST_EDGES: RawEdge[] = [
     // HALLWAY TO ROOMS THIRD ROW
     { id: 'hw51_1263a',    fromNodeId: 'hallway51',   toNodeId: 'room_1263_a', type: 'door',    accessible: true, bidirectional: true },
     { id: 'hw52_1263b',    fromNodeId: 'hallway52',   toNodeId: 'room_1263_b', type: 'door',    accessible: true, bidirectional: true },
+    { id: '1263a_1263cen',    fromNodeId: 'room_1263_cen',   toNodeId: 'room_1263_a', type: 'door',    accessible: true, bidirectional: true },
 
     // Hallway to rooms first column
     { id: 'hw2_1154a',    fromNodeId: 'hallway2',   toNodeId: 'room_1154_a', type: 'door',    accessible: true, bidirectional: true },
