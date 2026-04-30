@@ -47,8 +47,8 @@ export const TEST_NODES: NavNode[] = [
     { id: 'room_1253_a',  label: 'Classroom 1253 - A',  type: 'classroom', floor: 1, x:  -1,    y: -28,   z: 0, accessible: true },
     { id: 'room_1253_b',  label: 'Classroom 1253 - B',  type: 'classroom', floor: 1, x:  -1,    y: -17.5, z: 0, accessible: true },
 
-    { id: 'room_1263_a',  label: 'Classroom 1263 - A',  type: 'classroom', floor: 1, x:  -36,   y: -27,   z: 0, accessible: true },
-    { id: 'room_1263_b',  label: 'Classroom 1263 - B',  type: 'classroom', floor: 1, x:  -36,   y: -16,   z: 0, accessible: true },
+    { id: 'room_1263_a',  label: 'Classroom 1263',  type: 'classroom', floor: 1, x:  -36,   y: -27,   z: 0, accessible: true },
+    { id: 'room_1263_b',  label: 'Classroom 1263',  type: 'classroom', floor: 1, x:  -36,   y: -16,   z: 0, accessible: true },
 
     { id: 'room_1202_a',  label: 'Classroom 1202 - A',  type: 'classroom', floor: 1, x:  -41,   y: -30,   z: 0, accessible: true },
     { id: 'room_1200_a',  label: 'Classroom 1200 - A',  type: 'classroom', floor: 1, x:  -53,   y: -30,   z: 0, accessible: true },

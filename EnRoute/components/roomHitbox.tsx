@@ -193,7 +193,7 @@ const ROOM_DATA: Record<1 | 2 | 3, RoomBox[]> = {
       // PANERA STRIP
     {
       id: "room-1375",
-      name: "Panera Bread",
+      name: "Panera",
       navNodeId: "vending2",
       position: [52.75, 0, 21.25],
       size: [16, 2, 7.5],
