@@ -2,7 +2,8 @@
 //
 // ══════════════════════════════════════════════════════════════════════════════
 const DEMO_MODE       = true;
-const DEMO_START_NODE = "vending0";
+// ── Demo start: match this to DEMO_START_NODE in index.tsx ──
+const DEMO_START_NODE = "vending0";  // ← "vending0" or "room_1263_a"
 const STEP_BUFFER     = 0;
 // ══════════════════════════════════════════════════════════════════════════════
 

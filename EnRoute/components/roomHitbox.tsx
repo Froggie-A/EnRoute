@@ -328,7 +328,15 @@ const ROOM_DATA: Record<1 | 2 | 3, RoomBox[]> = {
       size: [7.5, 5, 4],
     },
   ],
-  2: [],
+  2: [
+    {
+      id: "room2213",
+      name: "Room 2213",
+      navNodeId: "room_2213_a",
+      position: [3, 0, -24],
+      size: [5, 5, 5],
+    },
+  ],
   3: [],
 };
 

@@ -86,7 +86,7 @@ export function initSchema(): void {
 }
 
 // Bump when seed data changes to force a re-seed on next launch
-const SEED_VERSION = "6";
+const SEED_VERSION = "7";
 
 export function seedIfNeeded(): void {
     const db = getDb();

@@ -229,6 +229,26 @@ export const TEST_NODES: NavNode[] = [
     { id: 'hallway11',     label: 'Hallway 11',            type: 'hallway',   floor: 1, x:  -5,    y: -32,   z: 0, accessible: true },
     { id: 'hallway47',     label: 'Hallway 47',            type: 'hallway',   floor: 1, x:  -5,    y: -28,   z: 0, accessible: true },
 
+    // FLOOR 2
+    // room_2213_a matches roomHitbox.tsx floor 2 position [3, 0, -24]
+    { id: 'room_2213_a',  label: 'Classroom 2213',  type: 'classroom', floor: 2, x:   3,   y: -24,   z: 0, accessible: true },
+
+    { id: 'hallway1_2',   label: 'Hallway 1_2',  type: 'hallway', floor: 2, x: -20, y: -26, z: 0, accessible: true },
+    { id: 'hallway2_2',   label: 'Hallway 2_2',  type: 'hallway', floor: 2, x:  -5, y: -26, z: 0, accessible: true },
+    { id: 'hallway3_2',   label: 'Hallway 3_2',  type: 'hallway', floor: 2, x:  -5, y: -22, z: 0, accessible: true },
+    { id: 'hallway4_2',   label: 'Hallway 4_2',  type: 'hallway', floor: 2, x:  -5, y: -42, z: 0, accessible: true },
+    { id: 'hallway5_2',   label: 'Hallway 5_2',  type: 'hallway', floor: 2, x:  -5, y: -42, z: 0, accessible: true },
+
+
+    // Stair landings on floor 2 — same x,y as floor 1 counterparts
+    //{ id: 'stair0_2',     label: 'Stairs',  type: 'stair', floor: 2, x: -19, y:  15, z: 0, accessible: false },
+    { id: 'stair1_2',     label: 'Stairs',  type: 'stair', floor: 2, x: -35, y: -30, z: 0, accessible: false },
+    { id: 'elevator2_2',     label: 'Elevator',  type: 'elevator', floor: 2, x: -3, y: -42, z: 0, accessible: true },
+
+
+
+
+
     // ── Demo path gap-fill nodes ──────────────────────────────────────────────
     // Gap 1: hallway29(44,29) → hallway28(44,20) — 9.6m, split at y=24.5
     { id: 'dp_hw29_hw28_1', label: 'Hallway', type: 'hallway', floor: 1, x: 44, y: 24.5, z: 0, accessible: true },
@@ -493,6 +513,26 @@ export const TEST_EDGES: RawEdge[] = [
     { id: 'hw31_1360a',    fromNodeId: 'hallway31',   toNodeId: 'room_1360_a', type: 'door',    accessible: true, bidirectional: true },
     { id: 'hw32_1354a',    fromNodeId: 'hallway32',   toNodeId: 'room_1354_a', type: 'door',    accessible: true, bidirectional: true },
     { id: 'hw33_1350b',    fromNodeId: 'hallway33',   toNodeId: 'room_1350_b', type: 'door',    accessible: true, bidirectional: true },
+
+    // FLOOR 2 — cross-floor edges (stair0 and stair1 only, matching your nodes)
+    //{ id: 'st0_cross',    fromNodeId: 'stair0',    toNodeId: 'stair0_2',   type: 'stair', accessible: false, bidirectional: true },
+    { id: 'st1_cross',    fromNodeId: 'stair1',    toNodeId: 'stair1_2',   type: 'stair', accessible: false, bidirectional: true },
+    { id: 'ev2_cross',    fromNodeId: 'elevator2',    toNodeId: 'elevator2_2',   type: 'elevator', accessible: true, bidirectional: true },
+
+
+    // Floor 2 landings → hallway spine
+    { id: 'st1_2_hw5_2',  fromNodeId: 'stair1_2',  toNodeId: 'hallway5_2', type: 'stair', accessible: false, bidirectional: true },
+    //{ id: 'st0_2_hw3_2',  fromNodeId: 'stair0_2',  toNodeId: 'hallway3_2', type: 'stair', accessible: false, bidirectional: true },
+
+    // Floor 2 hallway spine
+    { id: 'hw2_2_hw4_2',  fromNodeId: 'hallway2_2', toNodeId: 'hallway4_2', type: 'hallway', accessible: true, bidirectional: true },
+
+    { id: 'hw1_2_hw2_2',  fromNodeId: 'hallway1_2', toNodeId: 'hallway2_2', type: 'hallway', accessible: true, bidirectional: true },
+    { id: 'hw2_2_hw3_2',  fromNodeId: 'hallway2_2', toNodeId: 'hallway3_2', type: 'hallway', accessible: true, bidirectional: true },
+    { id: 'hw3_2_2213a',  fromNodeId: 'hallway3_2', toNodeId: 'room_2213_a', type: 'door',   accessible: true, bidirectional: true },
+
+    { id: 'hw4_2_ev2_2',  fromNodeId: 'hallway4_2', toNodeId: 'elevator2_2', type: 'elevator', accessible: true, bidirectional: true },
+
 
 
 ];

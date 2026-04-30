@@ -53,3 +53,21 @@ export function routeToWaypoints(
 
     return waypoints;
 }
+// Returns waypoints tagged with their floor — used to filter path per floor
+export type FlooredWaypoint = { pos: [number, number, number]; floor: number };
+
+export function routeToWaypointsWithFloor(
+    route: RouteResult | null
+): FlooredWaypoint[] {
+    if (!route || route.steps.length < 2) return [];
+    const result: FlooredWaypoint[] = [];
+    for (const step of route.steps) {
+        const pos = nodeToWorld(step.node.x, step.node.y);
+        if (result.length > 0) {
+            const prev = result[result.length - 1].pos;
+            if (Math.sqrt((pos[0]-prev[0])**2 + (pos[2]-prev[2])**2) < 0.001) continue;
+        }
+        result.push({ pos, floor: step.node.floor });
+    }
+    return result;
+}

@@ -60,7 +60,7 @@ import IconLayer from "@/components/IconLayer";
 import { getNode } from "@/navigation/db";
 import { useRoute } from "@/hooks/use-route";
 import { useTestRoute } from "@/hooks/use-test-route";
-import { routeToWaypoints } from "@/utils/routeToWaypoints";
+import { routeToWaypoints, routeToWaypointsWithFloor, type FlooredWaypoint } from "@/utils/routeToWaypoints";
 import { normalizeLocationToBuilding } from "@/utils/buildingLocation";
 import type { NavNode } from "@/navigation/db";
 import type { RouteResult } from "@/navigation/pathfinding";
@@ -85,7 +85,7 @@ type GestureState = {
   pinchMidpoint: { x: number; y: number } | null;
 };
 
-// Thresholds for the different floors for zooming in and zooming out. 
+// Thresholds for the different floors for zooming in and zooming out.
 type FloorNumber = keyof typeof FLOOR_MODELS;
 const FLOOR_CONFIG: Record<
     FloorNumber,
@@ -386,12 +386,12 @@ function SceneCapture({
 
 // Swipe function to delete the exising pins under the profile page
 function SwipeDeletePinRow({
-  pin,
-  index,
-  onPress,
-  onDelete,
-  getPinHex,
-}: {
+                             pin,
+                             index,
+                             onPress,
+                             onDelete,
+                             getPinHex,
+                           }: {
   pin: Pin;
   index: number;
   onPress: () => void;
@@ -435,111 +435,111 @@ function SwipeDeletePinRow({
   const closeRow = () => animateTo(0);
   const openRow = () => animateTo(-DELETE_WIDTH);
 
-const panResponder = useRef(
-  PanResponder.create({
-    onStartShouldSetPanResponder: () => false,
+  const panResponder = useRef(
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => false,
 
-    onMoveShouldSetPanResponder: (_, gesture) =>
-      Math.abs(gesture.dx) > 6 &&
-      Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.8,
-    onPanResponderTerminationRequest: () => false,
+        onMoveShouldSetPanResponder: (_, gesture) =>
+            Math.abs(gesture.dx) > 6 &&
+            Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.8,
+        onPanResponderTerminationRequest: () => false,
 
-    onPanResponderGrant: () => {
-      isSwipingRef.current = true;
+        onPanResponderGrant: () => {
+          isSwipingRef.current = true;
 
-      translateX.stopAnimation((value) => {
-        startXRef.current = value;
-      });
-    },
+          translateX.stopAnimation((value) => {
+            startXRef.current = value;
+          });
+        },
 
-    onPanResponderMove: (_, gesture) => {
-      let nextX = startXRef.current + gesture.dx;
+        onPanResponderMove: (_, gesture) => {
+          let nextX = startXRef.current + gesture.dx;
 
-      if (nextX > 0) nextX = 0;
-      if (nextX < -DELETE_WIDTH) nextX = -DELETE_WIDTH;
+          if (nextX > 0) nextX = 0;
+          if (nextX < -DELETE_WIDTH) nextX = -DELETE_WIDTH;
 
-      translateX.setValue(nextX);
-    },
+          translateX.setValue(nextX);
+        },
 
-    onPanResponderRelease: (_, gesture) => {
-      const finalX = startXRef.current + gesture.dx;
-      const shouldOpen = finalX <= -25 || gesture.vx < -0.25;
+        onPanResponderRelease: (_, gesture) => {
+          const finalX = startXRef.current + gesture.dx;
+          const shouldOpen = finalX <= -25 || gesture.vx < -0.25;
 
-      if (shouldOpen) openRow();
-      else closeRow();
+          if (shouldOpen) openRow();
+          else closeRow();
 
-      setTimeout(() => {
-        isSwipingRef.current = false;
-      }, 180);
-    },
+          setTimeout(() => {
+            isSwipingRef.current = false;
+          }, 180);
+        },
 
-    onPanResponderTerminate: () => {
-      isOpenRef.current ? openRow() : closeRow();
+        onPanResponderTerminate: () => {
+          isOpenRef.current ? openRow() : closeRow();
 
-      setTimeout(() => {
-        isSwipingRef.current = false;
-      }, 180);
-    },
-  })
-).current;
+          setTimeout(() => {
+            isSwipingRef.current = false;
+          }, 180);
+        },
+      })
+  ).current;
 
   return (
-    <View style={styles.swipeDeleteWrap}>
-      <Animated.View
-        style={[
-          styles.deleteButton,
-          {
-            opacity: deleteOpacity,
-          },
-        ]}
-      >
-        <Pressable
-          onPress={() => {
-            closeRow();
-            onDelete();
-          }}
+      <View style={styles.swipeDeleteWrap}>
+        <Animated.View
+            style={[
+              styles.deleteButton,
+              {
+                opacity: deleteOpacity,
+              },
+            ]}
         >
-          <Animated.View
-            style={{
-              transform: [{ scale: deleteScale }],
-            }}
+          <Pressable
+              onPress={() => {
+                closeRow();
+                onDelete();
+              }}
           >
-            <Ionicons name="trash-outline" size={24} color="#fff" />
-          </Animated.View>
-        </Pressable>
-      </Animated.View>
+            <Animated.View
+                style={{
+                  transform: [{ scale: deleteScale }],
+                }}
+            >
+              <Ionicons name="trash-outline" size={24} color="#fff" />
+            </Animated.View>
+          </Pressable>
+        </Animated.View>
 
-      <Animated.View
-        style={[
-          styles.savedPinRow,
-          {
-            transform: [{ translateX }],
-          },
-        ]}
-        {...panResponder.panHandlers}
-      >
-        <Pressable
-          onPress={() => {
-            if (!isSwipingRef.current) onPress();
-          }}
-          style={styles.savedPinPressable}
+        <Animated.View
+            style={[
+              styles.savedPinRow,
+              {
+                transform: [{ translateX }],
+              },
+            ]}
+            {...panResponder.panHandlers}
         >
-          <View style={styles.savedPinLeft}>
-            <Ionicons name="pin" size={20} color={getPinHex(pin.color)} />
+          <Pressable
+              onPress={() => {
+                if (!isSwipingRef.current) onPress();
+              }}
+              style={styles.savedPinPressable}
+          >
+            <View style={styles.savedPinLeft}>
+              <Ionicons name="pin" size={20} color={getPinHex(pin.color)} />
 
-            <Text style={styles.savedItemNoBorder}>
-              {pin.title || "Untitled Pin"}
-            </Text>
-          </View>
+              <Text style={styles.savedItemNoBorder}>
+                {pin.title || "Untitled Pin"}
+              </Text>
+            </View>
 
-          <View style={styles.swipeIndicator}>
-            <View style={styles.swipeLine} />
-            <View style={styles.swipeLine} />
-            <View style={styles.swipeLine} />
-          </View>
-        </Pressable>
-      </Animated.View>
-    </View>
+            <View style={styles.swipeIndicator}>
+              <View style={styles.swipeLine} />
+              <View style={styles.swipeLine} />
+              <View style={styles.swipeLine} />
+            </View>
+          </Pressable>
+        </Animated.View>
+      </View>
   );
 }
 
@@ -587,10 +587,12 @@ export default function HomeScreen() {
   const [pinMode, setPinMode] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
   const [pathWaypoints, setPathWaypoints] = useState<[number, number, number][]>([]);
+  const [flooredWaypoints, setFlooredWaypoints] = useState<FlooredWaypoint[]>([]);
 
   const [isNavigating, setIsNavigating] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   const [userNodeId, setUserNodeId] = useState<string | null>(null);
+  const [userNodeFloor, setUserNodeFloor] = useState<number>(1);
   const cameraTargetRef = useRef(new THREE.Vector3(0, 0, 0));
   const [pins, setPins] = useState<Pin[]>([]);
   const [previewPin, setPreviewPin] = useState<Pin | null>(null);
@@ -617,11 +619,11 @@ export default function HomeScreen() {
 
   const activeTypes = useMemo(() => {
     const fromNearbyChips = selectedFilters.flatMap((filter) =>
-      FILTER_MAP?.[filter] ?? []
+        FILTER_MAP?.[filter] ?? []
     );
 
     const fromSearchCard = mapFilterResults.flatMap((filter) =>
-      FILTER_MAP?.[filter] ?? []
+        FILTER_MAP?.[filter] ?? []
     );
 
     return [...new Set([...fromNearbyChips, ...fromSearchCard])];
@@ -702,7 +704,7 @@ export default function HomeScreen() {
     setSelectedEvent(null);
     setPanelView("main");
     setSheetView("default");
-}, []);
+  }, []);
   useEffect(() => {
     Magnetometer.setUpdateInterval(100);
 
@@ -720,30 +722,30 @@ export default function HomeScreen() {
   }, []);
 
   const snapPanelTo = useCallback(
-    (toValue: number) => {
-      let level: "collapsed" | "mid" | "full" = "collapsed";
+      (toValue: number) => {
+        let level: "collapsed" | "mid" | "full" = "collapsed";
 
-      if (toValue === MID_HEIGHT) level = "mid";
-      if (toValue === expandedPanelHeight) level = "full";
+        if (toValue === MID_HEIGHT) level = "mid";
+        if (toValue === expandedPanelHeight) level = "full";
 
-      if (level === "collapsed") {
-        Keyboard.dismiss();
-        resetCollapsedPanel();
-      }
+        if (level === "collapsed") {
+          Keyboard.dismiss();
+          resetCollapsedPanel();
+        }
 
-      setPanelLevel(level);
-      panelLevelRef.current = level;
-      setPanelExpanded(level !== "collapsed");
+        setPanelLevel(level);
+        panelLevelRef.current = level;
+        setPanelExpanded(level !== "collapsed");
 
-      Animated.spring(panelHeightAnim, {
-        toValue,
-        useNativeDriver: false,
-        damping: 24,
-        stiffness: 180,
-        mass: 0.9,
-      }).start();
-    },
-    [panelHeightAnim, expandedPanelHeight, resetCollapsedPanel]
+        Animated.spring(panelHeightAnim, {
+          toValue,
+          useNativeDriver: false,
+          damping: 24,
+          stiffness: 180,
+          mass: 0.9,
+        }).start();
+      },
+      [panelHeightAnim, expandedPanelHeight, resetCollapsedPanel]
   );
 
   const toggleSaveEvent = useCallback((event: any) => {
@@ -759,8 +761,8 @@ export default function HomeScreen() {
   }, []);
 
   const isSaved = useCallback(
-    (title: string) => savedEvents.some((e) => e.title === title),
-    [savedEvents]
+      (title: string) => savedEvents.some((e) => e.title === title),
+      [savedEvents]
   );
 
   const contentOpacity = panelHeightAnim.interpolate({
@@ -866,82 +868,82 @@ export default function HomeScreen() {
     "Defibrillators": require("../../assets/images/first-aid-icon.png"),
   };
 
-const searchedFilters = useMemo(() => {
-  const query = search.trim().toLowerCase();
-  if (!query) return [];
+  const searchedFilters = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return [];
 
-  return Object.keys(FILTER_MAP).filter((filter) => {
-    const aliases = SEARCH_ALIAS_MAP?.[filter];
+    return Object.keys(FILTER_MAP).filter((filter) => {
+      const aliases = SEARCH_ALIAS_MAP?.[filter];
 
-    // normalize to array
-    const aliasList = Array.isArray(aliases)
-      ? aliases
-      : aliases
-      ? [aliases]
-      : [];
+      // normalize to array
+      const aliasList = Array.isArray(aliases)
+          ? aliases
+          : aliases
+              ? [aliases]
+              : [];
 
-    return (
-      filter.toLowerCase().includes(query) ||
-      aliasList.some((alias) =>
-        alias.toLowerCase().includes(query)
-      )
-    );
-  });
-}, [search]);
+      return (
+          filter.toLowerCase().includes(query) ||
+          aliasList.some((alias) =>
+              alias.toLowerCase().includes(query)
+          )
+      );
+    });
+  }, [search]);
 
   // Filtering for the events and rooms in the search bar half sheet.
-const filteredEvents = useMemo(() => {
-  const query = search.trim().toLowerCase();
-  const queryNumber = query.replace(/\D/g, "");
+  const filteredEvents = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const queryNumber = query.replace(/\D/g, "");
 
-  const roomResults: any[] = [];
+    const roomResults: any[] = [];
 
-  if (queryNumber) {
-    for (const floor of [1, 2, 3] as FloorNumber[]) {
-      const rooms = findRoomsStartingWith(floor, queryNumber);
+    if (queryNumber) {
+      for (const floor of [1, 2, 3] as FloorNumber[]) {
+        const rooms = findRoomsStartingWith(floor, queryNumber);
 
-      rooms.forEach((room) => {
-        const roomNumber = room.id.match(/\d+/)?.[0] || room.id;
+        rooms.forEach((room) => {
+          const roomNumber = room.id.match(/\d+/)?.[0] || room.id;
 
-        roomResults.push({
-          id: `room-${floor}-${room.id}`,
-          title: roomNumber,
-          date: `Floor L${floor}`,
-          club: "Room",
-          location: "PFT " + roomNumber,
-          type: "location-outline" as const,
-          description: `${room.name} is located on Floor L${floor}.`,
-          isRoom: true,
-          roomId: room.id,
-          floor,
+          roomResults.push({
+            id: `room-${floor}-${room.id}`,
+            title: roomNumber,
+            date: `Floor L${floor}`,
+            club: "Room",
+            location: "PFT " + roomNumber,
+            type: "location-outline" as const,
+            description: `${room.name} is located on Floor L${floor}.`,
+            isRoom: true,
+            roomId: room.id,
+            floor,
+          });
         });
-      });
+      }
     }
-  }
 
-  const normalEvents = events.filter((event) => {
-    if (!query) return true;
+    const normalEvents = events.filter((event) => {
+      if (!query) return true;
 
-    const eventRoomNumber = event.location.match(/\d+/)?.[0] || "";
+      const eventRoomNumber = event.location.match(/\d+/)?.[0] || "";
 
-    return (
-      eventRoomNumber.startsWith(queryNumber) ||
-      event.title.toLowerCase().includes(query) ||
-      event.club.toLowerCase().includes(query)
-    );
-  });
+      return (
+          eventRoomNumber.startsWith(queryNumber) ||
+          event.title.toLowerCase().includes(query) ||
+          event.club.toLowerCase().includes(query)
+      );
+    });
 
-  return [...roomResults, ...normalEvents];
-}, [search]);
+    return [...roomResults, ...normalEvents];
+  }, [search]);
 
-useEffect(() => {
-  activeFloorRef.current = activeFloor;
-  setUserNodeId(null);
-}, [activeFloor]);
+  useEffect(() => {
+    activeFloorRef.current = activeFloor;
+    setUserNodeId(null);
+  }, [activeFloor]);
 
-useEffect(() => {
-  mapSizeRef.current = mapSize;
-}, [mapSize]);
+  useEffect(() => {
+    mapSizeRef.current = mapSize;
+  }, [mapSize]);
 
   useEffect(() => {
     if (!location || hasCenteredOnUser.current) return;
@@ -960,178 +962,189 @@ useEffect(() => {
     const groupScale = 0.1;
     const [x, y, z] = room.position;
     const [, sy, sz] = room.size;
-    cameraTargetRef.current.set(x * groupScale, y * groupScale, z * groupScale);
-    const zoomRadius = Math.max(5, Math.max(sy, sz) * groupScale * 1.4);
+    const offsetX = -0.7; // tweak this value
+
+    cameraTargetRef.current.set(
+        x * groupScale + offsetX,
+        y * groupScale,
+        z * groupScale
+    );
+    const zoomRadius = Math.max(4, Math.max(sy, sz) * groupScale * 1.6);
     lerpRadiusRef.current = zoomRadius;
+    // Labels use rotation -Math.PI/2 on Y → they read from west (-X direction)
+    // theta = -PI/2 positions camera to the west so text faces it directly
+    lerpThetaRef.current = -Math.PI / 2;
+    // phi = PI/2 is perfectly flat/top-down — no tilt
+    lerpPhiRef.current = 0.35;
   }, []);
 
-const findRoomBySearch = useCallback(() => {
-  const query = search.trim().toLowerCase();
-  if (!query) return;
+  const findRoomBySearch = useCallback(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return;
 
-  for (const floor of [1, 2, 3] as FloorNumber[]) {
-    const room = findRoomHitboxBySearch(floor, query);
-    const roomNumber = room?.id.match(/\d+/)?.[0] || "";
+    for (const floor of [1, 2, 3] as FloorNumber[]) {
+      const room = findRoomHitboxBySearch(floor, query);
+      const roomNumber = room?.id.match(/\d+/)?.[0] || "";
 
-    // only zoom if the typed search exactly matches a room number
-    if (!room || roomNumber !== query) continue;
+      // only zoom if the typed search exactly matches a room number
+      if (!room || roomNumber !== query) continue;
 
-    const navId = getNavNodeId(room.id, floor);
-    const node = navId ? getNode(navId) : null;
-    if (!node) return;
+      const navId = getNavNodeId(room.id, floor);
+      const node = navId ? getNode(navId) : null;
+      if (!node) return;
 
-    activeFloorRef.current = floor;
-    setActiveFloor(floor);
+      activeFloorRef.current = floor;
+      setActiveFloor(floor);
 
-    setSelectedRoom(room.id);
-    setSelectedNode(node);
-    setSheetView("detail");
-    setActiveRoute(null);
-    setPathWaypoints([]);
-    setSelectedEvent(null);
+      setSelectedRoom(room.id);
+      setSelectedNode(node);
+      setSheetView("detail");
+      setActiveRoute(null);
+      setPathWaypoints([]);
+      setSelectedEvent(null);
 
-    setSearch("");
-    setShowCollapsedPill(false);
-    setPanelExpanded(false);
-    setPanelLevel("collapsed");
+      setSearch("");
+      setShowCollapsedPill(false);
+      setPanelExpanded(false);
+      setPanelLevel("collapsed");
 
-    Animated.timing(panelHeightAnim, {
-      toValue: COLLAPSED_HEIGHT,
-      duration: 100,
-      useNativeDriver: false,
-    }).start();
+      Animated.timing(panelHeightAnim, {
+        toValue: COLLAPSED_HEIGHT,
+        duration: 100,
+        useNativeDriver: false,
+      }).start();
 
-    focusRoom(room.id, floor);
-    requestAnimationFrame(() => {
-      bottomSheetRef.current?.snapToIndex(0);
-      setSheetIndex(0);
-      sheetIndexRef.current = 0;
-    });
+      focusRoom(room.id, floor);
+      requestAnimationFrame(() => {
+        bottomSheetRef.current?.snapToIndex(0);
+        setSheetIndex(0);
+        sheetIndexRef.current = 0;
+      });
 
 
-    return;
-  }
+      return;
+    }
 
-  console.log("No exact room found for search:", query);
-}, [search, focusRoom]);
+    console.log("No exact room found for search:", query);
+  }, [search, focusRoom]);
 
-// Function that zooms in on a pin when clicked in the profile page. 
+// Function that zooms in on a pin when clicked in the profile page.
   const focusPin = useCallback((pin: Pin) => {
-  if (pin.floor !== activeFloorRef.current) {
-    activeFloorRef.current = pin.floor;
-    setActiveFloor(pin.floor);
-  }
+    if (pin.floor !== activeFloorRef.current) {
+      activeFloorRef.current = pin.floor;
+      setActiveFloor(pin.floor);
+    }
 
-  cameraTargetRef.current.set(
-    pin.x,
-    pin.y,
-    pin.z
-  );
+    cameraTargetRef.current.set(
+        pin.x,
+        pin.y,
+        pin.z
+    );
 
-  lerpRadiusRef.current = 3.5;
-}, []);
+    lerpRadiusRef.current = 3.5;
+  }, []);
 
-// Maps the 3D Pin model color to a hex color for the saved pins icon under the profile. 
-const getPinHex = (color?: Pin["color"]) => {
-  switch (color) {
-    case "blue":
-      return "#2F80ED";
-    case "green":
-      return "#27AE60";
-    case "yellow":
-      return "#F2C94C";
-    case "red":
-    default:
-      return "#D94040";
-  }
-};
+// Maps the 3D Pin model color to a hex color for the saved pins icon under the profile.
+  const getPinHex = (color?: Pin["color"]) => {
+    switch (color) {
+      case "blue":
+        return "#2F80ED";
+      case "green":
+        return "#27AE60";
+      case "yellow":
+        return "#F2C94C";
+      case "red":
+      default:
+        return "#D94040";
+    }
+  };
 
-const [mode, setMode] = useState<"pin" | "navigate" | null>(null);
+  const [mode, setMode] = useState<"pin" | "navigate" | null>(null);
 
 // Function that allows user to touch the 3D Pin Model
-const getPinPointFromTouch = useCallback(
-    (pageX: number, pageY: number): Pin | null => {
-      const cam = cameraRef.current;
-      if (!cam || mapSize.width <= 0 || mapSize.height <= 0) return null;
+  const getPinPointFromTouch = useCallback(
+      (pageX: number, pageY: number): Pin | null => {
+        const cam = cameraRef.current;
+        if (!cam || mapSize.width <= 0 || mapSize.height <= 0) return null;
 
-      const pointer = pointerRef.current;
-      const raycaster = raycasterRef.current;
+        const pointer = pointerRef.current;
+        const raycaster = raycasterRef.current;
 
-      pointer.x = (pageX / mapSize.width) * 2 - 1;
-      pointer.y = -(pageY / mapSize.height) * 2 + 1;
-      raycaster.setFromCamera(pointer, cam);
+        pointer.x = (pageX / mapSize.width) * 2 - 1;
+        pointer.y = -(pageY / mapSize.height) * 2 + 1;
+        raycaster.setFromCamera(pointer, cam);
 
-      const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -PIN_Y);
-      const point = new THREE.Vector3();
+        const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -PIN_Y);
+        const point = new THREE.Vector3();
 
-      const didHit = raycaster.ray.intersectPlane(floorPlane, point);
+        const didHit = raycaster.ray.intersectPlane(floorPlane, point);
 
-      if (!didHit) return null;
+        if (!didHit) return null;
 
-      return {
-        x: point.x,
-        y: PIN_Y,
-        z: point.z,
-        floor: activeFloorRef.current,
-      };
-    },
-    [mapSize.width, mapSize.height]
+        return {
+          x: point.x,
+          y: PIN_Y,
+          z: point.z,
+          floor: activeFloorRef.current,
+        };
+      },
+      [mapSize.width, mapSize.height]
   );
 
   const pinPanResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => pinMode,
-        onMoveShouldSetPanResponder: () => pinMode,
+      () =>
+          PanResponder.create({
+            onStartShouldSetPanResponder: () => pinMode,
+            onMoveShouldSetPanResponder: () => pinMode,
 
-        onPanResponderGrant: (evt) => {
-        if (!pinMode) return;
+            onPanResponderGrant: (evt) => {
+              if (!pinMode) return;
 
-        const point = getPinPointFromTouch(
-          evt.nativeEvent.pageX,
-          evt.nativeEvent.pageY
-        );
+              const point = getPinPointFromTouch(
+                  evt.nativeEvent.pageX,
+                  evt.nativeEvent.pageY
+              );
 
-        if (point) {
-          previewPinRef.current = point;
-          setPreviewPin(point);
-        }
-      },
+              if (point) {
+                previewPinRef.current = point;
+                setPreviewPin(point);
+              }
+            },
 
-        onPanResponderMove: (evt) => {
-        if (!pinMode) return;
+            onPanResponderMove: (evt) => {
+              if (!pinMode) return;
 
-        const point = getPinPointFromTouch(
-          evt.nativeEvent.pageX,
-          evt.nativeEvent.pageY
-        );
+              const point = getPinPointFromTouch(
+                  evt.nativeEvent.pageX,
+                  evt.nativeEvent.pageY
+              );
 
-        if (point) {
-          previewPinRef.current = point;
-        }
-      },
+              if (point) {
+                previewPinRef.current = point;
+              }
+            },
 
-        onPanResponderRelease: () => {
-          const finalPin = previewPinRef.current;
+            onPanResponderRelease: () => {
+              const finalPin = previewPinRef.current;
 
-          if (finalPin) {
-            setPendingPin(finalPin);
-            setCustomizingPreviewPin(finalPin);
-            setPinTitle("");
-            setPinColor("red");
-          }
+              if (finalPin) {
+                setPendingPin(finalPin);
+                setCustomizingPreviewPin(finalPin);
+                setPinTitle("");
+                setPinColor("red");
+              }
 
-          previewPinRef.current = null;
-          setPreviewPin(null);
-          setPinMode(false);
-          setMode(null);
-        },
+              previewPinRef.current = null;
+              setPreviewPin(null);
+              setPinMode(false);
+              setMode(null);
+            },
 
-        onPanResponderTerminate: () => {
-          previewPinRef.current = null;
-          setPreviewPin(null);
-        },
-      }),
+            onPanResponderTerminate: () => {
+              previewPinRef.current = null;
+              setPreviewPin(null);
+            },
+          }),
       [pinMode, getPinPointFromTouch]
   );
 
@@ -1150,25 +1163,25 @@ const getPinPointFromTouch = useCallback(
   }, [snapPanelTo]);
 
   const showPinSavedMessage = useCallback(() => {
-  setShowPinSavedToast(true);
+    setShowPinSavedToast(true);
 
-  Animated.sequence([
-    Animated.spring(pinSavedAnim, {
-      toValue: 0,
-      useNativeDriver: true,
-      damping: 18,
-      stiffness: 180,
-    }),
-    Animated.delay(1600),
-    Animated.timing(pinSavedAnim, {
-      toValue: 120,
-      duration: 250,
-      useNativeDriver: true,
-    }),
-  ]).start(() => {
-    setShowPinSavedToast(false);
-  });
-}, [pinSavedAnim]);
+    Animated.sequence([
+      Animated.spring(pinSavedAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        damping: 18,
+        stiffness: 180,
+      }),
+      Animated.delay(1600),
+      Animated.timing(pinSavedAnim, {
+        toValue: 120,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setShowPinSavedToast(false);
+    });
+  }, [pinSavedAnim]);
 
   const panelPanResponder = useMemo(
       () =>
@@ -1269,7 +1282,8 @@ const getPinPointFromTouch = useCallback(
   );
   // DEMO VALUES
   const DEMO_MODE = true;
-  const DEMO_START_NODE = "vending0";
+  // ── Demo start: flip between "vending0" (floor 1) and "room_1263_a" (floor 1)
+  const DEMO_START_NODE = "vending0";  // ← change to "room_1263_a" for second demo
 
 
   const getFromNodeId = useCallback((): string => {
@@ -1298,8 +1312,10 @@ const getPinPointFromTouch = useCallback(
         const fromId = getFromNodeId();
         const result = getTestRoute(fromId, selectedNode.id);
         const waypoints = routeToWaypoints(result);
+        const fwaypoints = routeToWaypointsWithFloor(result);
         setActiveRoute(result);
         setPathWaypoints(waypoints);
+        setFlooredWaypoints(fwaypoints);
         setDirectionsBackTarget("detail");
         setSheetView("directions");
         bottomSheetRef.current?.snapToIndex(0);
@@ -1344,6 +1360,7 @@ const getPinPointFromTouch = useCallback(
     setSelectedRoom(null);
     setSelectedNode(null);
     setPathWaypoints([]);
+    setFlooredWaypoints([]);
     setSheetView("default");
     setSheetIndex(-1); sheetIndexRef.current = -1;
     setTimeout(() => setShowCollapsedPill(true), 300);
@@ -1360,36 +1377,36 @@ const getPinPointFromTouch = useCallback(
   };
 
   const getPinFromTouch = useCallback(
-  (pageX: number, pageY: number): { pin: Pin; index: number } | null => {
-    const cam = cameraRef.current;
-    if (!cam || mapSize.width <= 0 || mapSize.height <= 0) return null;
+      (pageX: number, pageY: number): { pin: Pin; index: number } | null => {
+        const cam = cameraRef.current;
+        if (!cam || mapSize.width <= 0 || mapSize.height <= 0) return null;
 
-    const pointer = pointerRef.current;
-    const raycaster = raycasterRef.current;
+        const pointer = pointerRef.current;
+        const raycaster = raycasterRef.current;
 
-    pointer.x = (pageX / mapSize.width) * 2 - 1;
-    pointer.y = -(pageY / mapSize.height) * 2 + 1;
-    raycaster.setFromCamera(pointer, cam);
+        pointer.x = (pageX / mapSize.width) * 2 - 1;
+        pointer.y = -(pageY / mapSize.height) * 2 + 1;
+        raycaster.setFromCamera(pointer, cam);
 
-    let closest: { pin: Pin; index: number } | null = null;
-    let closestDistance = Infinity;
+        let closest: { pin: Pin; index: number } | null = null;
+        let closestDistance = Infinity;
 
-    pins.forEach((pin, index) => {
-      if (pin.floor !== activeFloorRef.current) return;
+        pins.forEach((pin, index) => {
+          if (pin.floor !== activeFloorRef.current) return;
 
-      const pinPosition = new THREE.Vector3(pin.x, pin.y, pin.z);
-      const distance = raycaster.ray.distanceToPoint(pinPosition);
+          const pinPosition = new THREE.Vector3(pin.x, pin.y, pin.z);
+          const distance = raycaster.ray.distanceToPoint(pinPosition);
 
-      if (distance < 0.35 && distance < closestDistance) {
-        closestDistance = distance;
-        closest = { pin, index };
-      }
-    });
+          if (distance < 0.35 && distance < closestDistance) {
+            closestDistance = distance;
+            closest = { pin, index };
+          }
+        });
 
-    return closest;
-  },
-  [pins, mapSize.width, mapSize.height]
-);
+        return closest;
+      },
+      [pins, mapSize.width, mapSize.height]
+  );
 
   const cameraPanResponder = useMemo(
       () =>
@@ -1542,8 +1559,8 @@ const getPinPointFromTouch = useCallback(
             onPanResponderRelease: (e) => {
               if (!touchMovedRef.current) {
                 const tappedPin = getPinFromTouch(
-                  e.nativeEvent.pageX,
-                  e.nativeEvent.pageY
+                    e.nativeEvent.pageX,
+                    e.nativeEvent.pageY
                 );
 
                 if (tappedPin) {
@@ -1630,8 +1647,10 @@ const getPinPointFromTouch = useCallback(
     if (!newRoute) return;
 
     const newWaypoints = routeToWaypoints(newRoute);
+    const newFWaypoints = routeToWaypointsWithFloor(newRoute);
     setActiveRoute(newRoute);
     setPathWaypoints(newWaypoints.length >= 2 ? newWaypoints : []);
+    setFlooredWaypoints(newWaypoints.length >= 2 ? newFWaypoints : []);
   }, [userNodeId, isNavigating, getTestRoute, handleEndRoute]);
 
   // Floor model preload
@@ -1685,8 +1704,9 @@ const getPinPointFromTouch = useCallback(
         setActiveFloor(floor);
         setActiveRoute(route);
         setPathWaypoints(waypoints);
+        setFlooredWaypoints(routeToWaypointsWithFloor(route));
 
-        if (waypoints.length >= 2) {
+        if (waypoints.length >= 2 ) {
           zoomToWaypoints(waypoints, lerpRadiusRef, lerpTargetRef, 0.5);
         }
       });
@@ -1728,731 +1748,749 @@ const getPinPointFromTouch = useCallback(
   }
 
   return (
-  <GestureHandlerRootView style={styles.container}>
-    <View
-      style={styles.container}
-      onLayout={(e) => {
-        const { width, height } = e.nativeEvent.layout;
-        setMapSize({ width, height });
-      }}
-    >
-      <Canvas style={styles.canvasAbsolute} camera={{ position: [0, 0, 0], fov: 45 }}>
-        <color attach="background" args={["#c9dff0"]} />
+      <GestureHandlerRootView style={styles.container}>
+        <View
+            style={styles.container}
+            onLayout={(e) => {
+              const { width, height } = e.nativeEvent.layout;
+              setMapSize({ width, height });
+            }}
+        >
+          <Canvas style={styles.canvasAbsolute} camera={{ position: [0, 0, 0], fov: 45 }}>
+            <color attach="background" args={["#c9dff0"]} />
 
-        {activeFloor === 1 && (
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -5, 0]} renderOrder={-1}>
-            <planeGeometry args={[200, 200]} />
-            <meshStandardMaterial color="#7a9e6e" />
-          </mesh>
-        )}
+            {activeFloor === 1 && (
+                <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -5, 0]} renderOrder={-1}>
+                  <planeGeometry args={[200, 200]} />
+                  <meshStandardMaterial color="#7a9e6e" />
+                </mesh>
+            )}
 
-        <ambientLight intensity={1.2} />
-        <directionalLight position={[3, 5, 2]} intensity={1} />
-        <directionalLight position={[-3, 5, -2]} intensity={0.9} />
-        <directionalLight position={[0, 4, 4]} intensity={0.7} />
-        <directionalLight position={[0, -5, 0]} intensity={0.7} />
+            <ambientLight intensity={1.2} />
+            <directionalLight position={[3, 5, 2]} intensity={1} />
+            <directionalLight position={[-3, 5, -2]} intensity={0.9} />
+            <directionalLight position={[0, 4, 4]} intensity={0.7} />
+            <directionalLight position={[0, -5, 0]} intensity={0.7} />
 
-        <SceneCapture sceneRef={sceneRef} />
+            <SceneCapture sceneRef={sceneRef} />
 
-        <Suspense fallback={null}>
-          <Building activeFloor={activeFloor} />
+            <Suspense fallback={null}>
+              <Building activeFloor={activeFloor} />
 
-          <group scale={[0.1, 0.1, 0.1]}>
-            <RoomHitboxes
-                activeFloor={activeFloor}
-                selectedRoom={selectedRoom}
-                setSelectedRoom={setSelectedRoom}
-            />
-          </group>
+              <group scale={[0.1, 0.1, 0.1]}>
+                <RoomHitboxes
+                    activeFloor={activeFloor}
+                    selectedRoom={selectedRoom}
+                    setSelectedRoom={setSelectedRoom}
+                />
+              </group>
 
-          {location && (
-              <UserLocationMarker
-                  latitude={location.coords.latitude}
-                  longitude={location.coords.longitude}
-                  activeFloor={activeFloor}
-                  isNavigating={isNavigating}
-                  currentNodeId={userNodeId}
-                  onNodeChange={setUserNodeId}
-                  gpsAccuracy={location.coords.accuracy ?? 20}
-                  routeNodeIds={
-                    isNavigating && activeRoute
-                        ? activeRoute.steps.map(s => s.node.id)
-                        : []
+              {location && userNodeFloor === activeFloor && (
+                  <UserLocationMarker
+                      latitude={location.coords.latitude}
+                      longitude={location.coords.longitude}
+                      activeFloor={activeFloor}
+                      isNavigating={isNavigating}
+                      currentNodeId={userNodeId}
+                      onNodeChange={(id) => {
+                        setUserNodeId(id);
+                        // Keep track of which floor the user is on (getNode reads from TEST_NODES)
+                        const n = getNode(id);
+                        if (n) setUserNodeFloor(n.floor);
+                      }}
+                      gpsAccuracy={location.coords.accuracy ?? 20}
+                      routeNodeIds={
+                        isNavigating && activeRoute
+                            ? activeRoute.steps.map(s => s.node.id)
+                            : []
+                      }
+                      onRerouteNeeded={(fromNodeId) => {
+                        if (!destNodeIdRef.current) return;
+                        const newRoute = getTestRoute(fromNodeId, destNodeIdRef.current);
+                        if (newRoute) {
+                          setActiveRoute(newRoute);
+                          const wps = routeToWaypoints(newRoute);
+                          setPathWaypoints(wps);
+                          setFlooredWaypoints(routeToWaypointsWithFloor(newRoute));
+                        }
+                      }}
+                  />
+              )}
+
+              {(() => {
+                // Only show path segments that belong to the active floor
+                const floorWps = flooredWaypoints
+                    .filter(w => w.floor === activeFloor)
+                    .map(w => w.pos) as [number, number, number][];
+                const floorFullWps = isNavigating && fullPathWaypointsRef.current.length >= 2
+                    ? fullPathWaypointsRef.current
+                    : undefined;
+                return floorWps.length >= 2 ? (
+                    <TestPath
+                        waypoints={floorWps}
+                        isNavigating={isNavigating}
+                        fullWaypoints={floorFullWps}
+                        completedFraction={
+                          isNavigating && fullPathWaypointsRef.current.length >= 2
+                              ? 1 - pathWaypoints.length / fullPathWaypointsRef.current.length
+                              : 0
+                        }
+                    />
+                ) : null;
+              })()}
+
+              <PinLayer
+                  pins={pins}
+                  previewPin={
+                    previewPin
+                        ? previewPin
+                        : customizingPreviewPin
+                            ? {
+                              ...customizingPreviewPin,
+                              color: pinColor,
+                            }
+                            : null
                   }
-                  onRerouteNeeded={(fromNodeId) => {
-                    if (!destNodeIdRef.current) return;
-                    const newRoute = getTestRoute(fromNodeId, destNodeIdRef.current);
-                    if (newRoute) {
-                      setActiveRoute(newRoute);
-                      const wps = routeToWaypoints(newRoute);
-                      setPathWaypoints(wps);
-                    }
+                  previewPinRef={previewPinRef}
+                  activeFloor={activeFloor}
+              />
+
+              <IconLayer
+                  activeFloor={activeFloor}
+                  cameraRadius={cameraRadius}
+                  allowedTypes={activeTypes}
+              />
+            </Suspense>
+
+            <CameraController
+                gestureRef={gestureRef}
+                onRadiusChange={handleRadiusChange}
+                lerpRadiusRef={lerpRadiusRef}
+                lerpTargetRef={lerpTargetRef}
+                maxRadius={FLOOR_CONFIG[activeFloor].switchRadius}
+                cameraRef={cameraRef}
+                targetRef={cameraTargetRef}
+                mapSizeRef={mapSizeRef}
+                lerpThetaRef={lerpThetaRef}
+                lerpPhiRef={lerpPhiRef}
+            />
+          </Canvas>
+
+
+          {!pinMode && (
+              <View
+                  style={[styles.mapGestureLayer, { height: sheetTopY }]}
+                  pointerEvents="auto"
+                  {...cameraPanResponder.panHandlers}
+              />
+          )}
+
+          {sheetIndex === -1 && (
+              <View style={styles.pinButton}>
+                <Pressable
+                    onPress={() => setPinMode((prev) => !prev)}
+                    style={styles.pinPressable}
+                >
+                  <View style={styles.pinContainer}>
+                    <View
+                        style={[
+                          styles.pinHead,
+                          { backgroundColor: pinMode ? "#FF5A5F" : "#D94040" },
+                        ]}
+                    />
+                    <View
+                        style={[
+                          styles.pinBase,
+                          { backgroundColor: pinMode ? "#FF5A5F" : "#D94040" },
+                        ]}
+                    />
+                  </View>
+                </Pressable>
+
+                <Pressable
+                    onPress={(e) => {
+                      e.stopPropagation();
+
+                      if (!location) return;
+
+                      const userNode = userNodeId ? getNode(userNodeId) : null;
+
+                      if (userNode) {
+                        cameraTargetRef.current.set(userNode.x * 0.1, 0, userNode.y * 0.1);
+                        lerpRadiusRef.current = FLOOR_CONFIG[activeFloorRef.current].zoomInRadius;
+                        return;
+                      }
+
+                      const gps = gpsToNodeCoords(
+                          location.coords.latitude,
+                          location.coords.longitude
+                      );
+
+                      cameraTargetRef.current.set(gps.x * 0.1, 0, gps.y * 0.1);
+                      lerpRadiusRef.current = FLOOR_CONFIG[activeFloorRef.current].zoomInRadius;
+                    }}
+                    hitSlop={12}
+                >
+                  <Ionicons
+                      name="navigate"
+                      size={26}
+                      color="#8FD3FF"
+                      style={[
+                        styles.arrow,
+                        {
+                          transform: [
+                            { rotate: `${compassHeading}deg` },
+                          ],
+                        },
+                      ]}
+                  />
+                </Pressable>
+              </View>
+          )}
+
+
+          {sheetIndex === -1 && (
+              <FloorSwitcher
+                  activeFloor={activeFloor}
+                  onFloorChange={(floor) => {
+                    const nextFloor = floor as FloorNumber;
+                    activeFloorRef.current = nextFloor;
+                    setActiveFloor(nextFloor);
+                    lerpRadiusRef.current = FLOOR_CONFIG[nextFloor].snapRadius;
                   }}
               />
           )}
 
-          {pathWaypoints.length >= 2 && (
-              <TestPath
-                  waypoints={pathWaypoints}
-                  isNavigating={isNavigating}
-                  fullWaypoints={isNavigating && fullPathWaypointsRef.current.length >= 2
-                      ? fullPathWaypointsRef.current
-                      : undefined}
-                  completedFraction={
-                    isNavigating && fullPathWaypointsRef.current.length >= 2
-                        ? 1 - pathWaypoints.length / fullPathWaypointsRef.current.length
-                        : 0
-                  }
+          {pinMode && <View style={styles.pinOverlay} {...pinPanResponder.panHandlers} />}
+
+          <TestPathLabel label={selectedNode?.label} isNavigating={isNavigating} />
+
+          {isNavigating && activeRoute && (
+              <NavOverlay
+                  route={activeRoute}
+                  destinationLabel={selectedNode?.label}
+                  onEndRoute={handleEndRoute}
               />
           )}
 
-          <PinLayer
-            pins={pins}
-            previewPin={
-              previewPin
-                ? previewPin
-                : customizingPreviewPin
-                  ? {
-                      ...customizingPreviewPin,
-                      color: pinColor,
-                    }
-                  : null
-            }
-            previewPinRef={previewPinRef}
-            activeFloor={activeFloor}
-          />
-
-          <IconLayer
-            activeFloor={activeFloor}
-            cameraRadius={cameraRadius}
-            allowedTypes={activeTypes}
-          />
-        </Suspense>
-
-        <CameraController
-          gestureRef={gestureRef}
-          onRadiusChange={handleRadiusChange}
-          lerpRadiusRef={lerpRadiusRef}
-          lerpTargetRef={lerpTargetRef}
-          maxRadius={FLOOR_CONFIG[activeFloor].switchRadius}
-          cameraRef={cameraRef}
-          targetRef={cameraTargetRef}
-          mapSizeRef={mapSizeRef}
-          lerpThetaRef={lerpThetaRef}
-          lerpPhiRef={lerpPhiRef}
-        />
-      </Canvas>
-
-
-      {!pinMode && (
-        <View
-          style={[styles.mapGestureLayer, { height: sheetTopY }]}
-          pointerEvents="auto"
-          {...cameraPanResponder.panHandlers}
-        />
-      )}
-
-      {sheetIndex === -1 && (
-        <View style={styles.pinButton}>
-        <Pressable
-          onPress={() => setPinMode((prev) => !prev)}
-          style={styles.pinPressable}
-        >
-          <View style={styles.pinContainer}>
-            <View
-              style={[
-                styles.pinHead,
-                { backgroundColor: pinMode ? "#FF5A5F" : "#D94040" },
-              ]}
-            />
-            <View
-              style={[
-                styles.pinBase,
-                { backgroundColor: pinMode ? "#FF5A5F" : "#D94040" },
-              ]}
-            />
-          </View>
-        </Pressable>
-
-          <Pressable
-              onPress={(e) => {
-                e.stopPropagation();
-
-                if (!location) return;
-
-                const userNode = userNodeId ? getNode(userNodeId) : null;
-
-                if (userNode) {
-                  cameraTargetRef.current.set(userNode.x * 0.1, 0, userNode.y * 0.1);
-                  lerpRadiusRef.current = FLOOR_CONFIG[activeFloorRef.current].zoomInRadius;
-                  return;
-                }
-
-                const gps = gpsToNodeCoords(
-                    location.coords.latitude,
-                    location.coords.longitude
-                );
-
-                cameraTargetRef.current.set(gps.x * 0.1, 0, gps.y * 0.1);
-                lerpRadiusRef.current = FLOOR_CONFIG[activeFloorRef.current].zoomInRadius;
-              }}
-              hitSlop={12}
-          >
-            <Ionicons
-                name="navigate"
-                size={26}
-                color="#8FD3FF"
-                style={[
-                  styles.arrow,
-                  {
-                    transform: [
-                      { rotate: `${compassHeading}deg` },
-                    ],
-                  },
-                ]}
-            />
-          </Pressable>
-      </View>
-      )}
-
-
-      {sheetIndex === -1 && (
-          <FloorSwitcher
-          activeFloor={activeFloor}
-          onFloorChange={(floor) => {
-            const nextFloor = floor as FloorNumber;
-            activeFloorRef.current = nextFloor;
-            setActiveFloor(nextFloor);
-            lerpRadiusRef.current = FLOOR_CONFIG[nextFloor].snapRadius;
-          }}
-        />
-      )}
-
-      {pinMode && <View style={styles.pinOverlay} {...pinPanResponder.panHandlers} />}
-
-      <TestPathLabel label={selectedNode?.label} isNavigating={isNavigating} />
-
-      {isNavigating && activeRoute && (
-        <NavOverlay
-          route={activeRoute}
-          destinationLabel={selectedNode?.label}
-          onEndRoute={handleEndRoute}
-        />
-      )}
-
-      {!isNavigating && showCollapsedPill && (
-        <Animated.View
-          style={[
-            styles.stretchPanelWrap,
-            {
-              height: panelHeightAnim,
-              left: panelLeft,
-              right: panelRight,
-              bottom: panelBottom,
-            },
-          ]}
-        >
-          <Animated.View
-            style={[
-              styles.stretchPanel,
-              { borderRadius: panelRadius, backgroundColor: "transparent" },
-            ]}
-          >
-            <BlurView
-              intensity={80}
-              tint= {"light"}
-              style={StyleSheet.absoluteFill}
-            />
-            <Animated.View
-              style={[
-                StyleSheet.absoluteFill,
-                {
-                  borderRadius: panelRadius,
-                  backgroundColor: panelBackgroundColor,
-                  borderWidth: 1,
-                  borderColor: "rgba(255,255,255,0.55)",
-                },
-              ]}
-            />
-            <View style={styles.dragHeader} {...panelPanResponder.panHandlers}>
-              <View style={styles.stretchHandleArea}>
-                <View style={styles.stretchHandle} />
-              </View>
-
-              {!selectedEvent && panelView !== "profile" && (
-                  <View style={styles.stretchSearchShell}>
-                    <SearchBarRow
-                        search={search}
-                        setSearch={setSearch}
-                        onPressExpand={openSheet}
-                        onPressProfile={handleProfilePress}
-                        onSubmitSearch={findRoomBySearch}
-                    />
-                  </View>
-              )}
-            </View>
-
-            <Animated.View
-              style={[
-                styles.stretchContentWrap,
-                {
-                  opacity: contentOpacity,
-                  transform: [{ translateY: contentTranslateY }],
-                },
-              ]}
-              pointerEvents={panelExpanded ? "auto" : "none"}
-            >
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: 40 }}
+          {!isNavigating && showCollapsedPill && (
+              <Animated.View
+                  style={[
+                    styles.stretchPanelWrap,
+                    {
+                      height: panelHeightAnim,
+                      left: panelLeft,
+                      right: panelRight,
+                      bottom: panelBottom,
+                    },
+                  ]}
               >
-                {panelView === "profile" ? (
-                  <View style={styles.profileSavedView}>
-                    <View style={styles.profileCard}>
-                      <View style={styles.profileInfo}>
-                        <View style={styles.profileAvatar}>
-                          <Ionicons name="person" size={24} color="#1A365D" />
-                        </View>
-
-                        <View>
-                          <Text style={styles.profileName}>User</Text>
-                          <Text style={styles.profileEmail}>mikeTheTiger@lsu.edu</Text>
-                        </View>
-                      </View>
-
-                      <Pressable onPress={() => setPanelView("main")}>
-                        <Ionicons name="close" size={34} color="#111" />
-                      </Pressable>
+                <Animated.View
+                    style={[
+                      styles.stretchPanel,
+                      { borderRadius: panelRadius, backgroundColor: "transparent" },
+                    ]}
+                >
+                  <BlurView
+                      intensity={80}
+                      tint= {"light"}
+                      style={StyleSheet.absoluteFill}
+                  />
+                  <Animated.View
+                      style={[
+                        StyleSheet.absoluteFill,
+                        {
+                          borderRadius: panelRadius,
+                          backgroundColor: panelBackgroundColor,
+                          borderWidth: 1,
+                          borderColor: "rgba(255,255,255,0.55)",
+                        },
+                      ]}
+                  />
+                  <View style={styles.dragHeader} {...panelPanResponder.panHandlers}>
+                    <View style={styles.stretchHandleArea}>
+                      <View style={styles.stretchHandle} />
                     </View>
 
-                    {/* Saved Events */}
-                    <Text style={styles.profileTitle}>Saved Events</Text>
-                      <View style={styles.savedCard}>
-                        {savedEvents.length === 0 ? (
-                          <Text style={styles.savedItem}>No saved events yet</Text>
-                        ) : (
-                          savedEvents.map((event) => (
-                            <Pressable
-                              key={event.title}
-                              onPress={() => {
-                                setSelectedEvent(event);
-                                setPanelView("main");
-                                snapPanelTo(MID_HEIGHT);
-                              }}
-                            >
-                              <Text style={styles.savedItem}>{event.title}</Text>
-                            </Pressable>
-                          ))
-                        )}
-                      </View>
+                    {!selectedEvent && panelView !== "profile" && (
+                        <View style={styles.stretchSearchShell}>
+                          <SearchBarRow
+                              search={search}
+                              setSearch={setSearch}
+                              onPressExpand={openSheet}
+                              onPressProfile={handleProfilePress}
+                              onSubmitSearch={findRoomBySearch}
+                          />
+                        </View>
+                    )}
+                  </View>
 
-                    {/* Saved Rooms */}
-                    <Text style={styles.profileTitle}>Saved Rooms</Text>
-                    <View style={styles.savedCard}>
-                      <Text style={styles.savedItem}>PFT 1263</Text>
-                      <Text style={styles.savedItem}>PFT 1200</Text>
-                      <Text style={styles.savedItem}>PFT 1225</Text>
-                    </View>
+                  <Animated.View
+                      style={[
+                        styles.stretchContentWrap,
+                        {
+                          opacity: contentOpacity,
+                          transform: [{ translateY: contentTranslateY }],
+                        },
+                      ]}
+                      pointerEvents={panelExpanded ? "auto" : "none"}
+                  >
+                    <ScrollView
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={{ paddingBottom: 40 }}
+                    >
+                      {panelView === "profile" ? (
+                          <View style={styles.profileSavedView}>
+                            <View style={styles.profileCard}>
+                              <View style={styles.profileInfo}>
+                                <View style={styles.profileAvatar}>
+                                  <Ionicons name="person" size={24} color="#1A365D" />
+                                </View>
 
-                    {/* Saved Pins */}
-                    <Text style={styles.profileTitle}>Saved Pins</Text>
-                    <View style={styles.savedCard}>
-                      {pins.length === 0 ? (
-                        <Text style={styles.savedItem}>No Saved Pins</Text>
+                                <View>
+                                  <Text style={styles.profileName}>User</Text>
+                                  <Text style={styles.profileEmail}>mikeTheTiger@lsu.edu</Text>
+                                </View>
+                              </View>
+
+                              <Pressable onPress={() => setPanelView("main")}>
+                                <Ionicons name="close" size={34} color="#111" />
+                              </Pressable>
+                            </View>
+
+                            {/* Saved Events */}
+                            <Text style={styles.profileTitle}>Saved Events</Text>
+                            <View style={styles.savedCard}>
+                              {savedEvents.length === 0 ? (
+                                  <Text style={styles.savedItem}>No saved events yet</Text>
+                              ) : (
+                                  savedEvents.map((event) => (
+                                      <Pressable
+                                          key={event.title}
+                                          onPress={() => {
+                                            setSelectedEvent(event);
+                                            setPanelView("main");
+                                            snapPanelTo(MID_HEIGHT);
+                                          }}
+                                      >
+                                        <Text style={styles.savedItem}>{event.title}</Text>
+                                      </Pressable>
+                                  ))
+                              )}
+                            </View>
+
+                            {/* Saved Rooms */}
+                            <Text style={styles.profileTitle}>Saved Rooms</Text>
+                            <View style={styles.savedCard}>
+                              <Text style={styles.savedItem}>PFT 1263</Text>
+                              <Text style={styles.savedItem}>PFT 1200</Text>
+                              <Text style={styles.savedItem}>PFT 1225</Text>
+                            </View>
+
+                            {/* Saved Pins */}
+                            <Text style={styles.profileTitle}>Saved Pins</Text>
+                            <View style={styles.savedCard}>
+                              {pins.length === 0 ? (
+                                  <Text style={styles.savedItem}>No Saved Pins</Text>
+                              ) : (
+                                  pins.map((pin, index) => (
+                                      <SwipeDeletePinRow
+                                          key={`saved-pin-${index}`}
+                                          pin={pin}
+                                          index={index}
+                                          getPinHex={getPinHex}
+                                          onPress={() => {
+                                            focusPin(pin);
+                                            setPanelView("main");
+                                            snapPanelTo(COLLAPSED_HEIGHT);
+                                          }}
+                                          onDelete={() => {
+                                            setPins((prev) => prev.filter((_, i) => i !== index));
+                                          }}
+                                      />
+                                  ))
+                              )}
+                            </View>
+                          </View>
+
+                      ) : selectedEvent ? (
+                          <View>
+                            <View style={styles.detailHeaderRow}>
+                              <Pressable
+                                  onPress={() => setSelectedEvent(null)}
+                                  style={styles.backButton}
+                              >
+                                <Ionicons name="arrow-back" size={24} color="#111" />
+                              </Pressable>
+
+                              <Text style={styles.eventTitle}>{selectedEvent.title}</Text>
+                            </View>
+
+                            <View style={styles.eventActionRow}>
+                              <Pressable
+                                  style={styles.eventActionButton}
+                                  onPress={() => toggleSaveEvent(selectedEvent)}
+                              >
+                                <Ionicons
+                                    name={isSaved(selectedEvent.title) ? "bookmark" : "bookmark-outline"}
+                                    size={22}
+                                    color="#111"
+                                />
+                                <Text style={styles.eventActionText}>
+                                  {isSaved(selectedEvent.title) ? "Saved" : "Save"}
+                                </Text>
+                              </Pressable>
+
+                              <Pressable
+                                  style={styles.eventActionButton}
+                                  onPress={() => {
+                                    if (selectedEvent?.location) {
+                                      navigateToEventRoom(selectedEvent.location);
+                                    }
+                                  }}
+                              >
+                                <Ionicons name="navigate-outline" size={22} color="#111" />
+                                <Text style={styles.eventActionText}>Navigate</Text>
+                              </Pressable>
+                            </View>
+
+                            <Text style={styles.sectionTitle}>About</Text>
+
+                            <View style={styles.aboutCard}>
+                              <View style={styles.aboutRow}>
+                                <Ionicons name="calendar-outline" size={16} color="#222" />
+                                <Text style={styles.aboutText}>{selectedEvent.date}</Text>
+                              </View>
+
+                              <View style={styles.aboutRowLast}>
+                                <Ionicons name="location-outline" size={16} color="#222" />
+                                <Text style={styles.aboutText}>{selectedEvent.location}</Text>
+                              </View>
+                            </View>
+
+                            <Text style={styles.sectionTitle}>Event Details</Text>
+
+                            <View style={styles.aboutCard}>
+                              <Text style={styles.eventDetailText}>
+                                {selectedEvent.description}
+                              </Text>
+                            </View>
+                          </View>
                       ) : (
-                        pins.map((pin, index) => (
-                          <SwipeDeletePinRow
-                            key={`saved-pin-${index}`}
-                            pin={pin}
-                            index={index}
-                            getPinHex={getPinHex}
-                            onPress={() => {
-                              focusPin(pin);
-                              setPanelView("main");
-                              snapPanelTo(COLLAPSED_HEIGHT);
-                            }}
-                            onDelete={() => {
-                              setPins((prev) => prev.filter((_, i) => i !== index));
-                            }}
-                          />
-                        ))
+                          <View>
+                            {search.trim() === "" && (
+                                <>
+                                  <Text style={styles.sectionTitle}>Nearby</Text>
+                                  <NearbyChips
+                                      selected={selectedFilters}
+                                      setSelected={setSelectedFilters}
+                                  />
+                                </>
+                            )}
+
+                            {search.trim() === "" && (
+                                <Text style={styles.sectionTitle}>Events</Text>
+                            )}
+
+                            {searchedFilters.map((filter) => (
+                                <Pressable
+                                    key={filter}
+                                    style={styles.filterResultCard}
+                                    onPress={() => {
+                                      setMapFilterResults([filter]);
+                                      setSearch("");
+                                      setSelectedEvent(null);
+                                      setPanelView("main");
+                                      snapPanelTo(COLLAPSED_HEIGHT);
+                                    }}
+                                >
+                                  <View style={styles.filterIconCircle}>
+                                    <Image
+                                        source={FILTER_ICONS[filter]}
+                                        style={styles.filterIconImage}
+                                        resizeMode="contain"
+                                    />
+                                  </View>
+
+                                  <View>
+                                    <Text style={styles.filterResultTitle}>{filter}</Text>
+                                    <Text style={styles.filterResultSubtitle}>Search nearby {filter}</Text>
+                                  </View>
+                                </Pressable>
+                            ))}
+
+                            {filteredEvents.map((event, index) => (
+                                <EventCard
+                                    key={`${event.id}-${event.location}-${index}`}
+                                    title={event.title}
+                                    date={event.date}
+                                    club={event.club}
+                                    location={event.location}
+                                    type={event.type}
+                                    onPress={() => {
+                                      if ("isRoom" in event && event.isRoom) {
+                                        activeFloorRef.current = event.floor;
+                                        setActiveFloor(event.floor);
+
+                                        const navId = getNavNodeId(event.roomId, event.floor);
+                                        const node = navId ? getNode(navId) : null;
+
+                                        if (!node) {
+                                          console.warn("No nav node found for room:", event.roomId, navId);
+                                          return;
+                                        }
+
+                                        setSelectedRoom(event.roomId);
+                                        setSelectedNode(node);
+                                        setSheetView("detail");
+                                        setActiveRoute(null);
+                                        setPathWaypoints([]);
+                                        setSelectedEvent(null);
+
+                                        focusRoom(event.roomId, event.floor);
+
+                                        setShowCollapsedPill(false);
+                                        setPanelExpanded(false);
+                                        setPanelLevel("collapsed");
+
+                                        Animated.timing(panelHeightAnim, {
+                                          toValue: COLLAPSED_HEIGHT,
+                                          duration: 100,
+                                          useNativeDriver: false,
+                                        }).start();
+
+                                        requestAnimationFrame(() => {
+                                          bottomSheetRef.current?.snapToIndex(0);
+                                          setSheetIndex(0);
+                                          sheetIndexRef.current = 0;
+                                        });
+
+                                        return;
+                                      }
+
+                                      setSearch("");
+                                      setSelectedEvent({
+                                        title: event.title,
+                                        date: event.date,
+                                        location: event.location,
+                                        description: event.description,
+                                      });
+                                    }}
+                                />
+                            ))}
+
+                            {filteredEvents.length === 0 && searchedFilters.length === 0 && (
+                                <Text style={styles.emptytext}>No matching item found.</Text>
+                            )}
+
+                            <Text style={styles.radiusText}>
+                              Floor: L{activeFloor} • Radius: {cameraRadius.toFixed(1)}
+                            </Text>
+                          </View>
                       )}
-                    </View>
-                  </View>
+                    </ScrollView>
+                  </Animated.View>
+                </Animated.View>
+              </Animated.View>
+          )}
 
-                ) : selectedEvent ? (
-                  <View>
-                    <View style={styles.detailHeaderRow}>
-                      <Pressable
-                        onPress={() => setSelectedEvent(null)}
-                        style={styles.backButton}
-                      >
-                        <Ionicons name="arrow-back" size={24} color="#111" />
-                      </Pressable>
+          {pendingPin && (
+              <View style={styles.pinCustomizeOverlay} pointerEvents="auto">
+                <View style={styles.pinCustomizeCard}>
+                  <Text style={styles.pinCustomizeTitle}>Customize Pin</Text>
 
-                      <Text style={styles.eventTitle}>{selectedEvent.title}</Text>
-                    </View>
+                  <TextInput
+                      value={pinTitle}
+                      onChangeText={setPinTitle}
+                      placeholder="Pin Name"
+                      placeholderTextColor="#888"
+                      style={styles.pinInput}
+                  />
 
-                    <View style={styles.eventActionRow}>
-                      <Pressable
-                        style={styles.eventActionButton}
-                        onPress={() => toggleSaveEvent(selectedEvent)}
-                      >
-                        <Ionicons
-                          name={isSaved(selectedEvent.title) ? "bookmark" : "bookmark-outline"}
-                          size={22}
-                          color="#111"
+                  <View style={styles.colorRow}>
+                    {[
+                      { label: "red" as const, hex: "#D94040" },
+                      { label: "blue" as const, hex: "#2F80ED" },
+                      { label: "green" as const, hex: "#27AE60" },
+                      { label: "yellow" as const, hex: "#F2C94C" },
+                    ].map((item) => (
+                        <Pressable
+                            key={item.label}
+                            onPress={() => setPinColor(item.label)}
+                            style={[
+                              styles.colorDot,
+                              { backgroundColor: item.hex },
+                              pinColor === item.label && styles.selectedColorDot,
+                            ]}
                         />
-                        <Text style={styles.eventActionText}>
-                          {isSaved(selectedEvent.title) ? "Saved" : "Save"}
-                        </Text>
-                      </Pressable>
-
-                      <Pressable
-                          style={styles.eventActionButton}
-                          onPress={() => {
-                            if (selectedEvent?.location) {
-                              navigateToEventRoom(selectedEvent.location);
-                            }
-                          }}
-                      >
-                        <Ionicons name="navigate-outline" size={22} color="#111" />
-                        <Text style={styles.eventActionText}>Navigate</Text>
-                      </Pressable>
-                    </View>
-
-                    <Text style={styles.sectionTitle}>About</Text>
-
-                    <View style={styles.aboutCard}>
-                      <View style={styles.aboutRow}>
-                        <Ionicons name="calendar-outline" size={16} color="#222" />
-                        <Text style={styles.aboutText}>{selectedEvent.date}</Text>
-                      </View>
-
-                      <View style={styles.aboutRowLast}>
-                        <Ionicons name="location-outline" size={16} color="#222" />
-                        <Text style={styles.aboutText}>{selectedEvent.location}</Text>
-                      </View>
-                    </View>
-
-                    <Text style={styles.sectionTitle}>Event Details</Text>
-
-                    <View style={styles.aboutCard}>
-                      <Text style={styles.eventDetailText}>
-                        {selectedEvent.description}
-                      </Text>
-                    </View>
-                  </View>
-                ) : (
-                  <View>
-                    {search.trim() === "" && (
-                      <>
-                        <Text style={styles.sectionTitle}>Nearby</Text>
-                        <NearbyChips
-                          selected={selectedFilters}
-                          setSelected={setSelectedFilters}
-                        />
-                      </>
-                    )}
-
-                    {search.trim() === "" && (
-                      <Text style={styles.sectionTitle}>Events</Text>
-                    )}
-
-                    {searchedFilters.map((filter) => (
-                      <Pressable
-                        key={filter}
-                        style={styles.filterResultCard}
-                        onPress={() => {
-                          setMapFilterResults([filter]);
-                          setSearch("");
-                          setSelectedEvent(null);
-                          setPanelView("main");
-                          snapPanelTo(COLLAPSED_HEIGHT);
-                        }}
-                      >
-                        <View style={styles.filterIconCircle}>
-                          <Image
-                            source={FILTER_ICONS[filter]}
-                            style={styles.filterIconImage}
-                            resizeMode="contain"
-                          />
-                        </View>
-
-                        <View>
-                          <Text style={styles.filterResultTitle}>{filter}</Text>
-                          <Text style={styles.filterResultSubtitle}>Search nearby {filter}</Text>
-                        </View>
-                      </Pressable>
                     ))}
+                  </View>
 
-                    {filteredEvents.map((event, index) => (
-                      <EventCard
-                        key={`${event.id}-${event.location}-${index}`}
-                        title={event.title}
-                        date={event.date}
-                        club={event.club}
-                        location={event.location}
-                        type={event.type}
+                  <View style={styles.pinActionRow}>
+                    <Pressable
+                        style={styles.cancelPinButton}
                         onPress={() => {
-                          if ("isRoom" in event && event.isRoom) {
-                            activeFloorRef.current = event.floor;
-                            setActiveFloor(event.floor);
+                          setPendingPin(null);
+                          setEditingPinIndex(null);
+                          setPreviewPin(null);
+                          setCustomizingPreviewPin(null);
+                        }}
+                    >
+                      <Text style={styles.cancelPinText}>Cancel</Text>
+                    </Pressable>
 
-                            const navId = getNavNodeId(event.roomId, event.floor);
-                            const node = navId ? getNode(navId) : null;
+                    <Pressable
+                        style={styles.savePinButton}
+                        onPress={() => {
+                          const updatedPin: Pin = {
+                            ...pendingPin,
+                            title: pinTitle.trim() || "Untitled Pin",
+                            color: pinColor,
+                          };
 
-                            if (!node) {
-                              console.warn("No nav node found for room:", event.roomId, navId);
+                          if (editingPinIndex !== null) {
+                            setPins((prev) =>
+                                prev.map((pin, index) =>
+                                    index === editingPinIndex ? updatedPin : pin
+                                )
+                            );
+                          } else {
+                            setPins((prev) => [...prev, updatedPin]);
+                          }
+
+                          setPendingPin(null);
+                          setEditingPinIndex(null);
+                          setPreviewPin(null);
+                          setCustomizingPreviewPin(null);
+                          showPinSavedMessage();
+                        }}
+                    >
+                      <Text style={styles.savePinText}>Save</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+          )}
+
+          {showPinSavedToast && (
+              <Animated.View
+                  style={[
+                    styles.pinSavedToast,
+                    {
+                      transform: [{ translateY: pinSavedAnim }],
+                    },
+                  ]}
+              >
+                <Ionicons name="checkmark-circle" size={22} color="#111" />
+                <Text style={styles.pinSavedToastText}>
+                  Pin Saved Under Profile
+                </Text>
+              </Animated.View>
+          )}
+
+          {!isNavigating && sheetCollapsed && selectedNode && (
+              <Pressable
+                  style={styles.floatingPill}
+                  onPress={() => {
+                    setSheetCollapsed(false);
+                    setShowCollapsedPill(false);
+                    setTimeout(() => {
+                      bottomSheetRef.current?.snapToIndex(0);
+                      setSheetIndex(0);
+                      sheetIndexRef.current = 0;
+                    }, 50);
+                  }}
+              >
+                <Text style={styles.collapsedPillTitle} numberOfLines={1}>
+                  {selectedNode.label.replace(/ - [AB]$/, "")}
+                </Text>
+                <Pressable
+                    hitSlop={10}
+                    style={styles.collapsedPillClose}
+                    onPress={() => {
+                      setSheetCollapsed(false);
+                      setSelectedRoom(null);
+                      setSelectedNode(null);
+                      setActiveRoute(null);
+                      setPathWaypoints([]);
+                      setSheetView("default");
+                      setTimeout(() => setShowCollapsedPill(true), 50);
+                    }}
+                >
+                  <Ionicons name="close" size={16} color="#555" />
+                </Pressable>
+              </Pressable>
+          )}
+
+          {!isNavigating && !sheetCollapsed && (
+              <BottomSheet
+                  ref={bottomSheetRef}
+                  index={-1}
+                  snapPoints={snapPoints}
+                  enableDynamicSizing={false}
+                  enablePanDownToClose
+                  onChange={handleSheetChange}
+                  backgroundStyle={styles.bottomSheetBackground}
+                  handleIndicatorStyle={styles.handleIndicator}
+              >
+                <BottomSheetScrollView
+                    contentContainerStyle={styles.sheetContentContainer}
+                    showsVerticalScrollIndicator={false}
+                >
+                  {sheetView === "detail" && selectedNode && (
+                      <RoomDetailSheet
+                          node={selectedNode}
+                          onNavigate={() => handleNavigate(false)}
+                          onDismiss={() => {
+                            setSelectedRoom(null);
+                            setSelectedNode(null);
+                            setPathWaypoints([]);
+                            setFlooredWaypoints([]);
+                            setActiveRoute(null);
+                            setPathWaypoints([]);
+                            setSheetView("default");
+                            bottomSheetRef.current?.close();
+                          }}
+                      />
+                  )}
+
+                  {sheetView === "directions" && selectedNode && (
+                      <DirectionsSheet
+                          destination={selectedNode}
+                          route={activeRoute}
+                          onAvoidStairsChange={handleAvoidStairsChange}
+                          onConfirm={handleConfirmRoute}
+                          onBack={() => {
+                            setActiveRoute(null);
+                            setPathWaypoints([]);
+                            setFlooredWaypoints([]);
+
+
+                            if (directionsBackTarget === "event") {
+                              bottomSheetRef.current?.close();
+                              setSheetIndex(-1);
+                              sheetIndexRef.current = -1;
+
+                              setSheetView("default");
+                              setDirectionsBackTarget("detail");
+
+                              setShowCollapsedPill(true);
+                              setPanelView("main");
+                              snapPanelTo(MID_HEIGHT);
+
                               return;
                             }
 
-                            setSelectedRoom(event.roomId);
-                            setSelectedNode(node);
                             setSheetView("detail");
-                            setActiveRoute(null);
-                            setPathWaypoints([]);
-                            setSelectedEvent(null);
-
-                            focusRoom(event.roomId, event.floor);
-
-                            setShowCollapsedPill(false);
-                            setPanelExpanded(false);
-                            setPanelLevel("collapsed");
-
-                            Animated.timing(panelHeightAnim, {
-                              toValue: COLLAPSED_HEIGHT,
-                              duration: 100,
-                              useNativeDriver: false,
-                            }).start();
-
-                            requestAnimationFrame(() => {
-                              bottomSheetRef.current?.snapToIndex(0);
-                              setSheetIndex(0);
-                              sheetIndexRef.current = 0;
-                            });
-
-                            return;
-                          }
-
-                          setSearch("");
-                          setSelectedEvent({
-                            title: event.title,
-                            date: event.date,
-                            location: event.location,
-                            description: event.description,
-                          });
-                        }}
+                          }}
                       />
-                    ))}
-
-                    {filteredEvents.length === 0 && searchedFilters.length === 0 && (
-                      <Text style={styles.emptytext}>No matching item found.</Text>
-                    )}
-
-                    <Text style={styles.radiusText}>
-                      Floor: L{activeFloor} • Radius: {cameraRadius.toFixed(1)}
-                    </Text>
-                  </View>
-                )}
-              </ScrollView>
-            </Animated.View>
-          </Animated.View>
-        </Animated.View>
-      )}
-
-      {pendingPin && (
-         <View style={styles.pinCustomizeOverlay} pointerEvents="auto">
-        <View style={styles.pinCustomizeCard}>
-          <Text style={styles.pinCustomizeTitle}>Customize Pin</Text>
-
-          <TextInput
-            value={pinTitle}
-            onChangeText={setPinTitle}
-            placeholder="Pin Name"
-            placeholderTextColor="#888"
-            style={styles.pinInput}
-          />
-
-          <View style={styles.colorRow}>
-            {[
-              { label: "red" as const, hex: "#D94040" },
-              { label: "blue" as const, hex: "#2F80ED" },
-              { label: "green" as const, hex: "#27AE60" },
-              { label: "yellow" as const, hex: "#F2C94C" },
-            ].map((item) => (
-              <Pressable
-                key={item.label}
-                onPress={() => setPinColor(item.label)}
-                style={[
-                  styles.colorDot,
-                  { backgroundColor: item.hex },
-                  pinColor === item.label && styles.selectedColorDot,
-                ]}
-              />
-            ))}
-          </View>
-
-          <View style={styles.pinActionRow}>
-            <Pressable
-              style={styles.cancelPinButton}
-              onPress={() => {
-              setPendingPin(null);
-              setEditingPinIndex(null);
-              setPreviewPin(null);
-              setCustomizingPreviewPin(null);
-            }}
-            >
-              <Text style={styles.cancelPinText}>Cancel</Text>
-            </Pressable>
-
-            <Pressable
-              style={styles.savePinButton}
-              onPress={() => {
-              const updatedPin: Pin = {
-                ...pendingPin,
-                title: pinTitle.trim() || "Untitled Pin",
-                color: pinColor,
-              };
-
-              if (editingPinIndex !== null) {
-                setPins((prev) =>
-                  prev.map((pin, index) =>
-                    index === editingPinIndex ? updatedPin : pin
-                  )
-                );
-              } else {
-                setPins((prev) => [...prev, updatedPin]);
-              }
-
-              setPendingPin(null);
-              setEditingPinIndex(null);
-              setPreviewPin(null);
-              setCustomizingPreviewPin(null);
-              showPinSavedMessage();
-            }}
-            >
-              <Text style={styles.savePinText}>Save</Text>
-            </Pressable>
-          </View>
+                  )}
+                </BottomSheetScrollView>
+              </BottomSheet>
+          )}
         </View>
-        </View>
-      )}
-
-      {showPinSavedToast && (
-        <Animated.View
-          style={[
-            styles.pinSavedToast,
-            {
-              transform: [{ translateY: pinSavedAnim }],
-            },
-          ]}
-        >
-          <Ionicons name="checkmark-circle" size={22} color="#111" />
-          <Text style={styles.pinSavedToastText}>
-            Pin Saved Under Profile
-          </Text>
-        </Animated.View>
-      )}
-
-      {!isNavigating && sheetCollapsed && selectedNode && (
-          <Pressable
-              style={styles.floatingPill}
-              onPress={() => {
-                setSheetCollapsed(false);
-                setShowCollapsedPill(false);
-                setTimeout(() => {
-                  bottomSheetRef.current?.snapToIndex(0);
-                  setSheetIndex(0);
-                  sheetIndexRef.current = 0;
-                }, 50);
-              }}
-          >
-            <Text style={styles.collapsedPillTitle} numberOfLines={1}>
-              {selectedNode.label.replace(/ - [AB]$/, "")}
-            </Text>
-            <Pressable
-                hitSlop={10}
-                style={styles.collapsedPillClose}
-                onPress={() => {
-                  setSheetCollapsed(false);
-                  setSelectedRoom(null);
-                  setSelectedNode(null);
-                  setActiveRoute(null);
-                  setPathWaypoints([]);
-                  setSheetView("default");
-                  setTimeout(() => setShowCollapsedPill(true), 50);
-                }}
-            >
-              <Ionicons name="close" size={16} color="#555" />
-            </Pressable>
-          </Pressable>
-      )}
-
-      {!isNavigating && !sheetCollapsed && (
-          <BottomSheet
-          ref={bottomSheetRef}
-          index={-1}
-          snapPoints={snapPoints}
-          enableDynamicSizing={false}
-          enablePanDownToClose
-          onChange={handleSheetChange}
-          backgroundStyle={styles.bottomSheetBackground}
-          handleIndicatorStyle={styles.handleIndicator}
-        >
-          <BottomSheetScrollView
-            contentContainerStyle={styles.sheetContentContainer}
-            showsVerticalScrollIndicator={false}
-          >
-            {sheetView === "detail" && selectedNode && (
-              <RoomDetailSheet
-                node={selectedNode}
-                onNavigate={() => handleNavigate(false)}
-                onDismiss={() => {
-                  setSelectedRoom(null);
-                  setSelectedNode(null);
-                  setPathWaypoints([]);
-                  setSheetView("default");
-                  bottomSheetRef.current?.close();
-                }}
-              />
-            )}
-
-            {sheetView === "directions" && selectedNode && (
-              <DirectionsSheet
-                destination={selectedNode}
-                route={activeRoute}
-                onAvoidStairsChange={handleAvoidStairsChange}
-                onConfirm={handleConfirmRoute}
-                onBack={() => {
-                  setActiveRoute(null);
-                  setPathWaypoints([]);
-
-                  if (directionsBackTarget === "event") {
-                    bottomSheetRef.current?.close();
-                    setSheetIndex(-1);
-                    sheetIndexRef.current = -1;
-
-                    setSheetView("default");
-                    setDirectionsBackTarget("detail");
-
-                    setShowCollapsedPill(true);
-                    setPanelView("main");
-                    snapPanelTo(MID_HEIGHT);
-
-                    return;
-                  }
-
-                  setSheetView("detail");
-                }}
-              />
-            )}
-          </BottomSheetScrollView>
-        </BottomSheet>
-      )}
-    </View>
-  </GestureHandlerRootView>
-);
+      </GestureHandlerRootView>
+  );
 }
 const styles = StyleSheet.create({
   container: {
@@ -2747,7 +2785,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "rgba(0,0,0,0.3)",
   },
-    profileCard: {
+  profileCard: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -2785,206 +2823,206 @@ const styles = StyleSheet.create({
   },
 
   pinCustomizeCard: {
- position: "absolute",
-  top: "50%",
-  left: "50%",
-  transform: [
-    { translateX: -145 },
-    { translateY: -160 },
-  ],
-  width: 320,
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    transform: [
+      { translateX: -145 },
+      { translateY: -160 },
+    ],
+    width: 320,
 
 
-  backgroundColor: "rgba(235, 235, 218, 1)",
-  borderRadius: 22,
-  padding: 18,
-  zIndex: 100,
-  elevation: 20,
+    backgroundColor: "rgba(235, 235, 218, 1)",
+    borderRadius: 22,
+    padding: 18,
+    zIndex: 100,
+    elevation: 20,
 
-  shadowColor: "#000",
-  shadowOpacity: 0.18,
-  shadowRadius: 10,
-  shadowOffset: { width: 0, height: 4 },
-},
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+  },
 
 
-pinCustomizeTitle: {
-  fontSize: 22,
-  fontWeight: "700",
-  marginBottom: 12,
-  color: "#111",
-},
+  pinCustomizeTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    marginBottom: 12,
+    color: "#111",
+  },
 
-pinInput: {
-  backgroundColor: "#FFFDF0",
-  borderRadius: 12,
-  borderWidth: 1,
-  borderColor: "rgba(0,0,0,0.2)",
-  paddingHorizontal: 14,
-  paddingVertical: 10,
-  fontSize: 16,
-  marginBottom: 14,
-},
+  pinInput: {
+    backgroundColor: "#FFFDF0",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.2)",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 16,
+    marginBottom: 14,
+  },
 
-colorRow: {
-  flexDirection: "row",
-  gap: 14,
-  marginBottom: 18,
-},
+  colorRow: {
+    flexDirection: "row",
+    gap: 14,
+    marginBottom: 18,
+  },
 
-colorDot: {
-  width: 34,
-  height: 34,
-  borderRadius: 17,
-  borderWidth: 1,
-  borderColor: "rgba(0,0,0,0.25)",
-},
+  colorDot: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.25)",
+  },
 
-selectedColorDot: {
-  borderWidth: 3,
-  borderColor: "#111",
-},
+  selectedColorDot: {
+    borderWidth: 3,
+    borderColor: "#111",
+  },
 
-pinActionRow: {
-  flexDirection: "row",
-  justifyContent: "space-between",
-  gap: 12,
-},
+  pinActionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+  },
 
-cancelPinButton: {
-  flex: 1,
-  paddingVertical: 12,
-  borderRadius: 14,
-  backgroundColor: "#DDD",
-  alignItems: "center",
-},
+  cancelPinButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: "#DDD",
+    alignItems: "center",
+  },
 
-savePinButton: {
-  flex: 1,
-  paddingVertical: 12,
-  borderRadius: 14,
-  backgroundColor: "#BFDDF3",
-  alignItems: "center",
-},
+  savePinButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: "#BFDDF3",
+    alignItems: "center",
+  },
 
-cancelPinText: {
-  fontSize: 16,
-  fontWeight: "600",
-  color: "#111",
-},
+  cancelPinText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111",
+  },
 
-savePinText: {
-  fontSize: 16,
-  fontWeight: "700",
-  color: "#111",
-},
-pinPressable: {
-  alignItems: "center",
-  justifyContent: "center",
-},
+  savePinText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111",
+  },
+  pinPressable: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
-arrowPressable: {
-  alignItems: "center",
-  justifyContent: "center",
-  marginTop: 6,
-},
+  arrowPressable: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 6,
+  },
 
-pinSavedToast: {
-  position: "absolute",
-  bottom: 120,
-  height: 46,
-  alignSelf: "center",
-  paddingHorizontal: 16,
-  paddingVertical: 10,
-  borderRadius: 14,
-  backgroundColor: "rgba(235, 235, 218, 1)",
-  borderWidth: 1,
-  borderColor: "rgba(255,255,255,0.8)",
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 8,
-  zIndex: 200,
-  elevation: 30,
-  shadowColor: "#000",
-  shadowOpacity: 0.18,
-  shadowRadius: 10,
-  shadowOffset: { width: 0, height: 4 },
-},
+  pinSavedToast: {
+    position: "absolute",
+    bottom: 120,
+    height: 46,
+    alignSelf: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: "rgba(235, 235, 218, 1)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.8)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    zIndex: 200,
+    elevation: 30,
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+  },
 
-pinSavedToastText: {
-  fontSize: 14,
-  fontWeight: "700",
-  color: "#111",
-},
+  pinSavedToastText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111",
+  },
 
-swipeDeleteWrap: {
-  position: "relative",
-  overflow: "hidden",
-  borderBottomWidth: 1,
-  borderBottomColor: "rgba(0,0,0,0.3)",
-},
+  swipeDeleteWrap: {
+    position: "relative",
+    overflow: "hidden",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.3)",
+  },
 
-deleteButton: {
-  position: "absolute",
-  right: 0,
-  top: 0,
-  bottom: 0,
-  width: 110,
-  backgroundColor: "#D94040",
-  justifyContent: "center",
-  alignItems: "center",
-  borderRadius: 14,
-},
+  deleteButton: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 110,
+    backgroundColor: "#D94040",
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 14,
+  },
 
-savedPinRow: {
-  backgroundColor: "#FFFDF0",
-},
+  savedPinRow: {
+    backgroundColor: "#FFFDF0",
+  },
 
-savedPinPressable: {
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "space-between",
-  paddingVertical: 12,
-  paddingRight: 28,
-},
+  savedPinPressable: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingRight: 28,
+  },
 
-savedPinLeft: {
-  flexDirection: "row",
-  alignItems: "center",
-  gap: 10,
-  flex: 1,
-},
+  savedPinLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
 
-savedItemNoBorder: {
-  fontSize: 16,
-  color: "#111",
-},
+  savedItemNoBorder: {
+    fontSize: 16,
+    color: "#111",
+  },
 
-swipeIndicator: {
-  justifyContent: "center",
-  alignItems: "flex-end",
-  gap: 3,
-},
+  swipeIndicator: {
+    justifyContent: "center",
+    alignItems: "flex-end",
+    gap: 3,
+  },
 
-swipeLine: {
-  width: 14,
-  height: 2,
-  backgroundColor: "rgba(0,0,0,0.35)",
-  borderRadius: 2,
-},
-pinCustomizeOverlay: {
-  position: "absolute",
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  backgroundColor: "rgba(0, 0, 0, 0.45)",
-  zIndex: 200,
-  justifyContent: "flex-end",
-  paddingHorizontal: 16,
-  paddingBottom: 40,
-},
+  swipeLine: {
+    width: 14,
+    height: 2,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderRadius: 2,
+  },
+  pinCustomizeOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.45)",
+    zIndex: 200,
+    justifyContent: "flex-end",
+    paddingHorizontal: 16,
+    paddingBottom: 40,
+  },
 
 
 
