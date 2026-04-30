@@ -825,7 +825,7 @@ export default function HomeScreen() {
       club: "Women in Cybersecurity",
       location: "PFT 1100",
       type: "laptop-outline" as const,
-      description: "Flutter workshop details here.",
+      description: "Join Women in CyberSecurity (WiCyS) for a hands-on Flutter workshop where you’ll learn to build cross-platform mobile apps using Dart. Perfect for beginners, this session covers core UI components and walks you through creating your first app.",
     },
     {
       id: "3",
