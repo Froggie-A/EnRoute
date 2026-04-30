@@ -1020,8 +1020,7 @@ export default function HomeScreen() {
       setSelectedRoom(room.id);
       setSelectedNode(node);
       setSheetView("detail");
-      setActiveRoute(null);
-      setPathWaypoints([]);
+      buildPreviewRouteToNode(node);
       setSelectedEvent(null);
 
       setSearch("");
@@ -1047,7 +1046,7 @@ export default function HomeScreen() {
     }
 
     console.log("No exact room found for search:", query);
-  }, [search, focusRoom]);
+  }, [search, focusRoom, buildPreviewRouteToNode]);
 
 // Function that zooms in on a pin when clicked in the profile page.
   const focusPin = useCallback((pin: Pin) => {
@@ -1079,6 +1078,22 @@ export default function HomeScreen() {
         return "#D94040";
     }
   };
+
+  const buildPreviewRouteToNode = useCallback((node: NavNode) => {
+    const fromId = getFromNodeId();
+    const route = getTestRoute(fromId, node.id);
+
+    if (!route) {
+      setActiveRoute(null);
+      setPathWaypoints([]);
+      setFlooredWaypoints([]);
+      return;
+    }
+
+    setActiveRoute(route);
+    setPathWaypoints(routeToWaypoints(route));
+    setFlooredWaypoints(routeToWaypointsWithFloor(route));
+  }, [getFromNodeId, getTestRoute]);
 
   const [mode, setMode] = useState<"pin" | "navigate" | null>(null);
 
@@ -1338,7 +1353,7 @@ export default function HomeScreen() {
   const DEMO_START_NODE = "vending0";  // ← change to "room_1263_a" for second demo
 
 
-  
+
 
   const handleNavigate = useCallback(
       (accessible = false) => {
@@ -1889,11 +1904,15 @@ export default function HomeScreen() {
                   activeFloor={activeFloor}
               />
 
+              {!isNavigating && (
+
               <IconLayer
                   activeFloor={activeFloor}
                   cameraRadius={cameraRadius}
                   allowedTypes={activeTypes}
               />
+                  )}
+              
             </Suspense>
 
             <CameraController
@@ -2277,8 +2296,7 @@ export default function HomeScreen() {
                                         setSelectedRoom(event.roomId);
                                         setSelectedNode(node);
                                         setSheetView("detail");
-                                        setActiveRoute(null);
-                                        setPathWaypoints([]);
+                                        buildPreviewRouteToNode(node);
                                         setSelectedEvent(null);
 
                                         focusRoom(event.roomId, event.floor);

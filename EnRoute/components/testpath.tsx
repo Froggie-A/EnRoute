@@ -54,11 +54,11 @@ function StartMarker({ pos }: { pos: [number, number, number] }) {
     return (
         <group position={[x, y + LIFT_Y, z]}>
             <mesh rotation={flat} renderOrder={1000}>
-                <ringGeometry args={[0.18, 0.26, 32]} />
+                <ringGeometry args={[0.10, 0.20, 30]} />
                 <meshBasicMaterial color="white" side={THREE.DoubleSide} depthTest={false} depthWrite={false} />
             </mesh>
             <mesh rotation={flat} renderOrder={1001}>
-                <circleGeometry args={[0.18, 32]} />
+                <circleGeometry args={[0.10, 30]} />
                 <meshBasicMaterial color="#1A6BFF" side={THREE.DoubleSide} depthTest={false} depthWrite={false} />
             </mesh>
         </group>
@@ -72,12 +72,12 @@ function EndDot({ pos }: { pos: [number, number, number] }) {
     return (
         <group position={[x, y + LIFT_Y, z]}>
             <mesh rotation={flat} renderOrder={1000}>
-                <ringGeometry args={[0.10, 0.15, 32]} />
+                <ringGeometry args={[0.14, 0.24, 34]} />
                 <meshBasicMaterial color="white" side={THREE.DoubleSide} depthTest={false} depthWrite={false} />
             </mesh>
             <mesh rotation={flat} renderOrder={1001}>
-                <circleGeometry args={[0.10, 32]} />
-                <meshBasicMaterial color="#1A365D" side={THREE.DoubleSide} depthTest={false} depthWrite={false} />
+                <circleGeometry args={[0.10, 30]} />
+                <meshBasicMaterial color="#008000" side={THREE.DoubleSide} depthTest={false} depthWrite={false} />
             </mesh>
         </group>
     );

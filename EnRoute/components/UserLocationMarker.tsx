@@ -135,7 +135,11 @@ type Props = {
     bleBeacons?: BleBeacon[];
 };
 
-const FY: Record<1|2|3, number> = { 1:0.05, 2:0.15, 3:0.25 };
+const FY: Record<1|2|3, number> = {
+    1: -0.15,
+    2: -0.15,
+    3: -0.15,
+};
 
 function makeChevron(s=0.05): THREE.Shape {
     const sh = new THREE.Shape();
