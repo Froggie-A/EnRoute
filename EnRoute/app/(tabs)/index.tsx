@@ -1283,7 +1283,7 @@ export default function HomeScreen() {
   // DEMO VALUES
   const DEMO_MODE = true;
   // ── Demo start: flip between "vending0" (floor 1) and "room_1263_a" (floor 1)
-  const DEMO_START_NODE = "vending0";  // ← change to "room_1263_a" for second demo
+  const DEMO_START_NODE = "room_1263_a";  // ← change to "room_1263_a" for second demo
 
 
   const getFromNodeId = useCallback((): string => {
