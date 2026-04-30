@@ -976,6 +976,26 @@ export default function HomeScreen() {
 
   const PIN_Y = -0.05;
 
+  const getFromNodeId = useCallback((): string => {
+    if (DEMO_MODE) return DEMO_START_NODE;
+
+    if (!location) return START_NODE_ID;
+
+    const { x, y } = gpsToNodeCoords(
+        location.coords.latitude,
+        location.coords.longitude
+    );
+
+    const nearest = snapToNode(x, y, activeFloorRef.current);
+
+    if (nearest) {
+      console.log("[from node]", nearest.id, nearest.label);
+      return nearest.id;
+    }
+
+    return START_NODE_ID;
+  }, [location, snapToNode]);
+
   const focusRoom = useCallback((roomId: string | null, floor: FloorNumber) => {
     if (!roomId) return;
     const room = getRoomById(floor, roomId);
@@ -998,6 +1018,22 @@ export default function HomeScreen() {
     // phi = PI/2 is perfectly flat/top-down — no tilt
     lerpPhiRef.current = 0.35;
   }, []);
+
+  const buildPreviewRouteToNode = useCallback((node: NavNode) => {
+    const fromId = getFromNodeId();
+    const route = getTestRoute(fromId, node.id);
+
+    if (!route) {
+      setActiveRoute(null);
+      setPathWaypoints([]);
+      setFlooredWaypoints([]);
+      return;
+    }
+
+    setActiveRoute(route);
+    setPathWaypoints(routeToWaypoints(route));
+    setFlooredWaypoints(routeToWaypointsWithFloor(route));
+  }, [getFromNodeId, getTestRoute]);
 
   const findRoomBySearch = useCallback(() => {
     const query = search.trim().toLowerCase();
@@ -1079,21 +1115,7 @@ export default function HomeScreen() {
     }
   };
 
-  const buildPreviewRouteToNode = useCallback((node: NavNode) => {
-    const fromId = getFromNodeId();
-    const route = getTestRoute(fromId, node.id);
 
-    if (!route) {
-      setActiveRoute(null);
-      setPathWaypoints([]);
-      setFlooredWaypoints([]);
-      return;
-    }
-
-    setActiveRoute(route);
-    setPathWaypoints(routeToWaypoints(route));
-    setFlooredWaypoints(routeToWaypointsWithFloor(route));
-  }, [getFromNodeId, getTestRoute]);
 
   const [mode, setMode] = useState<"pin" | "navigate" | null>(null);
 
@@ -1274,25 +1296,7 @@ export default function HomeScreen() {
       lerpRadiusRef.current = zoomInRadius;
     }
   }, []);
-  const getFromNodeId = useCallback((): string => {
-    if (DEMO_MODE) return DEMO_START_NODE;
 
-    if (!location) return START_NODE_ID;
-
-    const { x, y } = gpsToNodeCoords(
-        location.coords.latitude,
-        location.coords.longitude
-    );
-
-    const nearest = snapToNode(x, y, activeFloorRef.current);
-
-    if (nearest) {
-      console.log("[from node]", nearest.id, nearest.label);
-      return nearest.id;
-    }
-
-    return START_NODE_ID;
-  }, [location, snapToNode]);
 
   // Double-tap to select room → zoom into it + open detail sheet
   const handleRoomSelect = useCallback(
@@ -1912,7 +1916,7 @@ export default function HomeScreen() {
                   allowedTypes={activeTypes}
               />
                   )}
-              
+
             </Suspense>
 
             <CameraController

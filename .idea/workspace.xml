@@ -7,7 +7,6 @@
     <list default="true" id="e8e5f865-2cd0-40ce-ad04-7a2055986f47" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/EnRoute/app/(tabs)/index.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/EnRoute/app/(tabs)/index.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/EnRoute/components/UserLocationMarker.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/EnRoute/components/UserLocationMarker.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/EnRoute/components/testpath.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/EnRoute/components/testpath.tsx" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -139,7 +138,8 @@
       <workItem from="1777503605546" duration="958000" />
       <workItem from="1777521769832" duration="18068000" />
       <workItem from="1777563572131" duration="10691000" />
-      <workItem from="1777577969373" duration="1661000" />
+      <workItem from="1777576392781" duration="884000" />
+      <workItem from="1777577417496" duration="2985000" />
     </task>
     <servers />
   </component>

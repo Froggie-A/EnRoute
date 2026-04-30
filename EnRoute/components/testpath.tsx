@@ -77,7 +77,7 @@ function EndDot({ pos }: { pos: [number, number, number] }) {
             </mesh>
             <mesh rotation={flat} renderOrder={1001}>
                 <circleGeometry args={[0.10, 30]} />
-                <meshBasicMaterial color="#008000" side={THREE.DoubleSide} depthTest={false} depthWrite={false} />
+                <meshBasicMaterial color="#27AE60" side={THREE.DoubleSide} depthTest={false} depthWrite={false} />
             </mesh>
         </group>
     );
