@@ -403,17 +403,29 @@ function SwipeDeletePinRow({
   const isOpenRef = useRef(false);
   const isSwipingRef = useRef(false);
 
-  const DELETE_WIDTH = 90;
-  const OPEN_THRESHOLD = -10;
+  const DELETE_WIDTH = 110;
+
+  const deleteOpacity = translateX.interpolate({
+    inputRange: [-DELETE_WIDTH, 0],
+    outputRange: [1, 0],
+    extrapolate: "clamp",
+  });
+
+  const deleteScale = translateX.interpolate({
+    inputRange: [-DELETE_WIDTH, 0],
+    outputRange: [1, 0.7],
+    extrapolate: "clamp",
+  });
 
   const animateTo = (value: number) => {
     translateX.stopAnimation();
 
-    Animated.timing(translateX, {
+    Animated.spring(translateX, {
       toValue: value,
-      duration: 110,
-      easing: Easing.linear,
       useNativeDriver: true,
+      damping: 22,
+      stiffness: 240,
+      mass: 0.8,
     }).start(() => {
       startXRef.current = value;
       isOpenRef.current = value === -DELETE_WIDTH;
@@ -423,70 +435,79 @@ function SwipeDeletePinRow({
   const closeRow = () => animateTo(0);
   const openRow = () => animateTo(-DELETE_WIDTH);
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
+const panResponder = useRef(
+  PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
 
-      onMoveShouldSetPanResponder: (_, gesture) =>
-        Math.abs(gesture.dx) > 6 &&
-        Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.8,
+    onMoveShouldSetPanResponder: (_, gesture) =>
+      Math.abs(gesture.dx) > 6 &&
+      Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.8,
+    onPanResponderTerminationRequest: () => false,
 
-      onPanResponderGrant: () => {
-        isSwipingRef.current = true;
+    onPanResponderGrant: () => {
+      isSwipingRef.current = true;
 
-        translateX.stopAnimation((value) => {
-          startXRef.current = value;
-        });
-      },
+      translateX.stopAnimation((value) => {
+        startXRef.current = value;
+      });
+    },
 
-      onPanResponderMove: (_, gesture) => {
-        let nextX = startXRef.current + gesture.dx;
+    onPanResponderMove: (_, gesture) => {
+      let nextX = startXRef.current + gesture.dx;
 
-        if (nextX > 0) nextX = 0;
-        if (nextX < -DELETE_WIDTH) nextX = -DELETE_WIDTH;
+      if (nextX > 0) nextX = 0;
+      if (nextX < -DELETE_WIDTH) nextX = -DELETE_WIDTH;
 
-        translateX.setValue(nextX);
-      },
+      translateX.setValue(nextX);
+    },
 
-      onPanResponderRelease: (_, gesture) => {
-      let finalX = startXRef.current + gesture.dx;
-      finalX = Math.min(0, Math.max(finalX, -DELETE_WIDTH));
+    onPanResponderRelease: (_, gesture) => {
+      const finalX = startXRef.current + gesture.dx;
+      const shouldOpen = finalX <= -25 || gesture.vx < -0.25;
 
-      const swipedLeftFarEnough = finalX <= -10;
-      const swipedFastLeft = gesture.vx < -0.1;
-
-      if (swipedLeftFarEnough || swipedFastLeft) {
-        openRow();
-      } else {
-        closeRow();
-      }
+      if (shouldOpen) openRow();
+      else closeRow();
 
       setTimeout(() => {
         isSwipingRef.current = false;
-      }, 120);
+      }, 180);
     },
 
-      onPanResponderTerminate: () => {
-        isOpenRef.current ? openRow() : closeRow();
+    onPanResponderTerminate: () => {
+      isOpenRef.current ? openRow() : closeRow();
 
-        setTimeout(() => {
-          isSwipingRef.current = false;
-        }, 120);
-      },
-    })
-  ).current;
+      setTimeout(() => {
+        isSwipingRef.current = false;
+      }, 180);
+    },
+  })
+).current;
 
   return (
     <View style={styles.swipeDeleteWrap}>
-      <Pressable
-        style={styles.deleteButton}
-        onPress={() => {
-          closeRow();
-          onDelete();
-        }}
+      <Animated.View
+        style={[
+          styles.deleteButton,
+          {
+            opacity: deleteOpacity,
+          },
+        ]}
       >
-        <Ionicons name="trash-outline" size={22} color="#fff" />
-      </Pressable>
+        <Pressable
+          onPress={() => {
+            closeRow();
+            onDelete();
+          }}
+        >
+          <Animated.View
+            style={{
+              transform: [{ scale: deleteScale }],
+            }}
+          >
+            <Ionicons name="trash-outline" size={24} color="#fff" />
+          </Animated.View>
+        </Pressable>
+      </Animated.View>
 
       <Animated.View
         style={[
@@ -2909,10 +2930,11 @@ deleteButton: {
   right: 0,
   top: 0,
   bottom: 0,
-  width: 90,
+  width: 110,
   backgroundColor: "#D94040",
-  alignItems: "center",
   justifyContent: "center",
+  alignItems: "center",
+  borderRadius: 14,
 },
 
 savedPinRow: {
