@@ -44,7 +44,9 @@ import RoomHitboxes, {
   getRoomById,
   getNavNodeId,
   findRoomBySearch as findRoomHitboxBySearch,
-  findRoomsStartingWith
+  findRoomsStartingWith,
+  getRoomsForFloor
+
 } from "@/components/roomHitbox";
 import RoomDetailSheet from "@/components/roomDetail";
 import DirectionsSheet, { START_NODE_ID } from "@/components/Directions";
@@ -521,7 +523,6 @@ function SwipeDeletePinRow({
 }
 
 
-
 //── Main screen ──────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
@@ -541,6 +542,7 @@ export default function HomeScreen() {
 
   const [showPinSavedToast, setShowPinSavedToast] = useState(false);
   const pinSavedAnim = useRef(new Animated.Value(120)).current;
+  const [directionsBackTarget, setDirectionsBackTarget] = useState<"detail" | "event">("detail");
 
   const [location, setLocation] = useState<Location.LocationObject | null>({
     coords: {
@@ -606,15 +608,18 @@ export default function HomeScreen() {
 
   const [sheetIndex, setSheetIndex] = useState(-1);
   const [showCollapsedPill, setShowCollapsedPill] = useState(true);
+  const [sheetCollapsed, setSheetCollapsed] = useState(false);
 
   const [panelExpanded, setPanelExpanded] = useState(false);
   const [panelLevel, setPanelLevel] = useState<"collapsed" | "mid" | "full">("collapsed");
   const panelHeightAnim = useRef(new Animated.Value(COLLAPSED_HEIGHT)).current;
   const dragStartHeightRef = useRef(COLLAPSED_HEIGHT);
 
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-  const touchRoomRef = useRef<string | null>(null);
-  const touchMovedRef = useRef(false);
+  const touchStartRef    = useRef<{ x: number; y: number } | null>(null);
+  const touchRoomRef     = useRef<string | null>(null);
+  const touchMovedRef    = useRef(false);
+  const hasCollapsedRef  = useRef(false);
+
   const lastTapTimeRef = useRef<number>(0);
   const lastTapRoomRef = useRef<string | null>(null);
 
@@ -631,9 +636,13 @@ export default function HomeScreen() {
   const activeFloorRef = useRef<FloorNumber>(1);
   const cameraRef = useRef<THREE.Camera | null>(null);
   const bottomSheetRef = useRef<BottomSheet>(null);
-  const sheetIndexRef = useRef(-1);
-  const mapSizeRef = useRef({ width: 1, height: 1 });
-  const sheetTopYRef = useRef(9999);
+
+  const sheetIndexRef    = useRef(-1);
+  const sheetViewRef     = useRef<SheetView>("default");
+  const selectedNodeRef  = useRef<NavNode | null>(null);
+  const panelLevelRef    = useRef<"collapsed" | "mid" | "full">("collapsed");
+  const mapSizeRef       = useRef({ width: 1, height: 1 });
+  const sheetTopYRef     = useRef(9999);
 
   const gestureRef = useRef<GestureState>({
     deltaRotate: { x: 0, y: 0 },
@@ -657,6 +666,10 @@ export default function HomeScreen() {
   useEffect(() => {
     sheetTopYRef.current = sheetTopY;
   }, [sheetTopY]);
+
+  useEffect(() => { sheetViewRef.current    = sheetView;    }, [sheetView]);
+  useEffect(() => { selectedNodeRef.current = selectedNode; }, [selectedNode]);
+  useEffect(() => { panelLevelRef.current   = panelLevel;   }, [panelLevel]);
 
   const expandedPanelHeight = useMemo(() => {
     const rawHeight = mapSize.height * EXPANDED_HEIGHT_FRACTION;
@@ -698,6 +711,7 @@ export default function HomeScreen() {
       }
 
       setPanelLevel(level);
+      panelLevelRef.current = level;
       setPanelExpanded(level !== "collapsed");
 
       Animated.spring(panelHeightAnim, {
@@ -972,7 +986,7 @@ const findRoomBySearch = useCallback(() => {
       setSheetIndex(0);
       sheetIndexRef.current = 0;
     });
-    
+
 
     return;
   }
@@ -1097,7 +1111,7 @@ const getPinPointFromTouch = useCallback(
           setPreviewPin(null);
         },
       }),
-    [pinMode, getPinPointFromTouch]
+      [pinMode, getPinPointFromTouch]
   );
 
   const expandStretchPanel = useCallback(() => {
@@ -1235,7 +1249,7 @@ const getPinPointFromTouch = useCallback(
   // DEMO VALUES
   const DEMO_MODE = true;
   const DEMO_START_NODE = "vending0";
-  
+
 
   const getFromNodeId = useCallback((): string => {
     if (DEMO_MODE) return DEMO_START_NODE;
@@ -1265,6 +1279,7 @@ const getPinPointFromTouch = useCallback(
         const waypoints = routeToWaypoints(result);
         setActiveRoute(result);
         setPathWaypoints(waypoints);
+        setDirectionsBackTarget("detail");
         setSheetView("directions");
         bottomSheetRef.current?.snapToIndex(0);
         setSheetIndex(0);
@@ -1368,6 +1383,7 @@ const getPinPointFromTouch = useCallback(
             },
 
             onPanResponderGrant: (e) => {
+              hasCollapsedRef.current = false;
               const { pageX, pageY, touches } = e.nativeEvent;
               touchStartRef.current = { x: pageX, y: pageY };
               touchMovedRef.current = false;
@@ -1389,8 +1405,41 @@ const getPinPointFromTouch = useCallback(
               if (touchStartRef.current && touches.length > 0) {
                 const dx = touches[0].pageX - touchStartRef.current.x;
                 const dy = touches[0].pageY - touchStartRef.current.y;
-                if (Math.hypot(dx, dy) > 8) touchMovedRef.current = true;
+                if (Math.hypot(dx, dy) > 8) {
+                  touchMovedRef.current = true;
+                  // Collapse the sheet into a pill the first time the map moves
+                  if (!hasCollapsedRef.current) {
+                    // Collapse room detail / directions sheet
+                    if (
+                        sheetIndexRef.current >= 0 &&
+                        (sheetViewRef.current === "detail" || sheetViewRef.current === "directions")
+                    ) {
+                      hasCollapsedRef.current = true;
+                      setSheetCollapsed(true);
+                      setSheetIndex(-1);
+                      sheetIndexRef.current = -1;
+                      bottomSheetRef.current?.close();
+                    }
+                    // Collapse the home stretch panel (search / events / profile)
+                    else if (panelLevelRef.current !== "collapsed") {
+                      hasCollapsedRef.current = true;
+                      Keyboard.dismiss();
+                      panelLevelRef.current = "collapsed";
+                      setPanelLevel("collapsed");
+                      setPanelExpanded(false);
+                      Animated.spring(panelHeightAnim, {
+                        toValue: COLLAPSED_HEIGHT,
+                        useNativeDriver: false,
+                        damping: 28,
+                        stiffness: 220,
+                        mass: 0.75,
+                      }).start();
+                    }
+                  }
+                }
               }
+
+
 
               // ONE FINGER = MOVE / PAN MAP
               if (touches.length === 1) {
@@ -1442,6 +1491,26 @@ const getPinPointFromTouch = useCallback(
                   gestureRef.current.deltaRotate.y += midDelta.y * 0.55;
                 }
 
+                if (
+                    sheetView === "detail" &&
+                    selectedNode &&
+                    sheetIndexRef.current !== -1
+                ) {
+                  bottomSheetRef.current?.close();
+                  setSheetIndex(-1);
+                  sheetIndexRef.current = -1;
+
+                  setShowCollapsedPill(true);
+                  setPanelExpanded(false);
+                  setPanelLevel("collapsed");
+
+                  Animated.timing(panelHeightAnim, {
+                    toValue: COLLAPSED_HEIGHT,
+                    duration: 120,
+                    useNativeDriver: false,
+                  }).start();
+                }
+
                 prevTouches.current = [
                   { x: t0.pageX, y: t0.pageY },
                   { x: t1.pageX, y: t1.pageY },
@@ -1461,7 +1530,7 @@ const getPinPointFromTouch = useCallback(
                   setPendingPin(tappedPin.pin);
                   setPinTitle(tappedPin.pin.title || "");
                   setPinColor(tappedPin.pin.color || "red");
-            
+
 
                   touchStartRef.current = null;
                   touchRoomRef.current = null;
@@ -1491,7 +1560,7 @@ const getPinPointFromTouch = useCallback(
       [pinMode, handleRoomSelect,getPinFromTouch]
   );
 
-  
+
 
   // Location watcher
   useEffect(() => {
@@ -1543,7 +1612,7 @@ const getPinPointFromTouch = useCallback(
     setActiveRoute(newRoute);
     setPathWaypoints(newWaypoints.length >= 2 ? newWaypoints : []);
   }, [userNodeId, isNavigating, getTestRoute, handleEndRoute]);
-  
+
   // Floor model preload
   useEffect(() => {
     async function preloadAll() {
@@ -1563,18 +1632,68 @@ const getPinPointFromTouch = useCallback(
     preloadAll();
   }, []);
 
+  const navigateToEventRoom = useCallback((eventLocation: string) => {
+    const roomNumber = eventLocation.match(/\d+/)?.[0];
+    if (!roomNumber) return;
+
+    for (const floor of [1, 2, 3] as FloorNumber[]) {
+      const room = findRoomHitboxBySearch(floor, roomNumber);
+      if (!room) continue;
+
+      const navId = getNavNodeId(room.id, floor);
+      const node = navId ? getNode(navId) : null;
+      if (!node) return;
+
+      // switch UI immediately
+      setDirectionsBackTarget("event");
+      setSelectedRoom(room.id);
+      setSelectedNode(node);
+      setSheetView("directions");
+      bottomSheetRef.current?.snapToIndex(0);
+      setSheetIndex(0);
+      sheetIndexRef.current = 0;
+
+      requestAnimationFrame(() => {
+        const fromId = getFromNodeId();
+        const route = getTestRoute(fromId, node.id);
+        if (!route) return;
+
+        const waypoints = routeToWaypoints(route);
+
+        activeFloorRef.current = floor;
+        setActiveFloor(floor);
+        setActiveRoute(route);
+        setPathWaypoints(waypoints);
+
+        if (waypoints.length >= 2) {
+          zoomToWaypoints(waypoints, lerpRadiusRef, lerpTargetRef, 0.5);
+        }
+      });
+
+      return;
+    }
+  }, [getFromNodeId, getTestRoute]);
+
   const handleSheetChange = useCallback((index: number) => {
     setSheetIndex(index);
     sheetIndexRef.current = index;
 
     if (index === -1 && !isNavigating) {
-      setSelectedRoom(null);
-      setSelectedNode(null);
-      setActiveRoute(null);
-      setPathWaypoints([]);
-      setSheetView("default");
-      setTimeout(() => setShowCollapsedPill(true), 1);
-    } else if (index !== -1) {
+      setSheetCollapsed((wasCollapsed) => {
+        if (!wasCollapsed) {
+          // User swiped the sheet down normally — clear everything
+          setSelectedRoom(null);
+          setSelectedNode(null);
+          setActiveRoute(null);
+          setPathWaypoints([]);
+          setSheetView("default");
+          setTimeout(() => setShowCollapsedPill(true), 1);
+        }
+        // If wasCollapsed=true, the map drag already handled it — keep node alive
+        return wasCollapsed;
+      });
+    } else if (index >= 0) {
+      setSheetCollapsed(false);
       setShowCollapsedPill(false);
     }
   }, [isNavigating]);
@@ -1623,7 +1742,6 @@ const getPinPointFromTouch = useCallback(
                 selectedRoom={selectedRoom}
                 setSelectedRoom={setSelectedRoom}
             />
-            <NodeDebugLayer visible={showDebug} />
           </group>
 
           {location && (
@@ -1704,6 +1822,7 @@ const getPinPointFromTouch = useCallback(
         />
       </Canvas>
 
+
       {!pinMode && (
         <View
           style={[styles.mapGestureLayer, { height: sheetTopY }]}
@@ -1775,32 +1894,6 @@ const getPinPointFromTouch = useCallback(
       </View>
       )}
 
-      {sheetIndex === -1 && (
-          <Pressable
-              onPress={() => setShowDebug(prev => !prev)}
-              style={{
-                position: "absolute",
-                bottom: 200,
-                left: 20,
-                backgroundColor: showDebug ? "#007AFF" : "rgba(255,255,255,0.82)",
-                width: 48,
-                height: 48,
-                borderRadius: 24,
-                alignItems: "center",
-                justifyContent: "center",
-                zIndex: 20,
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.18,
-                shadowRadius: 6,
-                elevation: 6,
-              }}
-          >
-            <Text style={{ fontSize: 11, fontWeight: "700", color: showDebug ? "white" : "#333" }}>
-              GRAPH
-            </Text>
-          </Pressable>
-      )}
 
       {sheetIndex === -1 && (
           <FloorSwitcher
@@ -1866,15 +1959,15 @@ const getPinPointFromTouch = useCallback(
               </View>
 
               {!selectedEvent && panelView !== "profile" && (
-                <View style={styles.stretchSearchShell}>
-                  <SearchBarRow
-                    search={search}
-                    setSearch={setSearch}
-                    onPressExpand={openSheet}
-                    onPressProfile={handleProfilePress}
-                    onSubmitSearch={findRoomBySearch}
-                  />
-                </View>
+                  <View style={styles.stretchSearchShell}>
+                    <SearchBarRow
+                        search={search}
+                        setSearch={setSearch}
+                        onPressExpand={openSheet}
+                        onPressProfile={handleProfilePress}
+                        onSubmitSearch={findRoomBySearch}
+                    />
+                  </View>
               )}
             </View>
 
@@ -1923,7 +2016,7 @@ const getPinPointFromTouch = useCallback(
                               onPress={() => {
                                 setSelectedEvent(event);
                                 setPanelView("main");
-                                snapPanelTo(expandedPanelHeight);
+                                snapPanelTo(MID_HEIGHT);
                               }}
                             >
                               <Text style={styles.savedItem}>{event.title}</Text>
@@ -1994,7 +2087,14 @@ const getPinPointFromTouch = useCallback(
                         </Text>
                       </Pressable>
 
-                      <Pressable style={styles.eventActionButton}>
+                      <Pressable
+                          style={styles.eventActionButton}
+                          onPress={() => {
+                            if (selectedEvent?.location) {
+                              navigateToEventRoom(selectedEvent.location);
+                            }
+                          }}
+                      >
                         <Ionicons name="navigate-outline" size={22} color="#111" />
                         <Text style={styles.eventActionText}>Navigate</Text>
                       </Pressable>
@@ -2234,8 +2334,42 @@ const getPinPointFromTouch = useCallback(
         </Animated.View>
       )}
 
-      {!isNavigating && (
-        <BottomSheet
+      {!isNavigating && sheetCollapsed && selectedNode && (
+          <Pressable
+              style={styles.floatingPill}
+              onPress={() => {
+                setSheetCollapsed(false);
+                setShowCollapsedPill(false);
+                setTimeout(() => {
+                  bottomSheetRef.current?.snapToIndex(0);
+                  setSheetIndex(0);
+                  sheetIndexRef.current = 0;
+                }, 50);
+              }}
+          >
+            <Text style={styles.collapsedPillTitle} numberOfLines={1}>
+              {selectedNode.label.replace(/ - [AB]$/, "")}
+            </Text>
+            <Pressable
+                hitSlop={10}
+                style={styles.collapsedPillClose}
+                onPress={() => {
+                  setSheetCollapsed(false);
+                  setSelectedRoom(null);
+                  setSelectedNode(null);
+                  setActiveRoute(null);
+                  setPathWaypoints([]);
+                  setSheetView("default");
+                  setTimeout(() => setShowCollapsedPill(true), 50);
+                }}
+            >
+              <Ionicons name="close" size={16} color="#555" />
+            </Pressable>
+          </Pressable>
+      )}
+
+      {!isNavigating && !sheetCollapsed && (
+          <BottomSheet
           ref={bottomSheetRef}
           index={-1}
           snapPoints={snapPoints}
@@ -2270,13 +2404,25 @@ const getPinPointFromTouch = useCallback(
                 onAvoidStairsChange={handleAvoidStairsChange}
                 onConfirm={handleConfirmRoute}
                 onBack={() => {
-                  setSheetView("detail");
+                  setActiveRoute(null);
                   setPathWaypoints([]);
-                  bottomSheetRef.current?.snapToIndex(0);
 
-                  if (selectedRoom) {
-                    focusRoom(selectedRoom, activeFloor);
+                  if (directionsBackTarget === "event") {
+                    bottomSheetRef.current?.close();
+                    setSheetIndex(-1);
+                    sheetIndexRef.current = -1;
+
+                    setSheetView("default");
+                    setDirectionsBackTarget("detail");
+
+                    setShowCollapsedPill(true);
+                    setPanelView("main");
+                    snapPanelTo(MID_HEIGHT);
+
+                    return;
                   }
+
+                  setSheetView("detail");
                 }}
               />
             )}
@@ -2288,39 +2434,41 @@ const getPinPointFromTouch = useCallback(
 );
 }
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1 
+  container: {
+    flex: 1
   },
-  emptytext: { 
-    paddingHorizontal: 20, 
-    color: "#666", 
-    marginTop: 8, 
-    fontSize: 15 
+  emptytext: {
+    paddingHorizontal: 20,
+    color: "#666",
+    marginTop: 8,
+    fontSize: 15
   },
-  canvasAbsolute: { 
-    position: "absolute", 
-    top: 0, 
-    left: 0, 
-    right: 0, 
-    bottom: 0 
-  },
-  loaderWrap: { 
-    flex: 1, 
-    alignItems: "center", 
-    justifyContent: "center" 
-  },
-  pinOverlay: { 
-    position: "absolute", 
-    top: 0, 
-    left: 0, 
-    right: 0, 
-    bottom: 0, 
-    zIndex: 3 
-  },
-  stretchPanelWrap: { 
+  canvasAbsolute: {
     position: "absolute",
-    zIndex: 50 
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0
   },
+  loaderWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  pinOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 3
+  },
+  stretchPanelWrap: {
+    position: "absolute",
+    zIndex: 50,
+    elevation: 50,
+  },
+
 
   stretchPanel: {
     flex: 1,
@@ -2334,6 +2482,7 @@ const styles = StyleSheet.create({
 
   dragHeader: {
     paddingTop: 6,
+    paddingBottom: 4,
   },
 
   stretchHandleArea: {
@@ -2341,6 +2490,7 @@ const styles = StyleSheet.create({
     paddingTop: 2,
     paddingBottom: 6,
   },
+
 
   stretchHandle: {
     width: 48,
@@ -2618,11 +2768,11 @@ const styles = StyleSheet.create({
   top: "50%",
   left: "50%",
   transform: [
-    { translateX: -145 }, 
-    { translateY: -160 }, 
+    { translateX: -145 },
+    { translateY: -160 },
   ],
   width: 320,
-  
+
 
   backgroundColor: "rgba(235, 235, 218, 1)",
   borderRadius: 22,
@@ -2722,7 +2872,7 @@ pinSavedToast: {
   position: "absolute",
   bottom: 120,
   height: 46,
-  alignSelf: "center", 
+  alignSelf: "center",
   paddingHorizontal: 16,
   paddingVertical: 10,
   borderRadius: 14,
@@ -2861,5 +3011,69 @@ pinCustomizeOverlay: {
     width: 46,
     height: 46,
   },
+// ── Unified pill styles — used by room, event, search, and floating pills ──
+  collapsedPill: {
+    height: 54,
+    marginHorizontal: 14,
+    marginBottom: 2,
+    borderRadius: 999,
+    backgroundColor: "rgba(253, 254, 238, 0.95)",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 18,
+    paddingRight: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  collapsedPillTextWrap: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  collapsedPillTitle: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#111",
+  },
+  collapsedPillSub: {
+    fontSize: 11,
+    color: "#777",
+    marginTop: 1,
+  },
+  collapsedPillClose: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "rgba(0,0,0,0.07)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 8,
+  },
+  // Floating pill (for gorhom BottomSheet collapse — room/directions)
+  floatingPill: {
+    position: "absolute",
+    bottom: 36,
+    left: 20,
+    right: 20,
+    height: 54,
+    backgroundColor: "rgba(253, 254, 238, 0.97)",
+    borderRadius: 999,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 18,
+    paddingRight: 10,
+    zIndex: 60,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.7)",
+  },
+
 
 });

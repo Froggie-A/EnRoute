@@ -1,11 +1,6 @@
 // components/NavOverlay.tsx
-//
-// Apple Maps style navigation overlay.
-// Bottom pill height is computed from the actual step count so it always
-// fits all steps. A hard cap of 80% screen height prevents it from
-// covering the top instruction card. If steps overflow, the list scrolls.
 
-import React, { useRef, useMemo } from "react";
+import React, { useRef, useMemo, useEffect, useState } from "react";
 import {
     View, Text, StyleSheet, Pressable,
     Animated, PanResponder, Dimensions, ScrollView,
@@ -13,58 +8,84 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import type { RouteResult, RouteStep } from "@/navigation/pathfinding";
 
-const SCREEN_H    = Dimensions.get("window").height;
-const PILL_INSET  = 16;
-const COLLAPSED_H = 90;   // just the stats row
-// Max height: 80% of screen, leaving room for the top card + safe area
+const SCREEN_H      = Dimensions.get("window").height;
+const PILL_INSET    = 16;
+const COLLAPSED_H   = 90;
 const MAX_EXPANDED_H = SCREEN_H * 0.78;
 
-// Per-item heights (approximate)
-const ROW_STATS    = 68;
-const ROW_HANDLE   = 20;
-const ROW_DEST     = 52;
-const ROW_STEP     = 40;
-const ROW_END_BTN  = 64;
-const ROW_PADDING  = 32;  // top + bottom padding
+const ROW_HANDLE  = 20;
+const ROW_STATS   = 68;
+const ROW_DEST    = 52;
+const ROW_STEP    = 40;
+const ROW_END_BTN = 64;
+const ROW_PADDING = 32;
 
 function computeExpandedHeight(stepCount: number): number {
-    const natural =
-        ROW_HANDLE + ROW_STATS + ROW_DEST +
-        stepCount * ROW_STEP +
-        ROW_END_BTN + ROW_PADDING;
+    const natural = ROW_HANDLE + ROW_STATS + ROW_DEST + stepCount * ROW_STEP + ROW_END_BTN + ROW_PADDING;
     return Math.min(natural, MAX_EXPANDED_H);
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Merged step type ──────────────────────────────────────────────────────────
+type MergedStep = {
+    instruction: string;
+    displayFt: number;        // summed distance for display
+    walkSeconds: number;
+    isFloorTransition: boolean;
+    isLast: boolean;
+};
 
-function formatETA(s: number): string {
-    const d = new Date();
-    d.setSeconds(d.getSeconds() + s);
-    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+// Collapse consecutive identical instructions into one step with summed distance.
+// "Continue straight 3ft" + "Continue straight 7ft" → "Continue straight 10ft"
+function mergeSteps(steps: RouteStep[]): MergedStep[] {
+    if (!steps.length) return [];
+    const out: MergedStep[] = [];
+    for (let i = 0; i < steps.length; i++) {
+        const s = steps[i];
+        const prev = out[out.length - 1];
+        const canMerge =
+            prev &&
+            prev.instruction === s.instruction &&
+            !prev.isFloorTransition &&
+            !s.isFloorTransition &&
+            !prev.isLast;
+        if (canMerge) {
+            prev.displayFt   += s.distanceFt;
+            prev.walkSeconds += s.walkSeconds;
+            prev.isLast       = i === steps.length - 1;
+        } else {
+            out.push({
+                instruction:      s.instruction,
+                displayFt:        s.distanceFt,
+                walkSeconds:      s.walkSeconds,
+                isFloorTransition: s.isFloorTransition,
+                isLast:           i === steps.length - 1,
+            });
+        }
+    }
+    return out;
 }
 
-function iconFor(i: string): React.ComponentProps<typeof Ionicons>["name"] {
-    const l = i.toLowerCase();
-    if (l.includes("left"))                              return "arrow-back";
-    if (l.includes("right"))                             return "arrow-forward";
-    if (l.includes("arrived") || l.includes("you have")) return "location";
-    if (l.includes("elevator") || l.includes("stairs")) return "swap-vertical";
-    return "arrow-up";
-}
-
-function firstStep(r: RouteResult): RouteStep | null {
-    return r.steps.find(s => !s.instruction.startsWith("Start at")) ?? r.steps[0] ?? null;
-}
-function nextStep(r: RouteResult): RouteStep | null {
-    const s = r.steps.filter(s => !s.instruction.startsWith("Start at"));
-    return s[1] ?? null;
-}
-function meaningfulSteps(r: RouteResult): RouteStep[] {
+function meaningfulRaw(r: RouteResult): RouteStep[] {
     return r.steps.filter(s => !s.instruction.startsWith("Start at"));
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function formatETA(secs: number): string {
+    const d = new Date();
+    d.setSeconds(d.getSeconds() + Math.max(0, secs));
+    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
 
+function iconFor(instruction: string): React.ComponentProps<typeof Ionicons>["name"] {
+    const l = instruction.toLowerCase();
+    if (l.includes("left"))                               return "arrow-back";
+    if (l.includes("right"))                              return "arrow-forward";
+    if (l.includes("arrived") || l.includes("you have")) return "location";
+    if (l.includes("elevator") || l.includes("stairs"))  return "swap-vertical";
+    return "arrow-up";
+}
+
+// ── Props ─────────────────────────────────────────────────────────────────────
 type Props = {
     route: RouteResult;
     destinationLabel?: string;
@@ -72,17 +93,38 @@ type Props = {
 };
 
 export default function NavOverlay({ route, destinationLabel, onEndRoute }: Props) {
-    const step    = firstStep(route);
-    const after   = nextStep(route);
-    const steps   = meaningfulSteps(route);
+
+    // Merge steps once per route update
+    const merged = useMemo(() => mergeSteps(meaningfulRaw(route)), [route]);
+    const step   = merged[0] ?? null;
+    const after  = merged[1] ?? null;
     const roomNum = destinationLabel?.match(/\d{4}/)?.[0] ?? destinationLabel ?? "";
 
-    // Compute expanded height based on real step count
-    const EXPANDED_H = useMemo(
-        () => computeExpandedHeight(steps.length),
-        [steps.length]
-    );
+    // ── Live elapsed time ─────────────────────────────────────────────────────
+    // Starts counting when this component mounts (navigation begins).
+    // Resets whenever the route's total distance changes (reroute event).
+    const startRef  = useRef(Date.now());
+    const [elapsed, setElapsed] = useState(0);
 
+    useEffect(() => {
+        // New route (reroute or nav start) — reset the clock
+        startRef.current = Date.now();
+        setElapsed(0);
+    }, [route.totalDistanceFt]);
+
+    useEffect(() => {
+        const id = setInterval(() => {
+            setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
+        }, 5000); // update every 5 s — no need for per-second flicker
+        return () => clearInterval(id);
+    }, []);
+
+    // Remaining = originally estimated walk time + however many seconds have passed
+    // This ensures the ETA and minute count only go UP as the user takes longer.
+    const remainingSecs = route.totalWalkSeconds + elapsed;
+
+    // ── Pill drag animation ───────────────────────────────────────────────────
+    const EXPANDED_H   = useMemo(() => computeExpandedHeight(merged.length), [merged.length]);
     const pillHeight   = useRef(new Animated.Value(COLLAPSED_H)).current;
     const isExpanded   = useRef(false);
     const heightAtDrag = useRef(COLLAPSED_H);
@@ -95,14 +137,11 @@ export default function NavOverlay({ route, destinationLabel, onEndRoute }: Prop
                 heightAtDrag.current = isExpanded.current ? EXPANDED_H : COLLAPSED_H;
             },
             onPanResponderMove: (_, g) => {
-                const newH = Math.max(
-                    COLLAPSED_H,
-                    Math.min(EXPANDED_H, heightAtDrag.current - g.dy)
+                pillHeight.setValue(
+                    Math.max(COLLAPSED_H, Math.min(EXPANDED_H, heightAtDrag.current - g.dy))
                 );
-                pillHeight.setValue(newH);
             },
             onPanResponderRelease: (_, g) => {
-                // Snap up if dragged > 40pt upward, or if already expanded and barely moved
                 const expand = g.dy < -40 || (isExpanded.current && g.dy > -40 && g.dy < 40);
                 isExpanded.current = expand;
                 Animated.spring(pillHeight, {
@@ -115,35 +154,36 @@ export default function NavOverlay({ route, destinationLabel, onEndRoute }: Prop
         })
     ).current;
 
-    // Fade expanded content in as pill grows past collapsed
     const expandedOpacity = pillHeight.interpolate({
         inputRange: [COLLAPSED_H, COLLAPSED_H + 50],
         outputRange: [0, 1],
         extrapolate: "clamp",
     });
-
-    // Step list height = pill height minus fixed chrome
     const stepListHeight = pillHeight.interpolate({
-        inputRange: [COLLAPSED_H, EXPANDED_H],
+        inputRange:  [COLLAPSED_H, EXPANDED_H],
         outputRange: [0, Math.max(0, EXPANDED_H - ROW_HANDLE - ROW_STATS - ROW_DEST - ROW_END_BTN - ROW_PADDING)],
         extrapolate: "clamp",
     });
 
     return (
         <>
-            {/* ── Top card ───────────────────────────────────────────────── */}
+            {/* ── Top instruction card ───────────────────────────────────── */}
             <View style={styles.topCard} pointerEvents="none">
                 <View style={styles.primaryRow}>
                     <View style={styles.instructionBlock}>
                         <Text style={styles.primaryText} numberOfLines={2}>
                             {step?.instruction ?? "Follow the path"}
                         </Text>
-                        {step?.distanceFt ? (
-                            <Text style={styles.primaryDist}>{Math.round(step.distanceFt)} ft</Text>
-                        ) : null}
+                        {step && step.displayFt > 0 && (
+                            <Text style={styles.primaryDist}>{Math.round(step.displayFt)} ft</Text>
+                        )}
                     </View>
                     <View style={styles.arrowCircle}>
-                        <Ionicons name={step ? iconFor(step.instruction) : "arrow-up"} size={32} color="white" />
+                        <Ionicons
+                            name={step ? iconFor(step.instruction) : "arrow-up"}
+                            size={32}
+                            color="white"
+                        />
                     </View>
                 </View>
                 <View style={styles.cardDivider} />
@@ -160,30 +200,34 @@ export default function NavOverlay({ route, destinationLabel, onEndRoute }: Prop
                 style={[styles.pill, { height: pillHeight }]}
                 {...panResponder.panHandlers}
             >
-                {/* Drag handle */}
                 <View style={styles.pillHandle} />
 
-                {/* Stats — always visible */}
+                {/* Stats — strict equal thirds via flex:1 on each block */}
                 <View style={styles.statsRow}>
                     <View style={styles.statBlock}>
-                        <Text style={styles.statVal}>{formatETA(route.totalWalkSeconds)}</Text>
+                        <Text style={styles.statVal} numberOfLines={1} adjustsFontSizeToFit>
+                            {formatETA(remainingSecs)}
+                        </Text>
                         <Text style={styles.statLbl}>arrival</Text>
                     </View>
                     <View style={styles.statDiv} />
                     <View style={styles.statBlock}>
-                        <Text style={styles.statVal}>{Math.ceil(route.totalWalkSeconds / 60)}</Text>
+                        <Text style={styles.statVal}>
+                            {Math.ceil(remainingSecs / 60)}
+                        </Text>
                         <Text style={styles.statLbl}>min</Text>
                     </View>
                     <View style={styles.statDiv} />
                     <View style={styles.statBlock}>
-                        <Text style={styles.statVal}>{Math.round(route.totalDistanceFt)}</Text>
+                        <Text style={styles.statVal}>
+                            {Math.round(route.totalDistanceFt)}
+                        </Text>
                         <Text style={styles.statLbl}>feet</Text>
                     </View>
                 </View>
 
-                {/* Expanded content — fades in when pill opens */}
+                {/* Expanded section fades in as pill opens */}
                 <Animated.View style={[styles.expandedWrap, { opacity: expandedOpacity }]}>
-                    {/* Destination */}
                     {roomNum ? (
                         <View style={styles.destRow}>
                             <Ionicons name="location" size={17} color="rgba(255,255,255,0.75)" />
@@ -191,26 +235,32 @@ export default function NavOverlay({ route, destinationLabel, onEndRoute }: Prop
                         </View>
                     ) : null}
 
-                    {/* Step list — scrollable so it works for long routes */}
                     <Animated.View style={{ maxHeight: stepListHeight, overflow: "hidden" }}>
                         <ScrollView
                             showsVerticalScrollIndicator={false}
                             nestedScrollEnabled
                             scrollEnabled={isExpanded.current}
                         >
-                            {steps.map((s, i) => (
+                            {merged.map((s, i) => (
                                 <View key={i} style={[styles.stepRow, i > 0 && styles.stepBorder]}>
-                                    <Ionicons name={iconFor(s.instruction)} size={15} color="rgba(255,255,255,0.65)" />
-                                    <Text style={styles.stepTxt} numberOfLines={2}>{s.instruction}</Text>
-                                    {s.distanceFt > 0 && (
-                                        <Text style={styles.stepDist}>{Math.round(s.distanceFt)} ft</Text>
+                                    <Ionicons
+                                        name={iconFor(s.instruction)}
+                                        size={15}
+                                        color="rgba(255,255,255,0.65)"
+                                    />
+                                    <Text style={styles.stepTxt} numberOfLines={2}>
+                                        {s.instruction}
+                                    </Text>
+                                    {s.displayFt > 0 && (
+                                        <Text style={styles.stepDist}>
+                                            {Math.round(s.displayFt)} ft
+                                        </Text>
                                     )}
                                 </View>
                             ))}
                         </ScrollView>
                     </Animated.View>
 
-                    {/* End route */}
                     <Pressable style={styles.endBtn} onPress={onEndRoute}>
                         <Text style={styles.endBtnTxt}>End Route</Text>
                     </Pressable>
@@ -221,12 +271,10 @@ export default function NavOverlay({ route, destinationLabel, onEndRoute }: Prop
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
-
 const DARK  = "rgba(20, 30, 50, 0.94)";
 const DARK2 = "rgba(30, 42, 64, 0.88)";
 
 const styles = StyleSheet.create({
-    // Top card
     topCard: {
         position: "absolute", top: 52, left: 12, right: 12, zIndex: 50,
         backgroundColor: DARK, borderRadius: 22, overflow: "hidden",
@@ -238,8 +286,8 @@ const styles = StyleSheet.create({
         paddingVertical: 18, paddingLeft: 20, paddingRight: 16, gap: 12,
     },
     instructionBlock: { flex: 1, gap: 2 },
-    primaryText: { fontSize: 22, fontWeight: "800", color: "white", lineHeight: 28 },
-    primaryDist: { fontSize: 15, color: "rgba(255,255,255,0.55)", fontWeight: "600" },
+    primaryText:  { fontSize: 22, fontWeight: "800", color: "white", lineHeight: 28 },
+    primaryDist:  { fontSize: 15, color: "rgba(255,255,255,0.55)", fontWeight: "600" },
     arrowCircle: {
         width: 58, height: 58, borderRadius: 29,
         backgroundColor: "rgba(255,255,255,0.12)",
@@ -253,7 +301,6 @@ const styles = StyleSheet.create({
     },
     nextText: { fontSize: 15, color: "rgba(255,255,255,0.6)", fontWeight: "600", flex: 1 },
 
-    // Pill
     pill: {
         position: "absolute", bottom: 28,
         left: PILL_INSET, right: PILL_INSET,
@@ -268,17 +315,30 @@ const styles = StyleSheet.create({
         marginTop: 10, marginBottom: 2,
     },
 
-    // Stats
+    // Equal thirds: flex:1 on each block, no justifyContent:'space-around'
     statsRow: {
-        flexDirection: "row", alignItems: "center",
-        justifyContent: "space-around", paddingVertical: 8,
+        flexDirection: "row",
+        alignItems: "center",
+        paddingVertical: 8,
     },
-    statBlock: { alignItems: "center", gap: 2 },
-    statVal: { fontSize: 28, fontWeight: "800", color: "white" },
-    statLbl: { fontSize: 12, color: "rgba(255,255,255,0.45)", fontWeight: "500" },
+    statBlock: {
+        flex: 1,
+        alignItems: "center",
+        gap: 2,
+    },
+    // Font size 22 so the ETA time string (e.g. "12:45 PM") never overflows
+    statVal: {
+        fontSize: 22,
+        fontWeight: "800",
+        color: "white",
+    },
+    statLbl: {
+        fontSize: 11,
+        color: "rgba(255,255,255,0.45)",
+        fontWeight: "500",
+    },
     statDiv: { width: 1, height: 36, backgroundColor: "rgba(255,255,255,0.12)" },
 
-    // Expanded
     expandedWrap: { gap: 8, paddingBottom: 8 },
     destRow: {
         flexDirection: "row", alignItems: "center", gap: 10,
@@ -286,15 +346,13 @@ const styles = StyleSheet.create({
         backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 14,
     },
     destText: { fontSize: 16, fontWeight: "700", color: "white", flex: 1 },
-
     stepRow: {
         flexDirection: "row", alignItems: "center",
         paddingVertical: 9, gap: 10,
     },
     stepBorder: { borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.07)" },
-    stepTxt: { flex: 1, fontSize: 14, color: "rgba(255,255,255,0.72)", fontWeight: "500" },
+    stepTxt:  { flex: 1, fontSize: 14, color: "rgba(255,255,255,0.72)", fontWeight: "500" },
     stepDist: { fontSize: 13, color: "rgba(255,255,255,0.4)", fontWeight: "500" },
-
     endBtn: {
         backgroundColor: "#E74C3C", borderRadius: 16,
         paddingVertical: 16, alignItems: "center", marginTop: 6,

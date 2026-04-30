@@ -1,5 +1,8 @@
 import React from "react";
 import * as THREE from "three";
+import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry";
+import { FontLoader } from "three/examples/jsm/loaders/FontLoader";
+import helvetiker from "three/examples/fonts/helvetiker_regular.typeface.json";
 
 export type RoomBox = {
   id: string;
@@ -345,6 +348,49 @@ export function getNavNodeId(
   return room?.navNodeId ?? null;
 }
 
+function RoomLabel({ room, selected }: { room: RoomBox; selected: boolean }) {
+  const geometry = React.useMemo(() => {
+    const font = new FontLoader().parse(helvetiker as any);
+    const label = room.name.replace("Room ", "");
+
+    const geo = new TextGeometry(label, {
+      font,
+      size: 1.4,
+      height: 0.05,
+      curveSegments: 2,
+    });
+
+    geo.computeBoundingBox();
+
+    const box = geo.boundingBox;
+    if (box) {
+      const xOffset = -0.5 * (box.max.x - box.min.x);
+      const yOffset = -0.5 * (box.max.y - box.min.y);
+      geo.translate(xOffset, yOffset, 0);
+    }
+
+    return geo;
+  }, [room.name]);
+
+  return (
+      <mesh
+          geometry={geometry}
+          position={[
+            room.position[0],
+            room.position[1] + 1.2,
+            room.position[2],
+          ]}
+          rotation={[-Math.PI / 2, 0, -Math.PI / 2]}
+          renderOrder={1004}
+      >
+        <meshBasicMaterial
+            color={selected ? "#1A6BFF" : "#1A365D"}
+            depthTest={false}
+        />
+      </mesh>
+  );
+}
+
 export default function RoomHitboxes({
                                        activeFloor,
                                        selectedRoom,
@@ -357,30 +403,39 @@ export default function RoomHitboxes({
         {rooms.map((room) => {
           const isSelected = selectedRoom === room.id;
 
+          const isSpecial =
+              room.id.includes("bath") ||
+              room.id.includes("vending");
+
           return (
-              <mesh
-                  key={room.id}
-                  position={room.position}
-                  raycast={THREE.Mesh.prototype.raycast}
-                  onPointerDown={(e) => {
-                    e.stopPropagation();
-                    setSelectedRoom(isSelected ? null : room.id);
-                    console.log("clicked:", room.name, "->", room.navNodeId);
-                  }}
-              >
-                <boxGeometry args={room.size} />
-                <meshStandardMaterial
-                    color={isSelected ? "#2196F3" : "gray"}
-                    transparent
-                    opacity={0.4}
-                />
-              </mesh>
+              <group key={room.id}>
+                {/* Invisible hitbox */}
+                <mesh
+                    position={room.position}
+                    raycast={THREE.Mesh.prototype.raycast}
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      setSelectedRoom(isSelected ? null : room.id);
+                    }}
+                >
+                  <boxGeometry args={room.size} />
+                  <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+                </mesh>
+
+                {/* ONLY render label if not special */}
+                {!isSpecial && (
+                    <RoomLabel room={room} selected={isSelected} />
+                )}
+              </group>
           );
         })}
       </group>
   );
 }
 
+export function getRoomsForFloor(floor: 1 | 2 | 3): RoomBox[] {
+  return ROOM_DATA[floor] ?? [];
+}
 
 export function getRoomAtScreenPoint(
     x: number,
@@ -474,6 +529,7 @@ export function findRoomBySearch(floor: 1 | 2 | 3, query: string) {
     );
   });
 }
+
 export function findRoomsStartingWith(
   floor: 1 | 2 | 3,
   query: string
