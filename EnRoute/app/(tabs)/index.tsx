@@ -185,6 +185,18 @@ function zoomToNavStart(
   lerpPhiRef.current = Math.PI / 2.6;
 }
 
+function findRoomIdByNavNodeId(nodeId: string | null): string | null {
+  if (!nodeId) return null;
+
+  for (const floor of [1, 2, 3] as FloorNumber[]) {
+    const rooms = getRoomsForFloor(floor);
+    const room = rooms.find((r) => r.navNodeId === nodeId);
+    if (room) return room.id;
+  }
+
+  return null;
+}
+
 // ─── Floor model ──────────────────────────────────────────────────────────────
 
 function FloorModel({ source }: { source: number }) {
@@ -694,6 +706,15 @@ export default function HomeScreen() {
   useEffect(() => { selectedNodeRef.current = selectedNode; }, [selectedNode]);
   useEffect(() => { panelLevelRef.current   = panelLevel;   }, [panelLevel]);
 
+  useEffect(() => {
+    if (sheetView === "directions" && selectedNode) {
+      const roomId = findRoomIdByNavNodeId(selectedNode.id);
+      if (roomId) {
+        setSelectedRoom(roomId);
+      }
+    }
+  }, [sheetView, selectedNode]);
+  
   const expandedPanelHeight = useMemo(() => {
     const rawHeight = mapSize.height * EXPANDED_HEIGHT_FRACTION;
     return Math.max(MID_HEIGHT + 1, rawHeight);
@@ -1238,6 +1259,25 @@ export default function HomeScreen() {
       lerpRadiusRef.current = zoomInRadius;
     }
   }, []);
+  const getFromNodeId = useCallback((): string => {
+    if (DEMO_MODE) return DEMO_START_NODE;
+
+    if (!location) return START_NODE_ID;
+
+    const { x, y } = gpsToNodeCoords(
+        location.coords.latitude,
+        location.coords.longitude
+    );
+
+    const nearest = snapToNode(x, y, activeFloorRef.current);
+
+    if (nearest) {
+      console.log("[from node]", nearest.id, nearest.label);
+      return nearest.id;
+    }
+
+    return START_NODE_ID;
+  }, [location, snapToNode]);
 
   // Double-tap to select room → zoom into it + open detail sheet
   const handleRoomSelect = useCallback(
@@ -1267,10 +1307,22 @@ export default function HomeScreen() {
         setSelectedRoom(hitboxId);
         setSelectedNode(node);
         setSheetView("detail");
-        setActiveRoute(null);
-        setPathWaypoints([]);
-        focusRoom(hitboxId, activeFloorRef.current);
         setShowCollapsedPill(false);
+        focusRoom(hitboxId, activeFloorRef.current);
+
+        // Pre-calculate route so detail sheet shows accurate time
+        if (node) {
+          const fromId = getFromNodeId();
+          const previewRoute = getTestRoute(fromId, node.id);
+          const previewWaypoints = routeToWaypoints(previewRoute);
+          setActiveRoute(previewRoute);
+          setPathWaypoints(previewWaypoints);
+          setFlooredWaypoints(routeToWaypointsWithFloor(previewRoute));
+        } else {
+          setActiveRoute(null);
+          setPathWaypoints([]);
+          setFlooredWaypoints([]);
+        }
 
         setTimeout(() => {
           bottomSheetRef.current?.snapToIndex(0);
@@ -1278,7 +1330,7 @@ export default function HomeScreen() {
           sheetIndexRef.current = 0;
         }, 50);
       },
-      [focusRoom]
+      [focusRoom, getFromNodeId, getTestRoute]
   );
   // DEMO VALUES
   const DEMO_MODE = true;
@@ -1286,25 +1338,7 @@ export default function HomeScreen() {
   const DEMO_START_NODE = "vending0";  // ← change to "room_1263_a" for second demo
 
 
-  const getFromNodeId = useCallback((): string => {
-    if (DEMO_MODE) return DEMO_START_NODE;
-
-    if (!location) return START_NODE_ID;
-
-    const { x, y } = gpsToNodeCoords(
-        location.coords.latitude,
-        location.coords.longitude
-    );
-
-    const nearest = snapToNode(x, y, activeFloorRef.current);
-
-    if (nearest) {
-      console.log("[from node]", nearest.id, nearest.label);
-      return nearest.id;
-    }
-
-    return START_NODE_ID;
-  }, [location, snapToNode]);
+  
 
   const handleNavigate = useCallback(
       (accessible = false) => {
@@ -1963,8 +1997,8 @@ export default function HomeScreen() {
 
           {pinMode && <View style={styles.pinOverlay} {...pinPanResponder.panHandlers} />}
 
-          <TestPathLabel label={selectedNode?.label} isNavigating={isNavigating} />
 
+          
           {isNavigating && activeRoute && (
               <NavOverlay
                   route={activeRoute}
@@ -2440,6 +2474,8 @@ export default function HomeScreen() {
                   {sheetView === "detail" && selectedNode && (
                       <RoomDetailSheet
                           node={selectedNode}
+                          estimatedMinutes={activeRoute ? Math.ceil(activeRoute.totalWalkSeconds / 60) : undefined}
+
                           onNavigate={() => handleNavigate(false)}
                           onDismiss={() => {
                             setSelectedRoom(null);

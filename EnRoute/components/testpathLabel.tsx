@@ -14,9 +14,14 @@ const LIFT_PX = 60;
 type LabelProps = {
     label?: string;
     isNavigating?: boolean;
+    sheetIndex?: number;
 };
 
-export default function TestPathLabel({ label, isNavigating = false }: LabelProps) {
+export default function TestPathLabel({
+                                          label,
+                                          isNavigating = false,
+                                          sheetIndex = 1,
+                                      }: LabelProps) {
     const animX   = useRef(new Animated.Value(-999)).current;
     const animY   = useRef(new Animated.Value(-999)).current;
     const visible = useRef(new Animated.Value(0)).current;
@@ -26,7 +31,7 @@ export default function TestPathLabel({ label, isNavigating = false }: LabelProp
 
         function tick() {
             const pos = endLabelPosRef.current;
-            if (pos && !isNavigating) {
+            if (pos && !isNavigating && sheetIndex < 1) {
                 animX.setValue(pos.x - PILL_W / 2);
                 animY.setValue(pos.y - PILL_H - LIFT_PX);
                 visible.setValue(1);

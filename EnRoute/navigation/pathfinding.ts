@@ -7,7 +7,7 @@
 import type { NavNode, NavEdge } from './db';
 
 // avg walking speed
-const WALK_FT_PER_SEC = 4.4;
+const WALK_FT_PER_SEC = 0.58;
 
 // floor transitions
 const FLOOR_TRANSITION_PENALTY_SEC = 30;
