@@ -2,6 +2,7 @@ import { StyleSheet, TextInput, View, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import ProfileButton from "./profile";
 
+// Props for reuasbale search bar component
 type SearchBarRowProps = {
   search: string;
   setSearch: (value: string) => void;
@@ -10,6 +11,7 @@ type SearchBarRowProps = {
   onSubmitSearch?: () => void;
 };
 
+// Search bar row component with exapndable input + profile shortcut
 export default function SearchBarRow({
   search,
   setSearch,
@@ -54,12 +56,15 @@ export default function SearchBarRow({
 }
 
 const styles = StyleSheet.create({
+  // Horizontal wrapper for search bar + profile button
   searchRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
     marginBottom: 16,
   },
+
+  // Search input outer pill container
   searchInputContainer: {
     flex: 1,
     minHeight: 42,
@@ -71,9 +76,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ddd",
   },
+
+  // Search icon spacing
   searchIcon: {
     marginRight: 8,
   },
+
+  // Text input styling
   searchBar: {
     flex: 1,
     minHeight: 20,

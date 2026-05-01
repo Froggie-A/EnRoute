@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
+// Props defintion for reusable EventCard component
 type EventCardProps = {
   title: string;
   date: string;
@@ -11,6 +12,7 @@ type EventCardProps = {
   onPress?: () => void;
 };
 
+// Reusable card component for displaying campus / club events
 export default function EventCard({
   title,
   date,
@@ -38,6 +40,7 @@ export default function EventCard({
 }
 
 const styles = StyleSheet.create({
+  // main card container
   card: {
     backgroundColor: "rgba(253, 254, 238, 1)",
     boxShadow: '0px 4px 4px 2px rgba(0, 0, 0, 0.1)',
@@ -49,17 +52,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(0,0,0,0.04)",
   },
+
+  // Header row containing icon + title
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     marginBottom: 6,
   },
+
+  // Event title
   cardTitle: {
     fontSize: 16,
     fontWeight: "600",
     color: "#222",
   },
+
+  //Secondary event details text
   cardSubtitle: {
     fontSize: 13,
     color: "#666",

@@ -292,6 +292,7 @@ export default function HomeScreen() {
     return () => sub.remove();
   }, []);
 
+  // Expands or collapses the search panel to a specific height
   const snapPanelTo = useCallback(
       (toValue: number) => {
         let level: "collapsed" | "mid" | "full" = "collapsed";
@@ -299,6 +300,7 @@ export default function HomeScreen() {
         if (toValue === MID_HEIGHT) level = "mid";
         if (toValue === expandedPanelHeight) level = "full";
 
+        // Reset search-related state when returning to collasped pill mode
         if (level === "collapsed") {
           Keyboard.dismiss();
           resetCollapsedPanel();
@@ -380,7 +382,7 @@ export default function HomeScreen() {
 
 
 
-
+  // Matches the search test against nearby filter names and aliases
   const searchedFilters = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return [];
@@ -434,6 +436,7 @@ export default function HomeScreen() {
       }
     }
 
+    // Filter normal events results by room number, title, or club name
     const normalEvents = events.filter((event) => {
       if (!query) return true;
 
@@ -648,16 +651,19 @@ export default function HomeScreen() {
       [pinMode, getPinPointFromTouch]
   );
 
+  // Expands the floating search pill into the mid-hegiht panel
   const expandStretchPanel = useCallback(() => {
     setShowCollapsedPill(true);
     snapPanelTo(MID_HEIGHT);
   }, [snapPanelTo]);
 
+  // Expands the search panel to full height when user taps/focuses
   const expandFullyPanel = useCallback(() => {
     setShowCollapsedPill(true);
     snapPanelTo(expandedPanelHeight);
   }, [expandedPanelHeight, snapPanelTo]);
 
+  // Collapses the search panel back into the floating pill
   const collapseStretchPanel = useCallback(() => {
     snapPanelTo(COLLAPSED_HEIGHT);
   }, [snapPanelTo]);
@@ -879,6 +885,7 @@ export default function HomeScreen() {
     setTimeout(() => setShowCollapsedPill(true), 300);
   }, []);
 
+  // Opens the search panel and resets the sheet view to default content
   const openSheet = useCallback(() => {
     setSheetView("default");
     expandFullyPanel();
@@ -1486,6 +1493,7 @@ export default function HomeScreen() {
               />
           )}
 
+          Floating search pill  / expandable panel
           {!isNavigating && showCollapsedPill && (
               <Animated.View
                   style={[
@@ -1498,6 +1506,7 @@ export default function HomeScreen() {
                     },
                   ]}
               >
+                {/*Animated panel background that changes pill to sheet */}
                 <Animated.View
                     style={[
                       styles.stretchPanel,
@@ -1525,6 +1534,7 @@ export default function HomeScreen() {
                       <View style={styles.stretchHandle} />
                     </View>
 
+                    {/* Hide search bar when viewing event details or profile */}
                     {!selectedEvent && panelView !== "profile" && (
                         <View style={styles.stretchSearchShell}>
                           <SearchBarRow
@@ -1601,12 +1611,14 @@ export default function HomeScreen() {
                                 <Text style={styles.sectionTitle}>Events</Text>
                             )}
 
+                            {/* Filter results that appear when search matches nearby categories */}
                             {searchedFilters.map((filter) => (
                                 <Pressable
                                     key={filter}
                                     style={styles.filterResultCard}
                                     onPress={() => {
                                       setMapFilterResults([filter]);
+                                      // Clear search and collapse panel after selecting filter
                                       setSearch("");
                                       setSelectedEvent(null);
                                       setPanelView("main");
@@ -1628,6 +1640,7 @@ export default function HomeScreen() {
                                 </Pressable>
                             ))}
 
+                            {/* Event and room search results */}
                             {filteredEvents.map((event, index) => (
                                 <EventCard
                                     key={`${event.id}-${event.location}-${index}`}

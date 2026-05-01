@@ -1,5 +1,6 @@
 import { StyleSheet, Text, Pressable, ScrollView, View } from "react-native";
 
+// List of selectable nearby amenities / points of interest
 const nearbyItems = [
   "Restrooms",
   "Study Rooms",
@@ -11,6 +12,7 @@ const nearbyItems = [
   "Defibrillators",
 ];
 
+// Horizontal filer chip component for selecting nearby locations/features
 export default function NearbyChips({
   selected,
   setSelected,
@@ -18,6 +20,7 @@ export default function NearbyChips({
   selected: string[];
   setSelected: (items: string[]) => void;
 }) {
+  // Toggles chip selection on/off
   const toggle = (item: string) => {
     if (selected.includes(item)) {
       setSelected(selected.filter((i) => i !== item));
@@ -27,6 +30,7 @@ export default function NearbyChips({
   };
 
   return (
+    // Wrapper enables touch handling inside nested scrolling layouts
     <View onStartShouldSetResponder={() => true}>
       <ScrollView
         horizontal
@@ -55,6 +59,8 @@ export default function NearbyChips({
 }
 
 const styles = StyleSheet.create({
+
+  // Horizontal chip container
   chipRow: {
     flexDirection: "row",
     flexWrap: "nowrap",
@@ -62,6 +68,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
+
+  // Default chip styling
   chip: {
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -70,14 +78,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(0,0,0,0.1)",
   },
+
+  // Active / selected chip state
   chipActive: {
     backgroundColor: "#1B4466",
   },
+
+  // Default chip text styling
   chipText: {
     fontSize: 13,
     fontWeight: "600",
     color: "#222",
   },
+
+  // Active chip text color
   chipTextActive: {
     color: "#f2f2f2",
   },

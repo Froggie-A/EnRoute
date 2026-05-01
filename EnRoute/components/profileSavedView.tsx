@@ -6,6 +6,7 @@ import { styles } from "@/styles/homeScreenStyles";
 import type { Pin } from "@/components/PinLayer";
 import { SwipeDeletePinRow } from "@/components/swipeDeletePin";
 
+// Props for the saved profile view
 type Props = {
   savedEvents: any[];
   pins: Pin[];
@@ -17,6 +18,7 @@ type Props = {
   onDeletePin: (index: number) => void;
 };
 
+// Displays user profile information and saved app content
 export default function ProfileSavedView({
   savedEvents,
   pins,
@@ -28,6 +30,7 @@ export default function ProfileSavedView({
 }: Props) {
   return (
     <View style={styles.profileSavedView}>
+      {/* Profile header card */}
       <View style={styles.profileCard}>
         <View style={styles.profileInfo}>
           <View style={styles.profileAvatar}>
@@ -45,6 +48,7 @@ export default function ProfileSavedView({
         </Pressable>
       </View>
 
+      {/* Saved events section */}
       <Text style={styles.profileTitle}>Saved Events</Text>
 
       <View style={styles.savedCard}>
@@ -61,7 +65,7 @@ export default function ProfileSavedView({
           ))
         )}
       </View>
-
+      {/* Saved rooms section */}
       <Text style={styles.profileTitle}>Saved Rooms</Text>
 
       <View style={styles.savedCard}>
@@ -69,7 +73,8 @@ export default function ProfileSavedView({
         <Text style={styles.savedItem}>PFT 1200</Text>
         <Text style={styles.savedItem}>PFT 1225</Text>
       </View>
-
+      
+      {/* Saved custom pins section */}
       <Text style={styles.profileTitle}>Saved Pins</Text>
 
       <View style={styles.savedCard}>
