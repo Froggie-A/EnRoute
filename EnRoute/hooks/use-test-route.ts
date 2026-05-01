@@ -1,9 +1,6 @@
 // hooks/use-test-route.ts
-//
-// Runs A* pathfinding directly on the in-memory test graph.
-// No SQLite, no seeding, no DB version bump needed.
-//
-// Edit seed-nodes-test.ts and Ctrl+S → Metro hot-reloads, path updates instantly.
+// Hook that returns a getTestRoute function for running A* directly on the in-memory test graph.
+// Intended for quick iteration — edit seed-nodes.ts and hot-reload updates the path instantly.
 
 import { useMemo } from "react";
 import { TEST_NODES, TEST_EDGES } from "@/navigation/seed-nodes";
@@ -11,6 +8,7 @@ import { findRoute } from "@/navigation/pathfinding";
 import type { NavNode, NavEdge } from "@/navigation/db";
 import type { RouteResult } from "@/navigation/pathfinding";
 
+/** Computes edge costs from node coordinates for the test graph. */
 function buildEdges(nodes: NavNode[]): NavEdge[] {
     const nodeMap = new Map(nodes.map(n => [n.id, n]));
     return TEST_EDGES.map(edge => {
@@ -31,6 +29,7 @@ function buildEdges(nodes: NavNode[]): NavEdge[] {
     });
 }
 
+/** Returns a getTestRoute function that runs A* on the in-memory test graph. */
 export function useTestRoute() {
     const edges = useMemo(() => buildEdges(TEST_NODES), []);
 

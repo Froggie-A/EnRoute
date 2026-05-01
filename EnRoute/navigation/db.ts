@@ -1,5 +1,8 @@
 // navigation/db.ts
 
+// Initializes and manages the SQLite database for navigation data.
+// Handles schema creation, seeding nodes/edges from seed-nodes.ts, and querying nodes and edges.
+
 import { openDatabaseSync, SQLiteDatabase } from "expo-sqlite";
 import { TEST_NODES as SEED_NODES, computeEdgeCosts } from "./seed-nodes";
 
@@ -45,6 +48,7 @@ export interface NavEdge {
 
 let _db: SQLiteDatabase | null = null;
 
+/** Returns the singleton SQLite database, opening it on first call. */
 export function getDb(): SQLiteDatabase {
     if (!_db) {
         _db = openDatabaseSync("enroute.db");
@@ -53,6 +57,7 @@ export function getDb(): SQLiteDatabase {
     return _db;
 }
 
+/** Creates the nav_nodes, nav_edges, and app_meta tables if they don't exist. */
 export function initSchema(): void {
     const db = getDb();
     db.execSync(`
@@ -85,9 +90,9 @@ export function initSchema(): void {
   `);
 }
 
-// Bump when seed data changes to force a re-seed on next launch
 const SEED_VERSION = "7";
 
+/** Seeds the database with node and edge data if the stored seed version doesn't match. */
 export function seedIfNeeded(): void {
     const db = getDb();
     const row = db.getFirstSync<{ value: string }>(
@@ -123,6 +128,7 @@ export function seedIfNeeded(): void {
     db.runSync("INSERT OR REPLACE INTO app_meta (key, value) VALUES ('seed_version', ?)", [SEED_VERSION]);
 }
 
+/** Returns all nav nodes, optionally filtered by floor. */
 export function getNodes(floor?: number): NavNode[] {
     const db = getDb();
     const rows = floor !== undefined
@@ -131,17 +137,18 @@ export function getNodes(floor?: number): NavNode[] {
     return rows.map(rowToNode);
 }
 
+/** Returns a single node by ID, reading from in-memory TEST_NODES. */
 export function getNode(id: string): NavNode | null {
-    // Read directly from in-memory TEST_NODES — instant, no SQLite round-trip.
-    // This always has the latest data regardless of whether seedIfNeeded() has run.
     return SEED_NODES.find(n => n.id === id) ?? null;
 }
 
+/** Returns all nav edges from the database. */
 export function getEdges(): NavEdge[] {
     const db = getDb();
     return db.getAllSync<any>("SELECT * FROM nav_edges").map(rowToEdge);
 }
 
+/** Returns all nodes of a given type, optionally filtered by floor. */
 export function getNodesByType(type: NodeType, floor?: number): NavNode[] {
     const db = getDb();
     const rows = floor !== undefined

@@ -1,11 +1,25 @@
-// components/UserLocationMarker.tsx
-//
-// ══════════════════════════════════════════════════════════════════════════════
-const DEMO_MODE       = true;
-// ── Demo start: match this to DEMO_START_NODE in index.tsx ──
-const DEMO_START_NODE = "room_1263_cen";  // ← "vending0" or "room_1263_a"
+/**
+ * UserLocationMarker.tsx
+ *
+ * This component is responsible for tracking and visualizing the user’s position
+ * within the indoor navigation system. Instead of relying purely on GPS, it uses
+ * a hybrid “confidence-based” approach that combines multiple device sensors:
+ *
+ * - accelerometer → detects steps to estimate movement between nodes
+ * - magnetometer / deviceMotion → determines heading and direction of travel
+ * - GPS (bootstrapping only) → provides an initial approximate position
+ *
+ * The user’s position is mapped onto a predefined navigation graph
+ * Movement between nodes is not continuous, but inferred through
+ * - step counts required per edge
+ * - heading alignment with neighboring nodes
+ * - confidence thresholds to prevent incorrect transitions
+ *
+**/
+
+ const DEMO_MODE       = true;
+const DEMO_START_NODE = "vending0";
 const STEP_BUFFER     = 0;
-// ══════════════════════════════════════════════════════════════════════════════
 
 import React, { useMemo, useRef, useEffect, useState } from "react";
 import * as THREE from "three";
@@ -13,7 +27,6 @@ import { useFrame } from "@react-three/fiber/native";
 import { Accelerometer, Gyroscope, Magnetometer, DeviceMotion } from "expo-sensors";
 import { TEST_NODES, TEST_EDGES } from "@/navigation/seed-nodes";
 
-// ─── Measured step counts (ground truth) ─────────────────────────────────────
 const DEMO_EDGE_STEPS: Record<string, number> = {
     "vending0|hallway82":     5,
     "hallway82|hallway30":    6,
@@ -44,7 +57,6 @@ const DEMO_EDGE_STEPS: Record<string, number> = {
 
 const STEP_M = 0.58, METERS_PER_NODE = 1.063;
 
-// ─── Graph ────────────────────────────────────────────────────────────────────
 const NB = new Map<string, Set<string>>();
 const NM = new Map<string, { id: string; x: number; y: number; floor: number }>();
 for (const n of TEST_NODES) { NB.set(n.id, new Set()); NM.set(n.id, n); }
@@ -53,6 +65,7 @@ for (const e of TEST_EDGES) {
     if (e.bidirectional) NB.get(e.toNodeId)?.add(e.fromNodeId);
 }
 
+/** Returns the step count required to traverse the edge between two nodes, using measured ground-truth data when available. */
 function requiredSteps(fromId: string, toId: string): number {
     const key = `${fromId}|${toId}`, rev = `${toId}|${fromId}`;
     const m = DEMO_EDGE_STEPS[key] ?? DEMO_EDGE_STEPS[rev];
@@ -62,62 +75,62 @@ function requiredSteps(fromId: string, toId: string): number {
     return Math.max(1, Math.round(Math.hypot(b.x - a.x, b.y - a.y) * METERS_PER_NODE / STEP_M) - STEP_BUFFER);
 }
 
-// ─── GPS ──────────────────────────────────────────────────────────────────────
 const LAT_MEAN = 30.4076288440, LON_MEAN = -91.1800997696;
 const LAT_SCALE = 111000.0, LON_SCALE = 96000.0;
+
+/** Converts GPS coordinates to local model-space (x, y) using a fixed origin and scale. */
 function gpsToNode(lat: number, lon: number) {
     const dlat = (lat - LAT_MEAN) * LAT_SCALE, dlon = (lon - LON_MEAN) * LON_SCALE;
     return { x: 0.81915305*dlat + 0.66436662*dlon - 8.66666667,
         y: -0.30001749*dlat + 0.72257358*dlon - 19.66666667 };
 }
 
-// ─── Heading (for reroute detection and free-roam only) ───────────────────────
 const EAST_NX=0.676834, EAST_NY=0.736135, NORTH_NX=0.939000, NORTH_NY=-0.343916;
 const HEADING_OFFSET = 180;
+/** Converts a compass heading in degrees to a normalized (dx, dy) direction vector in model space. */
 function headingToDir(deg: number) {
     const h = ((deg + HEADING_OFFSET + 360) % 360) * Math.PI / 180;
     return { dx: Math.sin(h)*EAST_NX + Math.cos(h)*NORTH_NX,
         dy: Math.sin(h)*EAST_NY + Math.cos(h)*NORTH_NY };
 }
+/** Computes the circular mean of an array of degree values. */
 function circMean(a: number[]) {
     let sx=0,cx=0;
     for (const v of a) { sx+=Math.sin(v*Math.PI/180); cx+=Math.cos(v*Math.PI/180); }
     const m = Math.atan2(sx/a.length, cx/a.length) * 180/Math.PI;
     return m < 0 ? m+360 : m;
 }
+/** Returns the circular confidence (resultant length) of an array of degree values, ranging 0–1. */
 function circConf(a: number[]) {
     if (a.length < 2) return 0.4;
     let sx=0,cx=0;
     for (const v of a) { sx+=Math.sin(v*Math.PI/180); cx+=Math.cos(v*Math.PI/180); }
     return Math.sqrt((sx/a.length)**2 + (cx/a.length)**2);
 }
+/** Returns the normalized direction vector from node A to node B, or null if either is missing or coincident. */
 function nodeDir(a: string, b: string) {
     const na=NM.get(a), nb=NM.get(b);
     if (!na||!nb) return null;
     const dx=nb.x-na.x, dy=nb.y-na.y, d=Math.hypot(dx,dy);
     return d < 0.001 ? null : { dx:dx/d, dy:dy/d };
 }
+/** Returns the dot product of the heading direction and the target direction — positive means aligned. */
 function headingAlign(deg: number, dir: {dx:number,dy:number}) {
     const h = headingToDir(deg);
     return h.dx*dir.dx + h.dy*dir.dy;
 }
 
-// ─── Tuning ───────────────────────────────────────────────────────────────────
 const ACCEL_MS = 40, MAG_MS = 100, DM_MS = 100;
 
-// Step detection — your devs are consistently 2.3–5.5, threshold is fine
 const STEP_THRESH = 2.2;  // slightly lower for sensitivity
-const STEP_MIN_MS = 300;  // 300ms = max ~3.3 steps/sec (faster than before)
+const STEP_MIN_MS = 300;  // 300ms = max ~3.3 steps/sec
 const ACCEL_BUF   = 4;    // smaller buffer = faster response
 
-// Reroute: only fires when heading is confidently wrong for many steps
-// In demo mode this is very conservative — 14 steps facing wrong direction
 const DEMO_REROUTE_STEPS   = 14;
 const NORMAL_REROUTE_STEPS = 5;
 const MISALIGN_DOT         = -0.30;
 const REROUTE_MAG_MIN      = 0.55;
 
-// Free-roam (non-navigating only)
 const FREE_MAG_MIN   = 0.45;
 const FREE_ALIGN_MIN = 0.50;
 const FREE_GAP_MIN   = 0.15;
@@ -135,8 +148,13 @@ type Props = {
     bleBeacons?: BleBeacon[];
 };
 
-const FY: Record<1|2|3, number> = { 1:0.05, 2:0.15, 3:0.25 };
+const FY: Record<1|2|3, number> = {
+    1: -0.15,
+    2: -0.15,
+    3: -0.15,
+};
 
+/** Builds a chevron Shape geometry for the direction indicator. */
 function makeChevron(s=0.05): THREE.Shape {
     const sh = new THREE.Shape();
     sh.moveTo(0,-s*1.2); sh.lineTo(s*.55,s*.7); sh.lineTo(s*.18,s*.3);
@@ -144,6 +162,7 @@ function makeChevron(s=0.05): THREE.Shape {
     return sh;
 }
 
+/** Tracks user position on the nav graph using step detection and heading, rendering a 3D marker at the current node. */
 export default function UserLocationMarker({
                                                latitude, longitude, gpsAccuracy=20,
                                                activeFloor, isNavigating=false,
@@ -164,12 +183,10 @@ export default function UserLocationMarker({
     const dmHeading = useRef<number|null>(null);
     const lastStep  = useRef(0);
 
-    // Edge tracking
     const edgeTarget    = useRef<string|null>(null);
     const edgeSteps     = useRef(0);
     const misalignCount = useRef(0);
 
-    // Stale-closure refs
     const routeRef  = useRef(routeNodeIds);
     const isNavRef  = useRef(isNavigating);
     const rerouteRef = useRef(onRerouteNeeded);
@@ -177,7 +194,6 @@ export default function UserLocationMarker({
     useEffect(() => { isNavRef.current  = isNavigating;    }, [isNavigating]);
     useEffect(() => { rerouteRef.current = onRerouteNeeded; }, [onRerouteNeeded]);
 
-    // ── Commit ────────────────────────────────────────────────────────────────
     const commit = (to: string, reason: string) => {
         const from = nodeRef.current;
         if (to === from) return;
@@ -192,7 +208,6 @@ export default function UserLocationMarker({
         console.log(`[ULM] ✓ ${from ?? "boot"}→${to}  (${reason})`);
     };
 
-    // ── Bootstrap ─────────────────────────────────────────────────────────────
     useEffect(() => {
         if (booted.current) return;
         if (DEMO_MODE) {
@@ -228,7 +243,6 @@ export default function UserLocationMarker({
         }
     }, [latitude, longitude, activeFloor]);
 
-    // ── Magnetometer ──────────────────────────────────────────────────────────
     useEffect(() => {
         Magnetometer.setUpdateInterval(MAG_MS);
         const sub = Magnetometer.addListener(({ x, y }) => {
@@ -240,7 +254,6 @@ export default function UserLocationMarker({
         return () => sub.remove();
     }, []);
 
-    // ── DeviceMotion ──────────────────────────────────────────────────────────
     useEffect(() => {
         let live = true;
         DeviceMotion.isAvailableAsync().then(ok => {
@@ -253,10 +266,6 @@ export default function UserLocationMarker({
         return () => { live = false; DeviceMotion.removeAllListeners(); };
     }, []);
 
-    // ── Accelerometer: pure step counter, NO gyro gate ────────────────────────
-    // The gyro was blocking nearly every step (gyroC=0.00 while walking).
-    // Phone held flat causes constant gyro noise. Removed entirely for nav mode.
-    // Reroute detection still uses magnetometer heading independently.
     useEffect(() => {
         Accelerometer.setUpdateInterval(ACCEL_MS);
         const sub = Accelerometer.addListener(({ x, y, z }) => {
@@ -274,7 +283,6 @@ export default function UserLocationMarker({
             const cur = nodeRef.current;
             if (!cur) return;
 
-            // ── NAVIGATION: pure step counting, no gyro gate ──────────────────
             if (isNavRef.current) {
                 const route = routeRef.current;
                 if (!route.length) return;
@@ -293,7 +301,6 @@ export default function UserLocationMarker({
                     rerouteRef.current?.(cur); return;
                 }
 
-                // Reroute: only using magnetometer, not gyro (gyro unreliable flat)
                 const heading = dmHeading.current
                     ?? (magBuf.current.length > 0 ? circMean(magBuf.current) : null);
                 const magStab = circConf(magBuf.current);
@@ -318,7 +325,6 @@ export default function UserLocationMarker({
                     misalignCount.current = 0;
                 }
 
-                // Track edge — reset only when target node changes (route update)
                 if (edgeTarget.current !== next) {
                     edgeTarget.current = next;
                     edgeSteps.current  = 0;
@@ -334,7 +340,6 @@ export default function UserLocationMarker({
                 return;
             }
 
-            // ── FREE-ROAM: heading-based (not navigating) ─────────────────────
             const heading = dmHeading.current
                 ?? (magBuf.current.length > 0 ? circMean(magBuf.current) : null);
             if (heading === null || magBuf.current.length < 2) return;
@@ -375,7 +380,6 @@ export default function UserLocationMarker({
         return () => sub.remove();
     }, [activeFloor]); // eslint-disable-line
 
-    // ── Reset ─────────────────────────────────────────────────────────────────
     useEffect(() => {
         if (currentNodeId === null) {
             nodeRef.current       = null;
@@ -389,7 +393,6 @@ export default function UserLocationMarker({
         }
     }, [currentNodeId]);
 
-    // ── Visual lerp ───────────────────────────────────────────────────────────
     useFrame(() => {
         const id = nodeRef.current;
         if (!id || !groupRef.current) return;
@@ -400,7 +403,6 @@ export default function UserLocationMarker({
         groupRef.current.position.copy(visualPos.current);
     });
 
-    // ── Geometry ──────────────────────────────────────────────────────────────
     const chevGeo = useMemo(
         () => new THREE.ExtrudeGeometry(makeChevron(0.05), { depth:0.008, bevelEnabled:false }),
         []

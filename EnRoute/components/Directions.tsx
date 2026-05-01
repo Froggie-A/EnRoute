@@ -1,23 +1,13 @@
+// Bottom sheet that displays a full directions view for a selected destination.
+// Shows the origin-to-destination route card, avoid-stairs toggle, route summary, and a merged step-by-step instruction list.
+
 import React, { useState, useMemo } from "react";
 import { View, Text, StyleSheet, Pressable, Switch } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { NavNode } from "@/navigation/db";
 import type { RouteResult, RouteStep } from "@/navigation/pathfinding";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// START NODE — change this to control where navigation starts from.
-//
-// When you are physically inside the building and GPS is working, the app
-// uses snapToNode() to find the nearest graph node to your real GPS location.
-// This constant is the FALLBACK used when GPS is unavailable or outside bounds.
-//
-// To test a specific starting room, change this to any node ID, e.g.:
-//   "hallwayC_12"   — center of building (hallway near rooms 1246/1258)
-//   "entrance_0"    — main entrance (east side)
-//   "entrance_5"    — side entrance C (west side)
-//   "hallway_1.16"  — hallway outside room 1253
-// ─────────────────────────────────────────────────────────────────────────────
-export const START_NODE_ID = "entrance0";  // matches seed-nodes-test.ts
+export const START_NODE_ID = "entrance0";
 
 type Props = {
     destination: NavNode;
@@ -35,22 +25,26 @@ type MergedStep = {
     isLast: boolean;
 };
 
+/** Formats a seconds value as a rounded-up minute string. */
 function formatMinutes(seconds: number): string {
     const mins = Math.ceil(seconds / 60);
     return `${mins} min`;
 }
 
+/** Returns a formatted ETA time string based on seconds from now. */
 function formatETA(seconds: number): string {
     const now = new Date();
     now.setSeconds(now.getSeconds() + seconds);
     return now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
+/** Formats a distance in feet, converting to miles if over 5280 ft. */
 function formatFeet(ft: number): string {
     if (ft >= 5280) return `${(ft / 5280).toFixed(1)} mi`;
     return `${ft} ft`;
 }
 
+/** Merges consecutive route steps with identical instructions to reduce visual noise. */
 function mergeSteps(steps: RouteStep[]): MergedStep[] {
     if (steps.length === 0) return [];
     const merged: MergedStep[] = [];
@@ -80,6 +74,7 @@ function mergeSteps(steps: RouteStep[]): MergedStep[] {
     return merged;
 }
 
+/** Returns the appropriate Ionicon name for a given route step. */
 function stepIcon(step: MergedStep): React.ComponentProps<typeof Ionicons>["name"] {
     if (step.isLast) return "location";
     if (step.isFloorTransition) return "swap-vertical";

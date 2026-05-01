@@ -1,15 +1,11 @@
 // navigation/pathfinding.ts
-// A* pathfinding for indoor navigation
-// cost is feet
-// walking speed: 4.4 ft/s (3mph)
-// returns RouteStep[] with ft, s, and bearing
+
+// A* pathfinding over the nav graph.
+// Computes the shortest route between two node IDs and returns step-by-step instructions with distances, walk times, and turn directions.
 
 import type { NavNode, NavEdge } from './db';
 
-// avg walking speed
 const WALK_FT_PER_SEC = 0.58;
-
-// floor transitions
 const FLOOR_TRANSITION_PENALTY_SEC = 30;
 
 export type TurnDirection =
@@ -27,26 +23,17 @@ export type TurnDirection =
 
 export interface RouteStep {
     node: NavNode;
-
     distanceFt: number;
-
     walkSeconds: number;
-
     instruction: string;
-
-    // (0 = north/up, 90 = east, 180 = south, 270 = west).
     bearing: number;
-
     isFloorTransition: boolean;
 }
 
 export interface RouteResult {
     steps: RouteStep[];
-
     totalDistanceFt: number;
-
     totalWalkSeconds: number;
-
     floorTransitions: number;
 }
 
@@ -92,18 +79,14 @@ class MinHeap {
     }
 }
 
-// geometry helpers
-
+/** Returns the Euclidean distance between two nodes. */
 function euclidean(a: NavNode, b: NavNode): number {
     const dx = a.x - b.x;
     const dy = a.y - b.y;
     return Math.sqrt(dx * dx + dy * dy);
 }
 
-
- // bearing from node A to node B, in degrees (0 = north, 90 = east)
- // coordinate system: x increases east, y increases south -> "north" is decreasing y
-
+/** Returns the bearing in degrees from node A to node B (0 = north, 90 = east). */
 function bearing(from: NavNode, to: NavNode): number {
     const dx = to.x - from.x;
     const dy = to.y - from.y;
@@ -111,13 +94,9 @@ function bearing(from: NavNode, to: NavNode): number {
     return ((rad * 180) / Math.PI + 360) % 360;
 }
 
-
- // returns the relative turn direction given two consecutive bearings
- // angleDiff is the signed difference (incoming → outgoing)
-
+/** Returns the relative turn direction given two consecutive bearings. */
 function turnDirection(incomingBearing: number, outgoingBearing: number): TurnDirection {
     let diff = outgoingBearing - incomingBearing;
-    // normalize to [-180, 180]
     while (diff > 180) diff -= 360;
     while (diff < -180) diff += 360;
 
@@ -131,6 +110,7 @@ function turnDirection(incomingBearing: number, outgoingBearing: number): TurnDi
     return 'sharp_left';
 }
 
+/** Returns a human-readable instruction string for a given turn direction and destination node. */
 function turnInstruction(
     dir: TurnDirection,
     nextNode: NavNode,
@@ -150,8 +130,10 @@ function turnInstruction(
     return `Continue`;
 }
 
-// A* ALG
-
+/**
+ * Runs A* pathfinding from startId to endId across the provided node and edge sets.
+ * Returns a RouteResult with steps, distances, and walk times, or null if no path exists.
+ */
 export function findRoute(
     startId: string,
     endId: string,
@@ -171,7 +153,6 @@ export function findRoute(
         };
     }
 
-    // store the edge so we can check type later (filters)
     const adj = new Map<string, { neighborId: string; cost: number; edgeType: string }[]>();
     for (const n of nodes) adj.set(n.id, []);
 
@@ -183,7 +164,6 @@ export function findRoute(
         }
     }
 
-    // A* state
     const gCost   = new Map<string, number>([[startId, 0]]);
     const cameFrom = new Map<string, string>();
     const heap    = new MinHeap();
@@ -208,8 +188,7 @@ export function findRoute(
     return null;
 }
 
-// build result
-
+/** Reconstructs the path from the A* cameFrom map and builds the full RouteResult. */
 function buildResult(
     endId: string,
     cameFrom: Map<string, string>,
@@ -252,12 +231,10 @@ function buildResult(
         const isFloorTransition = prev.floor !== curr.floor;
         const distanceFt = edge?.cost ?? Math.round(euclidean(prev, curr));
 
-        // walk time: distance / speed, + floor transition penalty
         const segmentSeconds = isFloorTransition
             ? FLOOR_TRANSITION_PENALTY_SEC
             : distanceFt / WALK_FT_PER_SEC;
 
-        // direction
         const segBearing = bearing(prev, curr);
         let dir: TurnDirection;
 
@@ -298,8 +275,7 @@ function buildResult(
     };
 }
 
-// nearest node
-
+/** Returns the nearest node on the given floor to the provided (x, y) position. */
 export function nearestNode(x: number, y: number, floor: number, nodes: NavNode[]): NavNode | null {
     let best: NavNode | null = null;
     let bestDist = Infinity;

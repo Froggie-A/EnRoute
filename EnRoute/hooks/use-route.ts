@@ -1,6 +1,6 @@
 // hooks/use-route.ts
-// Provides getRoute and snapToNode for the Directions sheet (Navigate button flow).
-// Reads directly from TEST_NODES in memory — no DB async timing issues.
+// Hook that exposes getRoute and snapToNode backed by the in-memory TEST_NODES graph.
+// Used by the Directions sheet to compute routes without any SQLite dependency.
 
 import { useCallback } from "react";
 import { TEST_NODES, computeEdgeCosts } from "@/navigation/seed-nodes";
@@ -12,10 +12,9 @@ interface UseRouteOptions {
     accessible?: boolean;
 }
 
-// Build edges once at module load — they're derived from TEST_NODES which
-// is static until the next hot reload, at which point the module re-evaluates.
 const EDGES = computeEdgeCosts(TEST_NODES);
 
+/** Returns getRoute and snapToNode helpers backed by the in-memory TEST_NODES graph. */
 export function useRoute() {
     const getRoute = useCallback(
         (fromId: string, toId: string, opts: UseRouteOptions = {}): RouteResult | null => {
@@ -34,7 +33,7 @@ export function useRoute() {
     return {
         getRoute,
         snapToNode,
-        dbReady: true,   // always ready — no async DB needed
+        dbReady: true,
         nodes: TEST_NODES,
     };
 }

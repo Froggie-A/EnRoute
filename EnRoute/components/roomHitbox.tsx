@@ -1,3 +1,6 @@
+// Defines room bounding boxes for all floors and renders invisible 3D hitboxes and text labels over them.
+// Provides helpers to look up rooms by ID, screen point, or search query, and to map hitbox IDs to nav node IDs.
+
 import React from "react";
 import * as THREE from "three";
 import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry";
@@ -17,7 +20,6 @@ type Props = {
   selectedRoom: string | null;
   setSelectedRoom: (id: string | null) => void;
 };
-
 
 const ROOM_DATA: Record<1 | 2 | 3, RoomBox[]> = {
   1: [
@@ -147,39 +149,38 @@ const ROOM_DATA: Record<1 | 2 | 3, RoomBox[]> = {
       position: [17, 0, -20.25],
       size: [13, 2, 6.5],
     },
-    // LABS (or left side of PFT)
     {
       id: "lab-1154",
       name: "Lab 1154",
-      navNodeId: "room_1154_a",
+      navNodeId: "lab_1154_a",
       position: [32.75, 0, -39.5],
       size: [10.5, 2, 6],
     },
     {
       id: "lab-1139",
       name: "Lab 1139",
-      navNodeId: "room_1139_a",
+      navNodeId: "lab_1139_a",
       position: [23.5, 0, -42.45],
       size: [5, 2, 11],
     },
     {
       id: "lab-1133",
       name: "Lab 1133",
-      navNodeId: "room_1133_a",
+      navNodeId: "lab_1133_a",
       position: [17.25, 0, -42.45],
       size: [5, 2, 11],
     },
     {
       id: "lab-1131",
       name: "Lab 1131",
-      navNodeId: "room_1131_a",
+      navNodeId: "lab_1131_a",
       position: [11.55, 0, -42.45],
       size: [5, 2, 11],
     },
     {
       id: "lab-1114",
       name: "Lab 1114",
-      navNodeId: "room_1114_a",
+      navNodeId: "lab_1114_a",
       position: [-22, 0, -43.45],
       size: [17, 2, 13],
     },
@@ -190,11 +191,10 @@ const ROOM_DATA: Record<1 | 2 | 3, RoomBox[]> = {
       position: [-54.75, 0, -46.80],
       size: [18, 2, 14],
     },
-      // PANERA STRIP
     {
       id: "room-1375",
-      name: "Panera",
-      navNodeId: "vending2",
+      name: "Panera Bread",
+      navNodeId: "room_1375_a",
       position: [52.75, 0, 21.25],
       size: [16, 2, 7.5],
     },
@@ -269,7 +269,6 @@ const ROOM_DATA: Record<1 | 2 | 3, RoomBox[]> = {
       size: [10.5, 2, 6],
     },
 
-    // BATHROOMS
     {
       id: "bathroom0",
       name: "Bathroom",
@@ -312,7 +311,6 @@ const ROOM_DATA: Record<1 | 2 | 3, RoomBox[]> = {
       position: [50.25, 0, 28.45],
       size: [11, 5, 6],
     },
-    // VENDING / FOOD
     {
       id: "vending0",
       name: "Vending Machine",
@@ -340,6 +338,7 @@ const ROOM_DATA: Record<1 | 2 | 3, RoomBox[]> = {
   3: [],
 };
 
+/** Returns the RoomBox with the given ID on the specified floor, or null if not found. */
 export function getRoomById(
     activeFloor: 1 | 2 | 3,
     roomId: string
@@ -348,6 +347,7 @@ export function getRoomById(
   return rooms.find((room) => room.id === roomId) ?? null;
 }
 
+/** Returns the nav node ID associated with a hitbox ID on the given floor. */
 export function getNavNodeId(
     hitboxId: string,
     floor: 1 | 2 | 3
@@ -356,6 +356,7 @@ export function getNavNodeId(
   return room?.navNodeId ?? null;
 }
 
+/** Renders a 3D text label above a room hitbox. */
 function RoomLabel({ room, selected }: { room: RoomBox; selected: boolean }) {
   const geometry = React.useMemo(() => {
     const font = new FontLoader().parse(helvetiker as any);
@@ -399,6 +400,7 @@ function RoomLabel({ room, selected }: { room: RoomBox; selected: boolean }) {
   );
 }
 
+/** Renders invisible click hitboxes and labels for all rooms on the active floor. */
 export default function RoomHitboxes({
                                        activeFloor,
                                        selectedRoom,
@@ -441,10 +443,12 @@ export default function RoomHitboxes({
   );
 }
 
+/** Returns all room boxes for the given floor. */
 export function getRoomsForFloor(floor: 1 | 2 | 3): RoomBox[] {
   return ROOM_DATA[floor] ?? [];
 }
 
+/** Returns the room closest to the given screen-space point by projecting all room corners through the camera. */
 export function getRoomAtScreenPoint(
     x: number,
     y: number,
@@ -515,13 +519,14 @@ export function getRoomAtScreenPoint(
   return bestMatch;
 }
 
+/** Finds a room on the given floor whose ID or name matches the search query. */
 export function findRoomBySearch(floor: 1 | 2 | 3, query: string) {
   const cleaned = query
-    .toLowerCase()
-    .replace("pft", "")
-    .replace("room", "")
-    .replace(/\s+/g, "")
-    .trim();
+      .toLowerCase()
+      .replace("pft", "")
+      .replace("room", "")
+      .replace(/\s+/g, "")
+      .trim();
 
   const rooms = ROOM_DATA[floor] ?? [];
 
@@ -531,16 +536,17 @@ export function findRoomBySearch(floor: 1 | 2 | 3, query: string) {
     const label = String(room.label ?? "").toLowerCase().replace(/\s+/g, "");
 
     return (
-      id.includes(cleaned) ||
-      name.includes(cleaned) ||
-      label.includes(cleaned)
+        id.includes(cleaned) ||
+        name.includes(cleaned) ||
+        label.includes(cleaned)
     );
   });
 }
 
+/** Returns all rooms on the given floor whose numeric ID starts with the query string. */
 export function findRoomsStartingWith(
-  floor: 1 | 2 | 3,
-  query: string
+    floor: 1 | 2 | 3,
+    query: string
 ) {
   const normalizedQuery = query.trim().toLowerCase();
 
@@ -552,4 +558,3 @@ export function findRoomsStartingWith(
     return roomNumber.startsWith(normalizedQuery);
   });
 }
-

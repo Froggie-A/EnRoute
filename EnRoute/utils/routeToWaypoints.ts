@@ -1,28 +1,18 @@
 // utils/routeToWaypoints.ts
-// Converts a RouteResult into world-space [x, y, z] waypoints for TestPath.
-//
-// MODE: USE_MODEL_SPACE_COORDS = true
-//   Node x,y are pre-scale model coords (same as roomHitbox.tsx positions).
-//   worldX = node.x * 0.1,  worldZ = node.y * 0.1
-//   Use this with seed-nodes-test.ts.
-//
-// MODE: USE_MODEL_SPACE_COORDS = false
-//   Node x,y are legacy seed coords (0-750, 0-780 range).
-//   Uses affine transform. Use with the original seed-nodes.ts.
+// Converts a RouteResult into Three.js world-space waypoints for TestPath.
+// Supports both model-space coords (used with seed-nodes.ts) and a legacy affine transform mode.
 
 import type { RouteResult } from "@/navigation/pathfinding";
 
-// ── Switch this when toggling between test and production data ────────────────
 const USE_MODEL_SPACE_COORDS = true;
-// ─────────────────────────────────────────────────────────────────────────────
 
-const FLOOR_Y    = -0.2;   // confirmed floor surface Y
-const GROUP_SCALE = 0.1;   // Building group scale in index.tsx
+const FLOOR_Y    = -0.2;
+const GROUP_SCALE = 0.1;
 
-// Legacy transform (only used when USE_MODEL_SPACE_COORDS = false)
 const Axx =  0.052162, Axy = -0.168076, Bx = 47.9131;
 const Azx = -0.157218, Azy =  0.003359, Bz = 63.1001;
 
+/** Converts node model-space coords to Three.js world-space. */
 function nodeToWorld(x: number, y: number): [number, number, number] {
     if (USE_MODEL_SPACE_COORDS) {
         return [x * GROUP_SCALE, FLOOR_Y, y * GROUP_SCALE];
@@ -34,6 +24,7 @@ function nodeToWorld(x: number, y: number): [number, number, number] {
     ];
 }
 
+/** Converts a RouteResult into a flat array of world-space waypoints for TestPath. */
 export function routeToWaypoints(
     route: RouteResult | null
 ): [number, number, number][] {
@@ -53,9 +44,9 @@ export function routeToWaypoints(
 
     return waypoints;
 }
-// Returns waypoints tagged with their floor — used to filter path per floor
 export type FlooredWaypoint = { pos: [number, number, number]; floor: number };
 
+/** Converts a RouteResult into world-space waypoints tagged with their floor number. */
 export function routeToWaypointsWithFloor(
     route: RouteResult | null
 ): FlooredWaypoint[] {

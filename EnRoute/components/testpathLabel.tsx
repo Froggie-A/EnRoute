@@ -1,7 +1,6 @@
 // components/testpathLabel.tsx
-// Apple Maps-style destination label pill.
-// Tracks the 3D endpoint world position via endLabelPosRef.
-// Hidden during navigation and when no path is active.
+// Floating label pill that tracks the 3D path endpoint in screen space.
+// Reads endLabelPosRef each frame and positions itself above the destination marker.
 
 import React, { useEffect, useRef } from "react";
 import { Animated, StyleSheet, View, Text } from "react-native";
@@ -17,6 +16,7 @@ type LabelProps = {
     sheetIndex?: number;
 };
 
+/** Renders a floating label pill that tracks the 3D path endpoint in screen space. */
 export default function TestPathLabel({
                                           label,
                                           isNavigating = false,
@@ -78,7 +78,6 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.35,
         shadowRadius: 4,
         elevation: 6,
-        // Low zIndex so BottomSheet and NavOverlay always render on top
         zIndex: 5,
     },
     label: {

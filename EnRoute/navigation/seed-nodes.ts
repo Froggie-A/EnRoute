@@ -1,33 +1,18 @@
 // navigation/seed-nodes-test.ts
-//
-// ─── INSTANT HOT-RELOAD TEST GRAPH ───────────────────────────────────────────
-// Edit coordinates here and Ctrl+S — Metro reloads in ~1 second.
-// No DB wipe, no seed version bump, no restart needed.
-//
-// COORDINATE SYSTEM:
-//   x, y  =  pre-scale model coords (same numbers as roomHitbox.tsx position[0], position[2])
-//   Positive X = right,  Negative X = left
-//   Negative Y = toward front of building (rooms along top edge)
-//   Positive Y = toward back
-//
-// HOW TO TUNE A NODE:
-//   Change its x or y, save, tap the room → path updates instantly.
-// ─────────────────────────────────────────────────────────────────────────────
+
+// In-memory navigation graph for PFT Hall.
+// Defines all nodes (rooms, hallways, entrances, stairs, elevators) and edges, and exports computeEdgeCosts to derive edge weights from node coordinates.
 
 import type { NavNode, NavEdge } from './db';
 
 type RawEdge = Omit<NavEdge, 'cost'>;
 
-// ─── NODES ────────────────────────────────────────────────────────────────────
-
 export const TEST_NODES: NavNode[] = [
 
-    // Entrances
     { id: 'entrance0',    label: 'Entrance',            type: 'entrance',  floor: 1, x:  48,    y: -32,   z: 0, accessible: true },
     { id: 'entrance1',    label: 'Entrance',            type: 'entrance',  floor: 1, x:  64,    y: 15,   z: 0, accessible: true },
     { id: 'entrance2',    label: 'Entrance',            type: 'entrance',  floor: 1, x:  -59,    y: -32,   z: 0, accessible: true },
 
-    // Stairs and Elevators
     { id: 'elevator0',    label: 'Elevator',            type: 'elevator',  floor: 1, x:  47,    y: 36,   z: 0, accessible: true },
     { id: 'elevator1',    label: 'Elevator',            type: 'elevator',  floor: 1, x:  0,    y: 20,   z: 0, accessible: true },
     { id: 'elevator2',    label: 'Elevator',            type: 'elevator',  floor: 1, x:  -3,    y: -43,   z: 0, accessible: true },
@@ -36,8 +21,6 @@ export const TEST_NODES: NavNode[] = [
     { id: 'stair1',       label: 'Stairs',              type: 'stair',     floor: 1, x:  -35,    y: -30,   z: 0, accessible: false },
     { id: 'stair2',       label: 'Stairs',              type: 'stair',     floor: 1, x:  22,    y: 11,   z: 0, accessible: false },
 
-
-    // Rooms — x,y should put the node at the room door / center of the room
     { id: 'room_1221_a',  label: 'Classroom 1221 - A',  type: 'classroom', floor: 1, x:  48,    y: -19,   z: 0, accessible: true },
     { id: 'room_1221_b',  label: 'Classroom 1221 - B',  type: 'classroom', floor: 1, x:  48,    y: -13.5, z: 0, accessible: true },
 
@@ -47,8 +30,8 @@ export const TEST_NODES: NavNode[] = [
     { id: 'room_1253_a',  label: 'Classroom 1253 - A',  type: 'classroom', floor: 1, x:  -1,    y: -28,   z: 0, accessible: true },
     { id: 'room_1253_b',  label: 'Classroom 1253 - B',  type: 'classroom', floor: 1, x:  -1,    y: -17.5, z: 0, accessible: true },
 
-    { id: 'room_1263_a',  label: 'Classroom 1263',  type: 'classroom', floor: 1, x:  -36,   y: -27,   z: 0, accessible: true },
-    { id: 'room_1263_b',  label: 'Classroom 1263',  type: 'classroom', floor: 1, x:  -36,   y: -16,   z: 0, accessible: true },
+    { id: 'room_1263_a',  label: 'Classroom 1263 - A',  type: 'classroom', floor: 1, x:  -36,   y: -27,   z: 0, accessible: true },
+    { id: 'room_1263_b',  label: 'Classroom 1263 - B',  type: 'classroom', floor: 1, x:  -36,   y: -16,   z: 0, accessible: true },
 
     { id: 'room_1202_a',  label: 'Classroom 1202 - A',  type: 'classroom', floor: 1, x:  -41,   y: -30,   z: 0, accessible: true },
     { id: 'room_1200_a',  label: 'Classroom 1200 - A',  type: 'classroom', floor: 1, x:  -53,   y: -30,   z: 0, accessible: true },
@@ -124,17 +107,11 @@ export const TEST_NODES: NavNode[] = [
 
     { id: 'room_1340_a',  label: 'Classroom 1340 - A',  type: 'classroom', floor: 1, x:  -25,   y: 21,   z: 0, accessible: true },
 
-    { id: 'room_1263_cen',  label: 'Classroom 1263',  type: 'classroom', floor: 1, x:  -34,   y: -21,   z: 0, accessible: true },
-
-
-
-    // Vendings
     { id: 'vending0',  label: 'Vending',  type: 'vending', floor: 1, x:  49,   y: 33,   z: 0, accessible: true },
     { id: 'vending1',  label: 'Vending',  type: 'vending', floor: 1, x:  -3,   y: -38,   z: 0, accessible: true },
     { id: 'vending2',  label: 'Panera',   type: 'vending', floor: 1, x:  60,   y: 18,   z: 0, accessible: true },
     { id: 'vending3',  label: 'Panera',   type: 'vending', floor: 1, x:  50,   y: 18,   z: 0, accessible: true },
 
-    // Bathrooms — positions match roomHitbox.tsx
     { id: 'bathroom0',   label: 'Bathroom',              type: 'bathroom',  floor: 1, x:  48,    y:   29,   z: 0, accessible: true },
     { id: 'bathroom1',   label: 'Bathroom',              type: 'bathroom',  floor: 1, x:  0,     y:   30,   z: 0, accessible: true },
     { id: 'bathroom2',   label: 'Bathroom',              type: 'bathroom',  floor: 1, x:  0,     y:   -1,   z: 0, accessible: true },
@@ -142,7 +119,6 @@ export const TEST_NODES: NavNode[] = [
     { id: 'bathroom4',   label: 'Bathroom',              type: 'bathroom',  floor: 1, x:  -1,    y:   -46,   z: 0, accessible: true },
     { id: 'bathroom5',   label: 'Bathroom',              type: 'bathroom',  floor: 1, x:  47,    y:   1,   z: 0, accessible: true },
 
-    // Hallway nodes — intersections and turns along the actual corridors
     { id: 'hallway1',     label: 'Hallway 1',            type: 'hallway',   floor: 1, x:  44,    y: -32,   z: 0, accessible: true },
     { id: 'hallway2',     label: 'Hallway 2',            type: 'hallway',   floor: 1, x:  38,    y: -32,   z: 0, accessible: true },
     { id: 'hallway3',     label: 'Hallway 3',            type: 'hallway',   floor: 1, x:  36,    y: -32,   z: 0, accessible: true },
@@ -227,12 +203,9 @@ export const TEST_NODES: NavNode[] = [
     { id: 'hallway81',     label: 'Hallway 81',            type: 'hallway',   floor: 1, x:  -1,   y: 15,   z: 0, accessible: true },
     { id: 'hallway82',     label: 'Hallway 82',            type: 'hallway',   floor: 1, x:  47,   y: 33,   z: 0, accessible: true },
 
-
     { id: 'hallway11',     label: 'Hallway 11',            type: 'hallway',   floor: 1, x:  -5,    y: -32,   z: 0, accessible: true },
     { id: 'hallway47',     label: 'Hallway 47',            type: 'hallway',   floor: 1, x:  -5,    y: -28,   z: 0, accessible: true },
 
-    // FLOOR 2
-    // room_2213_a matches roomHitbox.tsx floor 2 position [3, 0, -24]
     { id: 'room_2213_a',  label: 'Classroom 2213',  type: 'classroom', floor: 2, x:   3,   y: -24,   z: 0, accessible: true },
 
     { id: 'hallway1_2',   label: 'Hallway 1_2',  type: 'hallway', floor: 2, x: -20, y: -26, z: 0, accessible: true },
@@ -241,36 +214,23 @@ export const TEST_NODES: NavNode[] = [
     { id: 'hallway4_2',   label: 'Hallway 4_2',  type: 'hallway', floor: 2, x:  -5, y: -42, z: 0, accessible: true },
     { id: 'hallway5_2',   label: 'Hallway 5_2',  type: 'hallway', floor: 2, x:  -5, y: -42, z: 0, accessible: true },
 
-
-    // Stair landings on floor 2 — same x,y as floor 1 counterparts
     //{ id: 'stair0_2',     label: 'Stairs',  type: 'stair', floor: 2, x: -19, y:  15, z: 0, accessible: false },
     { id: 'stair1_2',     label: 'Stairs',  type: 'stair', floor: 2, x: -35, y: -30, z: 0, accessible: false },
     { id: 'elevator2_2',     label: 'Elevator',  type: 'elevator', floor: 2, x: -3, y: -42, z: 0, accessible: true },
 
-
-
-
-
-    // ── Demo path gap-fill nodes ──────────────────────────────────────────────
-    // Gap 1: hallway29(44,29) → hallway28(44,20) — 9.6m, split at y=24.5
     { id: 'dp_hw29_hw28_1', label: 'Hallway', type: 'hallway', floor: 1, x: 44, y: 24.5, z: 0, accessible: true },
 
-    // Gap 2: hallway26(44,8) → hallway25(44,0) — 8.5m, split at y=4
     { id: 'dp_hw26_hw25_1', label: 'Hallway', type: 'hallway', floor: 1, x: 44, y: 4.0,  z: 0, accessible: true },
 
-    // Gap 3: hallway21(44,-19) → hallway1(44,-32) — 13.8m, 3 intermediates
     { id: 'dp_hw21_hw1_1',  label: 'Hallway', type: 'hallway', floor: 1, x: 44, y: -23.3, z: 0, accessible: true },
     { id: 'dp_hw21_hw1_2',  label: 'Hallway', type: 'hallway', floor: 1, x: 44, y: -27.7, z: 0, accessible: true },
 
-    // Gap 4: hallway10(12,-32) → hallway11(-5,-32) — 18.1m, 3 intermediates
     { id: 'dp_hw10_hw11_1', label: 'Hallway', type: 'hallway', floor: 1, x: 7.8,  y: -32, z: 0, accessible: true },
     { id: 'dp_hw10_hw11_2', label: 'Hallway', type: 'hallway', floor: 1, x: 3.5,  y: -32, z: 0, accessible: true },
     { id: 'dp_hw10_hw11_3', label: 'Hallway', type: 'hallway', floor: 1, x: -0.8, y: -32, z: 0, accessible: true },
 
-    // Gap 5: hallway11(-5,-32) → hallway12(-14,-32) — 9.6m, split at x=-9.5
     { id: 'dp_hw11_hw12_1', label: 'Hallway', type: 'hallway', floor: 1, x: -9.5, y: -32, z: 0, accessible: true },
 
-    // Gap 6: hallway15(-29,-32) → hallway16(-38,-32) — 9.6m, split at x=-33.5
     { id: 'dp_hw15_hw16_1', label: 'Hallway', type: 'hallway', floor: 1, x: -33.5, y: -32, z: 0, accessible: true },
     { id: 'hallway45',     label: 'Hallway 45',            type: 'hallway',   floor: 1, x:  -5,    y: -17.5, z: 0, accessible: true },
 
@@ -279,22 +239,14 @@ export const TEST_NODES: NavNode[] = [
     { id: 'hallway51',    label: 'Hallway 51',           type: 'hallway',   floor: 1, x:  -38,   y: -27,   z: 0, accessible: true },
     { id: 'hallway52',    label: 'Hallway 52',           type: 'hallway',   floor: 1, x:  -38,   y: -16,   z: 0, accessible: true },
 
-
 ];
-
-// ─── EDGES ────────────────────────────────────────────────────────────────────
-// Costs are computed automatically from node distances.
-// NOTE: two edges in the original had wrong fromNodeId (hallway4/5 instead of
-// hallway7/8) — those are corrected here.
 
 export const TEST_EDGES: RawEdge[] = [
 
-    // Entrances to hallway
     { id: 'en0_hw1',      fromNodeId: 'entrance0',  toNodeId: 'hallway1',    type: 'door',    accessible: true, bidirectional: true },
     { id: 'en1_hw76',      fromNodeId: 'entrance1',  toNodeId: 'hallway76',    type: 'door',    accessible: true, bidirectional: true },
     { id: 'en2_hw20',      fromNodeId: 'entrance2',  toNodeId: 'hallway20',    type: 'door',    accessible: true, bidirectional: true },
 
-    // Bathrooms to hallway
     { id: 'br0_hw29',      fromNodeId: 'bathroom0',  toNodeId: 'hallway29',    type: 'door',    accessible: true, bidirectional: true },
     { id: 'br1_hw34',      fromNodeId: 'bathroom1',  toNodeId: 'hallway34',    type: 'door',    accessible: true, bidirectional: true },
     { id: 'br2_hw64',      fromNodeId: 'bathroom2',  toNodeId: 'hallway64',    type: 'door',    accessible: true, bidirectional: true },
@@ -302,34 +254,26 @@ export const TEST_EDGES: RawEdge[] = [
     { id: 'br4_hw50',      fromNodeId: 'bathroom4',  toNodeId: 'hallway50',    type: 'door',    accessible: true, bidirectional: true },
     { id: 'br5_hw25',      fromNodeId: 'bathroom5',  toNodeId: 'hallway25',    type: 'door',    accessible: true, bidirectional: true },
 
-    // Vending to hallway
     { id: 'v0_hw82',      fromNodeId: 'vending0',  toNodeId: 'hallway82',    type: 'door',    accessible: true, bidirectional: true },
     { id: 'v1_hw48',      fromNodeId: 'vending1',  toNodeId: 'hallway48',    type: 'door',    accessible: true, bidirectional: true },
     { id: 'v2_hw76',      fromNodeId: 'vending2',  toNodeId: 'hallway76',    type: 'door',    accessible: true, bidirectional: true },
     { id: 'v3_hw77',      fromNodeId: 'vending3',  toNodeId: 'hallway77',    type: 'door',    accessible: true, bidirectional: true },
 
-    // Elevators to hallway
     { id: 'ev0_hw82',      fromNodeId: 'elevator0',  toNodeId: 'hallway82',    type: 'door',    accessible: true, bidirectional: true },
     { id: 'ev1_hw81',      fromNodeId: 'elevator1',  toNodeId: 'hallway81',    type: 'door',    accessible: true, bidirectional: true },
     { id: 'ev2_hw49',      fromNodeId: 'elevator2',  toNodeId: 'hallway49',    type: 'door',    accessible: true, bidirectional: true },
 
-    // Stairs to hallway
     { id: 'st0_hw57',      fromNodeId: 'stair0',  toNodeId: 'hallway57',    type: 'door',    accessible: true, bidirectional: true },
     { id: 'st1_hw70',      fromNodeId: 'stair1',  toNodeId: 'hallway70',    type: 'door',    accessible: true, bidirectional: true },
     { id: 'st2_hw79',      fromNodeId: 'stair2',  toNodeId: 'hallway79',    type: 'door',    accessible: true, bidirectional: true },
 
-    // First Row (left to right)
-    // hw1→hw21 now via dp_hw21_hw1_1/2 intermediates (removed direct shortcut)
     { id: 'hw21_hw22',      fromNodeId: 'hallway21',   toNodeId: 'hallway22',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw22_hw23',      fromNodeId: 'hallway22',   toNodeId: 'hallway23',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw23_hw24',      fromNodeId: 'hallway23',   toNodeId: 'hallway24',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw24_hw25',      fromNodeId: 'hallway24',   toNodeId: 'hallway25',    type: 'hallway', accessible: true, bidirectional: true },
-    // hw25→hw26 now via dp_hw26_hw25_1 intermediate (removed direct shortcut)
     { id: 'hw26_hw27',      fromNodeId: 'hallway26',   toNodeId: 'hallway27',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw27_hw28',      fromNodeId: 'hallway27',   toNodeId: 'hallway28',    type: 'hallway', accessible: true, bidirectional: true },
-    // hw28→hw29 now via dp_hw29_hw28_1 intermediate (removed direct shortcut)
     { id: 'hw29_hw30',      fromNodeId: 'hallway29',   toNodeId: 'hallway30',    type: 'hallway', accessible: true, bidirectional: true },
-    // SECOND ROW (it goes from right to left)
     { id: 'hw35_hw36',      fromNodeId: 'hallway35',   toNodeId: 'hallway36',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw36_hw37',      fromNodeId: 'hallway36',   toNodeId: 'hallway37',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw37_hw38',      fromNodeId: 'hallway37',   toNodeId: 'hallway38',    type: 'hallway', accessible: true, bidirectional: true },
@@ -347,14 +291,12 @@ export const TEST_EDGES: RawEdge[] = [
     { id: 'hw48_hw49',      fromNodeId: 'hallway48',   toNodeId: 'hallway49',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw49_hw50',      fromNodeId: 'hallway49',   toNodeId: 'hallway50',    type: 'hallway', accessible: true, bidirectional: true },
 
-    // THIRD ROW
     { id: 'hw16_hw70',      fromNodeId: 'hallway16',   toNodeId: 'hallway70',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw70_hw51',      fromNodeId: 'hallway70',   toNodeId: 'hallway51',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw51_hw52',      fromNodeId: 'hallway51',   toNodeId: 'hallway52',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw52_hw53',      fromNodeId: 'hallway52',   toNodeId: 'hallway53',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw53_hw54',      fromNodeId: 'hallway53',   toNodeId: 'hallway54',    type: 'hallway', accessible: true, bidirectional: true },
 
-    // FIRST COLUMN
     { id: 'hw1_hw2',      fromNodeId: 'hallway1',   toNodeId: 'hallway2',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw2_hw3',      fromNodeId: 'hallway2',   toNodeId: 'hallway3',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw3_hw4',      fromNodeId: 'hallway3',   toNodeId: 'hallway4',    type: 'hallway', accessible: true, bidirectional: true },
@@ -364,18 +306,14 @@ export const TEST_EDGES: RawEdge[] = [
     { id: 'hw7_hw8',      fromNodeId: 'hallway7',   toNodeId: 'hallway8',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw8_hw9',      fromNodeId: 'hallway8',   toNodeId: 'hallway9',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw9_hw10',      fromNodeId: 'hallway9',   toNodeId: 'hallway10',    type: 'hallway', accessible: true, bidirectional: true },
-    // hw10→hw11 now via dp_hw10_hw11_1/2/3 intermediates (removed direct shortcut)
-    // hw11→hw12 now via dp_hw11_hw12_1 intermediate (removed direct shortcut)
     { id: 'hw12_hw13',      fromNodeId: 'hallway12',   toNodeId: 'hallway13',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw13_hw14',      fromNodeId: 'hallway13',   toNodeId: 'hallway14',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw14_hw15',      fromNodeId: 'hallway14',   toNodeId: 'hallway15',    type: 'hallway', accessible: true, bidirectional: true },
-    // hw15→hw16 now via dp_hw15_hw16_1 intermediate (removed direct shortcut)
     { id: 'hw16_hw17',      fromNodeId: 'hallway16',   toNodeId: 'hallway17',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw17_hw18',      fromNodeId: 'hallway17',   toNodeId: 'hallway18',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw18_hw19',      fromNodeId: 'hallway18',   toNodeId: 'hallway19',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw19_hw20',      fromNodeId: 'hallway19',   toNodeId: 'hallway20',    type: 'hallway', accessible: true, bidirectional: true },
 
-    // SECOND COLUMN
     { id: 'hw53_hw61',      fromNodeId: 'hallway53',   toNodeId: 'hallway61',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw61_hw62',      fromNodeId: 'hallway61',   toNodeId: 'hallway62',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw62_hw63',      fromNodeId: 'hallway62',   toNodeId: 'hallway63',    type: 'hallway', accessible: true, bidirectional: true },
@@ -394,7 +332,6 @@ export const TEST_EDGES: RawEdge[] = [
     { id: 'hw74_hw75',      fromNodeId: 'hallway74',   toNodeId: 'hallway75',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw75_hw24',      fromNodeId: 'hallway75',   toNodeId: 'hallway24',    type: 'hallway', accessible: true, bidirectional: true },
 
-    // THIRD COLUMN
     { id: 'hw76_hw77',      fromNodeId: 'hallway76',   toNodeId: 'hallway77',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw77_hw27',      fromNodeId: 'hallway77',   toNodeId: 'hallway27',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw27_hw78',      fromNodeId: 'hallway27',   toNodeId: 'hallway78',    type: 'hallway', accessible: true, bidirectional: true },
@@ -403,7 +340,6 @@ export const TEST_EDGES: RawEdge[] = [
     { id: 'hw80_hw81',      fromNodeId: 'hallway80',   toNodeId: 'hallway81',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw81_hw39',      fromNodeId: 'hallway81',   toNodeId: 'hallway39',    type: 'hallway', accessible: true, bidirectional: true },
 
-    // CAPSTONE STAIR AREA
     { id: 'hw54_hw55',      fromNodeId: 'hallway54',   toNodeId: 'hallway55',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw55_hw56',      fromNodeId: 'hallway55',   toNodeId: 'hallway56',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw56_hw57',      fromNodeId: 'hallway56',   toNodeId: 'hallway57',    type: 'hallway', accessible: true, bidirectional: true },
@@ -412,7 +348,6 @@ export const TEST_EDGES: RawEdge[] = [
     { id: 'hw41_hw56',      fromNodeId: 'hallway41',   toNodeId: 'hallway56',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw37_hw58',      fromNodeId: 'hallway37',   toNodeId: 'hallway58',    type: 'hallway', accessible: true, bidirectional: true },
 
-    // FOURTH COLUMN
     { id: 'hw82_hw30',      fromNodeId: 'hallway82',   toNodeId: 'hallway30',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw30_hw31',      fromNodeId: 'hallway30',   toNodeId: 'hallway31',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw31_hw32',      fromNodeId: 'hallway31',   toNodeId: 'hallway32',    type: 'hallway', accessible: true, bidirectional: true },
@@ -420,41 +355,32 @@ export const TEST_EDGES: RawEdge[] = [
     { id: 'hw33_hw34',      fromNodeId: 'hallway33',   toNodeId: 'hallway34',    type: 'hallway', accessible: true, bidirectional: true },
     { id: 'hw34_hw35',      fromNodeId: 'hallway34',   toNodeId: 'hallway35',    type: 'hallway', accessible: true, bidirectional: true },
 
-    // ── Demo path gap-fill edges ──────────────────────────────────────────────
-    // Gap 1: hallway29 → hallway28
     { id: 'dp_hw29_m1',   fromNodeId: 'hallway29',       toNodeId: 'dp_hw29_hw28_1', type: 'hallway', accessible: true, bidirectional: true },
     { id: 'dp_m1_hw28',   fromNodeId: 'dp_hw29_hw28_1', toNodeId: 'hallway28',       type: 'hallway', accessible: true, bidirectional: true },
 
-    // Gap 2: hallway26 → hallway25
     { id: 'dp_hw26_m1',   fromNodeId: 'hallway26',       toNodeId: 'dp_hw26_hw25_1', type: 'hallway', accessible: true, bidirectional: true },
     { id: 'dp_m1_hw25',   fromNodeId: 'dp_hw26_hw25_1', toNodeId: 'hallway25',       type: 'hallway', accessible: true, bidirectional: true },
 
-    // Gap 3: hallway21 → hallway1 (2 intermediates)
     { id: 'dp_hw21_m1',   fromNodeId: 'hallway21',      toNodeId: 'dp_hw21_hw1_1',  type: 'hallway', accessible: true, bidirectional: true },
     { id: 'dp_m1_m2',     fromNodeId: 'dp_hw21_hw1_1', toNodeId: 'dp_hw21_hw1_2',  type: 'hallway', accessible: true, bidirectional: true },
     { id: 'dp_m2_hw1',    fromNodeId: 'dp_hw21_hw1_2', toNodeId: 'hallway1',        type: 'hallway', accessible: true, bidirectional: true },
 
-    // Gap 4: hallway10 → hallway11 (3 intermediates)
     { id: 'dp_hw10_m1',    fromNodeId: 'hallway10',       toNodeId: 'dp_hw10_hw11_1', type: 'hallway', accessible: true, bidirectional: true },
     { id: 'dp_10m1_m2',    fromNodeId: 'dp_hw10_hw11_1', toNodeId: 'dp_hw10_hw11_2', type: 'hallway', accessible: true, bidirectional: true },
     { id: 'dp_10m2_m3',    fromNodeId: 'dp_hw10_hw11_2', toNodeId: 'dp_hw10_hw11_3', type: 'hallway', accessible: true, bidirectional: true },
     { id: 'dp_10m3_hw11',  fromNodeId: 'dp_hw10_hw11_3', toNodeId: 'hallway11',       type: 'hallway', accessible: true, bidirectional: true },
 
-    // Gap 5: hallway11 → hallway12
     { id: 'dp_hw11_m1',    fromNodeId: 'hallway11',       toNodeId: 'dp_hw11_hw12_1', type: 'hallway', accessible: true, bidirectional: true },
     { id: 'dp_11m1_hw12',  fromNodeId: 'dp_hw11_hw12_1', toNodeId: 'hallway12',       type: 'hallway', accessible: true, bidirectional: true },
 
-    // Gap 6: hallway15 → hallway16
     { id: 'dp_hw15_m1',    fromNodeId: 'hallway15',       toNodeId: 'dp_hw15_hw16_1', type: 'hallway', accessible: true, bidirectional: true },
     { id: 'dp_15m1_hw16',  fromNodeId: 'dp_hw15_hw16_1', toNodeId: 'hallway16',       type: 'hallway', accessible: true, bidirectional: true },
 
-    // HALLWAY TO ROOMS FIRST ROW
     { id: 'hw21_1221a',    fromNodeId: 'hallway21',   toNodeId: 'room_1221_a', type: 'door',    accessible: true, bidirectional: true },
     { id: 'hw22_1221b',    fromNodeId: 'hallway22',   toNodeId: 'room_1221_b', type: 'door',    accessible: true, bidirectional: true },
     { id: 'hw23_1225a',    fromNodeId: 'hallway23',   toNodeId: 'room_1225_a', type: 'door',    accessible: true, bidirectional: true },
     { id: 'hw24_1225b',    fromNodeId: 'hallway24',   toNodeId: 'room_1225_b', type: 'door',    accessible: true, bidirectional: true },
 
-    // HALLWAY TO ROOMS SECOND ROW
     { id: 'hw47_1253a',    fromNodeId: 'hallway47',   toNodeId: 'room_1253_a', type: 'door',    accessible: true, bidirectional: true },
     { id: 'hw46_1256a',    fromNodeId: 'hallway46',   toNodeId: 'room_1256_a', type: 'door',    accessible: true, bidirectional: true },
     { id: 'hw45_1253b',    fromNodeId: 'hallway45',   toNodeId: 'room_1253_b', type: 'door',    accessible: true, bidirectional: true },
@@ -462,15 +388,11 @@ export const TEST_EDGES: RawEdge[] = [
     { id: 'hw42_1272a',    fromNodeId: 'hallway42',   toNodeId: 'room_1272_a', type: 'door',    accessible: true, bidirectional: true },
     { id: '1272c_1272a',    fromNodeId: 'room_1272_cen',   toNodeId: 'room_1272_a', type: 'door',    accessible: true, bidirectional: true },
 
-
     { id: 'hw36_1342a',    fromNodeId: 'hallway36',   toNodeId: 'room_1342_a', type: 'door',    accessible: true, bidirectional: true },
 
-    // HALLWAY TO ROOMS THIRD ROW
     { id: 'hw51_1263a',    fromNodeId: 'hallway51',   toNodeId: 'room_1263_a', type: 'door',    accessible: true, bidirectional: true },
     { id: 'hw52_1263b',    fromNodeId: 'hallway52',   toNodeId: 'room_1263_b', type: 'door',    accessible: true, bidirectional: true },
-    { id: '1263a_1263cen',    fromNodeId: 'room_1263_cen',   toNodeId: 'room_1263_a', type: 'door',    accessible: true, bidirectional: true },
 
-    // Hallway to rooms first column
     { id: 'hw2_1154a',    fromNodeId: 'hallway2',   toNodeId: 'room_1154_a', type: 'door',    accessible: true, bidirectional: true },
     { id: 'hw5_1154b',    fromNodeId: 'hallway5',   toNodeId: 'room_1154_b', type: 'door',    accessible: true, bidirectional: true },
     { id: 'hw3_1218a',    fromNodeId: 'hallway3',   toNodeId: 'room_1218_a', type: 'door',    accessible: true, bidirectional: true },
@@ -488,7 +410,6 @@ export const TEST_EDGES: RawEdge[] = [
     { id: 'hw19_1100a',    fromNodeId: 'hallway19',   toNodeId: 'room_1100_a', type: 'door',    accessible: true, bidirectional: true },
     { id: 'hw20_1200a',    fromNodeId: 'hallway20',   toNodeId: 'room_1200_a', type: 'door',    accessible: true, bidirectional: true },
 
-    // SECOND COLUMN
     { id: 'hw75_1232a',    fromNodeId: 'hallway75',   toNodeId: 'room_1232_a', type: 'door',    accessible: true, bidirectional: true },
     { id: 'hw73_1232b',    fromNodeId: 'hallway73',   toNodeId: 'room_1232_b', type: 'door',    accessible: true, bidirectional: true },
     { id: 'hw74_1233a',    fromNodeId: 'hallway74',   toNodeId: 'room_1233_a', type: 'door',    accessible: true, bidirectional: true },
@@ -505,29 +426,22 @@ export const TEST_EDGES: RawEdge[] = [
     { id: 'hw61_1262a',    fromNodeId: 'hallway61',   toNodeId: 'room_1262_a', type: 'door',    accessible: true, bidirectional: true },
     { id: 'hw61_1259a',    fromNodeId: 'hallway61',   toNodeId: 'room_1259_a', type: 'door',    accessible: true, bidirectional: true },
 
-    // THIRD COLUMN
     { id: 'hw80_1245b',    fromNodeId: 'hallway80',   toNodeId: 'room_1245_b', type: 'door',    accessible: true, bidirectional: true },
     { id: 'hw80_1350a',    fromNodeId: 'hallway80',   toNodeId: 'room_1350_a', type: 'door',    accessible: true, bidirectional: true },
     { id: 'hw55_1259b',    fromNodeId: 'hallway55',   toNodeId: 'room_1259_b', type: 'door',    accessible: true, bidirectional: true },
     { id: 'hw59_1340a',    fromNodeId: 'hallway59',   toNodeId: 'room_1340_a', type: 'door',    accessible: true, bidirectional: true },
 
-
-    // FOURTH COLUMN
     { id: 'hw31_1360a',    fromNodeId: 'hallway31',   toNodeId: 'room_1360_a', type: 'door',    accessible: true, bidirectional: true },
     { id: 'hw32_1354a',    fromNodeId: 'hallway32',   toNodeId: 'room_1354_a', type: 'door',    accessible: true, bidirectional: true },
     { id: 'hw33_1350b',    fromNodeId: 'hallway33',   toNodeId: 'room_1350_b', type: 'door',    accessible: true, bidirectional: true },
 
-    // FLOOR 2 — cross-floor edges (stair0 and stair1 only, matching your nodes)
     //{ id: 'st0_cross',    fromNodeId: 'stair0',    toNodeId: 'stair0_2',   type: 'stair', accessible: false, bidirectional: true },
     { id: 'st1_cross',    fromNodeId: 'stair1',    toNodeId: 'stair1_2',   type: 'stair', accessible: false, bidirectional: true },
     { id: 'ev2_cross',    fromNodeId: 'elevator2',    toNodeId: 'elevator2_2',   type: 'elevator', accessible: true, bidirectional: true },
 
-
-    // Floor 2 landings → hallway spine
     { id: 'st1_2_hw5_2',  fromNodeId: 'stair1_2',  toNodeId: 'hallway5_2', type: 'stair', accessible: false, bidirectional: true },
     //{ id: 'st0_2_hw3_2',  fromNodeId: 'stair0_2',  toNodeId: 'hallway3_2', type: 'stair', accessible: false, bidirectional: true },
 
-    // Floor 2 hallway spine
     { id: 'hw2_2_hw4_2',  fromNodeId: 'hallway2_2', toNodeId: 'hallway4_2', type: 'hallway', accessible: true, bidirectional: true },
 
     { id: 'hw1_2_hw2_2',  fromNodeId: 'hallway1_2', toNodeId: 'hallway2_2', type: 'hallway', accessible: true, bidirectional: true },
@@ -536,13 +450,9 @@ export const TEST_EDGES: RawEdge[] = [
 
     { id: 'hw4_2_ev2_2',  fromNodeId: 'hallway4_2', toNodeId: 'elevator2_2', type: 'elevator', accessible: true, bidirectional: true },
 
-
-
 ];
-// ─── EDGE COST COMPUTATION ────────────────────────────────────────────────────
-// Called by db.ts at seed time and by use-test-route.ts at runtime.
-// Cost = Euclidean distance in model-space units (same as feet at this scale).
 
+/** Computes edge costs from Euclidean distance between node pairs, using a fixed penalty for floor transitions. */
 export function computeEdgeCosts(nodes: NavNode[]): NavEdge[] {
     const nodeMap = new Map(nodes.map(n => [n.id, n]));
     return TEST_EDGES.map(edge => {

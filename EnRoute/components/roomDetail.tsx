@@ -1,9 +1,7 @@
 // components/roomDetail.tsx
-// Room detail bottom sheet — matches the Figma design:
-//   - Large room number + building name
-//   - Walk icon button with estimated time (tapping starts navigation)
-//   - Ratings row + Availability row
-//   - Room photo placeholder
+
+// Bottom sheet component showing details for a selected room node.
+// Displays the room number, building name, estimated walk time, ratings, availability, and a photo gallery.
 
 import React from "react";
 import { View, Text, StyleSheet, Pressable, Image, ScrollView } from "react-native";
@@ -12,11 +10,12 @@ import type { NavNode } from "@/navigation/db";
 
 type Props = {
     node: NavNode;
-    estimatedMinutes?: number;   // connect to real route time later
+    estimatedMinutes?: number;
     onNavigate: () => void;
     onDismiss: () => void;
 };
 
+/** Extracts a 4-digit room number from a label string. */
 function roomNumber(label: string): string {
     const match = label.match(/\d{4}/);
     return match ? match[0] : label;
@@ -41,6 +40,7 @@ const ROOM_IMAGES: Record<string, any[]> = {
 
 };
 
+/** Bottom sheet showing room details, navigation button, ratings, and photo gallery. */
 export default function RoomDetailSheet({ node, estimatedMinutes = 3, onNavigate, onDismiss }: Props) {
     const roomImages = ROOM_IMAGES[roomNumber(node.label)] || [];
 
@@ -216,13 +216,13 @@ const styles = StyleSheet.create({
         width: "90%",
         flexDirection: "row",
         alignItems: "flex-start",
-        justifyContent: "flex-start", // no spacing needed anymore
+        justifyContent: "flex-start",
     },
 
     closeButton: {
         position: "absolute",
-        top: -4.5,       // move UP
-        right: -15,     // move RIGHT
+        top: -4.5,
+        right: -15,
         width: 38,
         height: 38,
         borderRadius: 19,

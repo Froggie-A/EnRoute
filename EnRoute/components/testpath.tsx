@@ -1,5 +1,7 @@
 // components/testpath.tsx
-// Renders the navigation path as a 3D tube using CatmullRomCurve3 + TubeGeometry.
+
+// Renders the active navigation path as a 3D tube using CatmullRom spline geometry.
+// Shows a start marker, end dot, faded completed section, and projects the endpoint to screen space via endLabelPosRef.
 
 import React, { useMemo, useEffect } from "react";
 import * as THREE from "three";
@@ -8,9 +10,9 @@ import { useFrame, useThree } from "@react-three/fiber/native";
 export const FLOOR_Y = -0.2;
 
 const PATH_COLOR  = "#1A365D";
-const TUBE_RADIUS = 0.045;   // world-space radius of the cylinder
-const TUBE_SEGS   = 8;       // radial segments — smooth enough, cheap to render
-const LIFT_Y      = 0.06;    // lift above floor to avoid z-fighting
+const TUBE_RADIUS = 0.045;
+const TUBE_SEGS   = 8;
+const LIFT_Y      = 0.06;
 const CURVE_TENSION = 0.4;
 
 export const endLabelPosRef = { current: null as { x: number; y: number } | null };
@@ -22,11 +24,8 @@ type Props = {
     isNavigating?: boolean;
 };
 
-// ─── Tube geometry ────────────────────────────────────────────────────────────
+/** Builds a TubeGeometry along densified CatmullRom spline through the given waypoints. */
 function buildTube(points: [number, number, number][]): THREE.TubeGeometry {
-    // Insert midpoints between every pair of waypoints so the spline
-    // has more control points to curve through — this is what eliminates
-    // sharp 90-degree corners between hallway segments.
     const densified: THREE.Vector3[] = [];
     for (let i = 0; i < points.length; i++) {
         const [x, y, z] = points[i];
@@ -42,12 +41,11 @@ function buildTube(points: [number, number, number][]): THREE.TubeGeometry {
     }
 
     const curve = new THREE.CatmullRomCurve3(densified, false, "catmullrom", CURVE_TENSION);
-    // More tubular segments = smoother curve along the path length
     const tubularSegs = Math.max(60, densified.length * 12);
     return new THREE.TubeGeometry(curve, tubularSegs, TUBE_RADIUS, TUBE_SEGS, false);
 }
 
-// ─── Start marker ─────────────────────────────────────────────────────────────
+/** Renders a circular start marker at the beginning of the path. */
 function StartMarker({ pos }: { pos: [number, number, number] }) {
     const [x, y, z] = pos;
     const flat: [number, number, number] = [-Math.PI / 2, 0, 0];
@@ -58,32 +56,32 @@ function StartMarker({ pos }: { pos: [number, number, number] }) {
                 <meshBasicMaterial color="white" side={THREE.DoubleSide} depthTest={false} depthWrite={false} />
             </mesh>
             <mesh rotation={flat} renderOrder={1001}>
-                <circleGeometry args={[0.10, 32]} />
+                <circleGeometry args={[0.10, 30]} />
                 <meshBasicMaterial color="#1A6BFF" side={THREE.DoubleSide} depthTest={false} depthWrite={false} />
             </mesh>
         </group>
     );
 }
 
-// ─── End dot ──────────────────────────────────────────────────────────────────
+/** Renders a circular end marker at the path destination. */
 function EndDot({ pos }: { pos: [number, number, number] }) {
     const [x, y, z] = pos;
     const flat: [number, number, number] = [-Math.PI / 2, 0, 0];
     return (
         <group position={[x, y + LIFT_Y, z]}>
             <mesh rotation={flat} renderOrder={1000}>
-                <ringGeometry args={[0.10, 0.20, 30]} />
+                <ringGeometry args={[0.14, 0.24, 34]} />
                 <meshBasicMaterial color="white" side={THREE.DoubleSide} depthTest={false} depthWrite={false} />
             </mesh>
             <mesh rotation={flat} renderOrder={1001}>
-                <circleGeometry args={[0.10, 32]} />
-                <meshBasicMaterial color="#008000" side={THREE.DoubleSide} depthTest={false} depthWrite={false} />
+                <circleGeometry args={[0.10, 30]} />
+                <meshBasicMaterial color="#27AE60" side={THREE.DoubleSide} depthTest={false} depthWrite={false} />
             </mesh>
         </group>
     );
 }
 
-// ─── Projector ────────────────────────────────────────────────────────────────
+/** Projects the 3D endpoint to screen space each frame and writes the result to endLabelPosRef. */
 function EndLabelProjector({ endPos }: { endPos: [number, number, number] }) {
     const { camera, size } = useThree();
     const worldPos = useMemo(
@@ -110,18 +108,14 @@ function EndLabelProjector({ endPos }: { endPos: [number, number, number] }) {
     return null;
 }
 
-// ─── Main export ──────────────────────────────────────────────────────────────
+/** Renders the navigation path as a 3D tube with start/end markers and a faded completed section. */
 export default function TestPath({ waypoints, fullWaypoints, completedFraction = 0, isNavigating = false }: Props) {
     const tubeGeo = useMemo(() => buildTube(waypoints), [waypoints]);
 
-    // Faded completed section — only render if we have a full path and some progress
     const completedWaypoints = useMemo(() => {
         if (!fullWaypoints || fullWaypoints.length < 2 || completedFraction <= 0) return null;
-        // The completed section is fullWaypoints minus the remaining waypoints.
-        // We compute it by taking fullWaypoints up to the point where remaining starts.
         if (waypoints.length < 2) return null;
         const userStart = waypoints[0];
-        // Find where the remaining path starts in the full path
         let splitIdx = 0;
         let minDist = Infinity;
         for (let i = 0; i < fullWaypoints.length; i++) {
