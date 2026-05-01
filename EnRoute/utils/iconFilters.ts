@@ -1,5 +1,6 @@
 import type { IconType } from "@/components/IconLayer";
 
+// Maps filter label → array of icon types to show when filter is active
 export const FILTER_MAP: Record<string, IconType[]> = {
   Restrooms: ["restroom"],
   "Study Rooms": ["studyroom"],

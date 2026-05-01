@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { Asset } from "expo-asset";
 import { useTexture } from "@react-three/drei/native";
 
+// Supported icon categories for map visualization.
 export type IconType =
   | "studyroom"
   | "emergency"
@@ -14,6 +15,7 @@ export type IconType =
   | "defib"
   | "bottle";
 
+// Represents a single icon's position and type in 3D space.
 type IconPin = {
   x: number;
   y: number;
@@ -21,6 +23,7 @@ type IconPin = {
   type: IconType;
 };
 
+// Coordinates for map icons on each floor.
 const ICON_DATA: Record<1 | 2 | 3, IconPin[]> = {
   1: [
     { x: -1.5, y: 0.15, z: 0.5, type: "studyroom" },
@@ -143,9 +146,10 @@ const ICON_DATA: Record<1 | 2 | 3, IconPin[]> = {
     { x: -0.27, y: 0.15, z: -4.46, type: "bottle" },
   ],
 
-  3: [],
+  3: [], // For later expansion.
 };
 
+// Preload textures for all icon types.
 const textureSources = {
   studyroom: Asset.fromModule(require("../assets/images/study-room-icon.png")).uri,
   emergency: Asset.fromModule(require("../assets/images/emer-exit-icon.png")).uri,
@@ -158,6 +162,14 @@ const textureSources = {
   bottle: Asset.fromModule(require("../assets/images/bottle-fill-icon.png")).uri,
 };
 
+/**
+ * Renders icon sprites for the selected floor.
+ *
+ * Props:
+ * - activeFloor: Current floor being viewed
+ * - cameraRadius: Distance of camera (can be used for scaling logic if needed)
+ * - allowedTypes: Filter for visible icon categories
+ */
 export default function IconLayer({
   activeFloor,
   cameraRadius,
@@ -167,19 +179,28 @@ export default function IconLayer({
   cameraRadius: number;
   allowedTypes: IconType[];
 }) {
+  // Get icons for the active floor
   const visibleIcons = ICON_DATA[activeFloor];
 
+   /**
+   * Filters icons based on selected categories.
+   * - If no filters are active, only show icons above the floor surface (y >= 0.15)
+   * - If filters are applied, show all matching icons regardless of height
+   */
   const filteredIcons = useMemo(() => {
       if (allowedTypes.length === 0) {
-        // No filter active: only show "above-floor" icons (y >= 0.15)
         return visibleIcons.filter((icon) => icon.y >= 0.15);
       }
-      // Filter active: show matching icons regardless of y
       return visibleIcons.filter((icon) => allowedTypes.includes(icon.type));
     }, [visibleIcons, allowedTypes]);
 
+  /**
+   * Load all textures once and store them in an array.
+   * The order must match the textureSources definition.
+   */
   const texturesArray = useTexture(Object.values(textureSources)) as THREE.Texture[];
 
+  // Map icon types to their corresponding loaded textures.
   const textureLookup: Record<IconType, THREE.Texture> = {
     studyroom: texturesArray[0],
     emergency: texturesArray[1],
@@ -197,12 +218,14 @@ export default function IconLayer({
       {filteredIcons.map((icon, i) => (
         <sprite
           key={i}
+          // Slight vertical offset to prevent z-fighting with the floor.
           position={[icon.x, icon.y + 0.2, icon.z]}
+          // Uniform scaling for all icons.
           scale={[0.27, 0.27, 0.27]}
         >
           <spriteMaterial
-            map={textureLookup[icon.type]}
-            transparent
+            map={textureLookup[icon.type]} // Assign correct texture
+            transparent // Allow for icon transparency
           />
         </sprite>
       ))}

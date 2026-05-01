@@ -179,6 +179,11 @@ export default function HomeScreen() {
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
   const [mapFilterResults, setMapFilterResults] = useState<string[]>([]);
 
+  /**
+   * Maps selected chip filters and search-driven filter results into a unified
+   * list of icon type strings consumed by IconLayer. Deduped with Set to avoid
+   * rendering duplicate icons when a type appears in both sources.
+   */
   const activeTypes = useMemo(() => {
     const fromNearbyChips = selectedFilters.flatMap((filter) =>
         FILTER_MAP?.[filter] ?? []
